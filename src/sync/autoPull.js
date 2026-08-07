@@ -1,34 +1,27 @@
 // @ts-check
 /**
- * sync/autoPull.js — each time the app starts, silently checks the cloud for newer data and
- * reloads if anything differs.
+ * sync/autoPull.js — each time the app starts, silently checks the default bin for newer data and
+ * reloads if anything differs. Peeks via bins.pullBinRaw (which also fetches the payload — JSONBin
+ * has no lightweight "just the timestamp" endpoint) and only applies it to local state if the
+ * bin's updatedAt is actually newer than the last-seen one.
  */
-import { pullFromBin } from "./jsonbin.js";
-import { gunzipFromBase64 } from "./gzip.js";
 import { appState } from "../state/appState.js";
-import { coerceSchema } from "../persistence/schema.js";
-import * as store from "../persistence/store.js";
+import * as bins from "./bins.js";
 
 /**
- * @returns {Promise<{changed: boolean, schema?: any}>}
+ * @returns {Promise<{changed: boolean}>}
  */
 export async function checkAndPullIfNewer() {
-  if (!appState.sync || !appState.sync.masterKey || !appState.sync.binId) return { changed: false };
-  const result = await pullFromBin({ masterKey: appState.sync.masterKey, binId: appState.sync.binId });
-  if (!result.ok) return { changed: false };
-  if (!result.payload) return { changed: false };
+  const defaultBinId = appState.sync && appState.sync.defaultBinId;
+  if (!appState.sync || !appState.sync.masterKey || !defaultBinId) return { changed: false };
 
-  if (appState.sync.lastKnownRemoteUpdatedAt && result.updatedAt && result.updatedAt <= appState.sync.lastKnownRemoteUpdatedAt) {
+  const remote = await bins.pullBinRaw(defaultBinId);
+  if (!remote.ok || !remote.files.length) return { changed: false };
+
+  if (appState.sync.lastKnownRemoteUpdatedAt && remote.updatedAt && remote.updatedAt <= appState.sync.lastKnownRemoteUpdatedAt) {
     return { changed: false };
   }
 
-  try {
-    const json = await gunzipFromBase64(result.payload);
-    const schema = coerceSchema(JSON.parse(json));
-    store.writeSchema(schema);
-    appState.sync = { ...appState.sync, lastPullAt: Date.now(), lastKnownRemoteUpdatedAt: result.updatedAt };
-    return { changed: true, schema };
-  } catch {
-    return { changed: false };
-  }
+  bins.applyBinToLocalState(defaultBinId, remote);
+  return { changed: true };
 }

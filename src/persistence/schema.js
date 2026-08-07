@@ -26,7 +26,8 @@ export function emptySchema() {
     activeQuestion: null,
     sync: {
       masterKey: null,
-      binId: null,
+      defaultBinId: null,
+      knownBins: [],
       lastPushAt: null,
       lastPullAt: null,
       lastKnownRemoteUpdatedAt: null,
@@ -50,11 +51,27 @@ export function coerceSchema(raw) {
   if (!raw || typeof raw !== "object") return base;
   return {
     schemaVersion: SCHEMA_VERSION,
-    files: Array.isArray(raw.files) ? raw.files : base.files,
+    files: Array.isArray(raw.files) ? raw.files.map((f) => ({ binId: null, ...f })) : base.files,
     activeFileId: raw.activeFileId ?? base.activeFileId,
     globalToggles: { ...base.globalToggles, ...(raw.globalToggles || {}) },
     activeQuestion: raw.activeQuestion ?? base.activeQuestion,
-    sync: { ...base.sync, ...(raw.sync || {}) },
+    sync: coerceSync(raw.sync),
     timer: { ...base.timer, ...(raw.timer || {}) },
+  };
+}
+
+/**
+ * Sync-specific coercion: also migrates the pre-multi-bin shape (a single `binId` field) into
+ * `defaultBinId`, so older persisted/pulled schemas keep working unchanged.
+ * @param {any} rawSync
+ */
+function coerceSync(rawSync) {
+  const base = emptySchema().sync;
+  if (!rawSync || typeof rawSync !== "object") return base;
+  return {
+    ...base,
+    ...rawSync,
+    defaultBinId: rawSync.defaultBinId ?? rawSync.binId ?? base.defaultBinId,
+    knownBins: Array.isArray(rawSync.knownBins) ? rawSync.knownBins : base.knownBins,
   };
 }

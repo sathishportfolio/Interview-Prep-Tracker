@@ -38,6 +38,15 @@ body {
 .sync-usage-badge { margin-left: 0.25rem; }
 .sync-usage-badge.badge-green { background: #198754; }
 .sync-usage-badge.badge-red { background: #dc3545; }
+.last-synced-label { font-size: 0.75rem; opacity: 0.8; }
+
+.sync-bin-list { font-size: 0.82rem; margin-bottom: 0.5rem; }
+.sync-bin-row { padding: 0.15rem 0; }
+.sync-inline-row { display: flex; gap: 0.4rem; align-items: center; }
+.sync-file-row { display: flex; gap: 0.4rem; align-items: center; padding: 0.3rem 0; border-top: 1px solid #eee; }
+.sync-file-row:first-of-type { border-top: none; }
+.sync-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; }
+.sync-file-row select { max-width: 160px; }
 
 .bulk-add-root-wrap,
 .bulk-add-mount { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }

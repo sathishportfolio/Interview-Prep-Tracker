@@ -29,6 +29,32 @@ export async function pushToBin({ masterKey, binId, payload }) {
 }
 
 /**
+ * Creates a brand-new bin (JSONBin has no separate "create empty bin" call — a bin is created by
+ * its first PUT-equivalent write, via POST with no id in the URL). Used by the Sync Manager's
+ * "+ New Bin" action.
+ * @param {{masterKey: string, payload: string, label?: string}} config
+ * @returns {Promise<{ok: true, binId: string} | {ok: false, error: string}>}
+ */
+export async function createBin({ masterKey, payload, label }) {
+  try {
+    const headers = { "Content-Type": "application/json", "X-Master-Key": masterKey };
+    if (label) headers["X-Bin-Name"] = label;
+    const res = await fetch(API_BASE, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ data: payload, updatedAt: Date.now() }),
+    });
+    if (!res.ok) return { ok: false, error: `JSONBin create failed: ${res.status}` };
+    const json = await res.json();
+    const binId = json?.metadata?.id;
+    if (!binId) return { ok: false, error: "JSONBin create: no bin id returned" };
+    return { ok: true, binId };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+/**
  * @param {{masterKey: string, binId: string}} config
  * @returns {Promise<{ok: true, payload: string, updatedAt: number|null} | {ok: false, error: string}>}
  */

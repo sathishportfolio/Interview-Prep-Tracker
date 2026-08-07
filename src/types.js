@@ -58,6 +58,9 @@
  * @property {FilterState} filters
  * @property {string|null} lastExportVersion   e.g. "v003"
  * @property {string|null} lastExportDate      e.g. "Aug07" (matches export filename token)
+ * @property {string|null} binId   Sync bin this file lives in. null = the shared/default bin
+ *   (SyncConfig.defaultBinId) — most files stay null; only set when a file has been moved/copied
+ *   to a bin of its own (e.g. to keep it out of a bin that's near the free-tier size cap).
  */
 
 /**
@@ -75,9 +78,23 @@
  */
 
 /**
+ * @typedef {Object} BinInfo
+ * @property {string} id
+ * @property {string} label   User-facing nickname, e.g. "Overflow bin" — the id itself is the
+ *   only thing that matters functionally, this is just so the manager UI is legible.
+ */
+
+/**
+ * Cross-Device Sync config. JSONBin's Master Key is account-wide (works against any bin under
+ * that account), so there's exactly one masterKey but potentially many bins: `defaultBinId` is
+ * where files sync to unless a FileRecord.binId overrides it, and `knownBins` is the registry of
+ * every other bin the user has created/used (for the "move/copy file to a bin" and "fetch all
+ * bins" UI in sync/syncConfig.js's manager). Per-bin sync timestamps are session-scoped bookkeeping
+ * (see sync/autoPush.js) rather than persisted state.
  * @typedef {Object} SyncConfig
  * @property {string|null} masterKey
- * @property {string|null} binId
+ * @property {string|null} defaultBinId
+ * @property {BinInfo[]} knownBins
  * @property {number|null} lastPushAt
  * @property {number|null} lastPullAt
  * @property {number|null} lastKnownRemoteUpdatedAt

@@ -37,6 +37,26 @@ function $(id) {
   return document.getElementById(id);
 }
 
+/** Reflects the last push/pull time next to the Manual Pull button's icon, e.g. "Aug 7, 2026". */
+function updateManualPullBtnTitle() {
+  const btn = $("manualPullBtn");
+  const label = $("lastSyncedLabel");
+  const text = syncConfig.lastSyncedLabel();
+  if (btn) btn.title = `Pull from cloud — Last synced: ${text}`;
+  if (label) label.textContent = text;
+}
+
+/** Shared refresh after anything that changes appState.files/filters from outside the normal edit flow (file switch, load, or a sync pull/move/copy/fetch). */
+function refreshAfterExternalDataChange() {
+  renderFileSwitcher();
+  // refreshView() first: it recomputes appState.grouped/groupedUnfiltered from the new file's
+  // rawData, which filters.syncControlsFromState()'s option lists read from — populating the
+  // dropdowns before this recompute would show stale (usually empty) options.
+  refreshView();
+  filters.syncControlsFromState();
+  updateManualPullBtnTitle();
+}
+
 function init() {
   // --- Bootstrap state from storage ---
   fileManager.bootstrapFromStorage();
@@ -85,14 +105,7 @@ function init() {
 
   // --- File Manager ---
   fileManager.initFileManager({
-    onFilesChanged: () => {
-      renderFileSwitcher();
-      // refreshView() first: it recomputes appState.grouped/groupedUnfiltered from the new file's
-      // rawData, which filters.syncControlsFromState()'s option lists read from — populating the
-      // dropdowns before this recompute would show stale (usually empty) options.
-      refreshView();
-      filters.syncControlsFromState();
-    },
+    onFilesChanged: () => refreshAfterExternalDataChange(),
   });
   renderFileSwitcher();
 
@@ -165,37 +178,37 @@ function init() {
   $("timerResetBtn")?.addEventListener("click", () => timer.resetTimer());
 
   // --- Sync ---
-  $("syncSettingsBtn")?.addEventListener("click", () => {
-    if (!syncConfig.isSyncConfigured()) {
-      syncConfig.runFirstTimeSetup();
-    } else if (confirmAction("Clear sync configuration?")) {
-      syncConfig.clearSyncConfig();
-    }
+  syncConfig.initSyncConfig({
+    onSyncedDataChanged: () => {
+      fileManager.bootstrapFromStorage();
+      refreshAfterExternalDataChange();
+    },
   });
+  $("syncSettingsBtn")?.addEventListener("click", () => syncConfig.openSyncManager());
+  updateManualPullBtnTitle();
   $("manualPullBtn")?.addEventListener("click", async () => {
     const result = await manualPull.manualPull();
     if (result.ok) {
       fileManager.bootstrapFromStorage();
-      renderFileSwitcher();
-      refreshView();
-      filters.syncControlsFromState();
+      refreshAfterExternalDataChange();
     }
   });
-  autoPush.initAutoPush((usage) => {
-    const badge = $("syncUsageBadge");
-    if (!badge) return;
-    badge.hidden = false;
-    badge.textContent = `${usage.percent}%`;
-    badge.classList.toggle("badge-green", !usage.overCap);
-    badge.classList.toggle("badge-red", usage.overCap);
-  });
+  autoPush.initAutoPush(
+    (usage) => {
+      const badge = $("syncUsageBadge");
+      if (!badge) return;
+      badge.hidden = false;
+      badge.textContent = `${usage.percent}%`;
+      badge.classList.toggle("badge-green", !usage.overCap);
+      badge.classList.toggle("badge-red", usage.overCap);
+    },
+    () => updateManualPullBtnTitle()
+  );
   if (syncConfig.isSyncConfigured()) {
     autoPull.checkAndPullIfNewer().then((result) => {
       if (result.changed) {
         fileManager.bootstrapFromStorage();
-        renderFileSwitcher();
-        refreshView();
-        filters.syncControlsFromState();
+        refreshAfterExternalDataChange();
         showToast("Synced newer data from the cloud.", "info");
       }
     });

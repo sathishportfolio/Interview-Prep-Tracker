@@ -75,6 +75,7 @@ export function loadCsvAsNewFile(fileName, csvText) {
     filters: emptyFilterState(),
     lastExportVersion: null,
     lastExportDate: null,
+    binId: null,
   };
   appState.files = [...appState.files, file];
   appState.activeFileId = file.id;
