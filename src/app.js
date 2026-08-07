@@ -167,7 +167,7 @@ function init() {
   // --- Sync ---
   $("syncSettingsBtn")?.addEventListener("click", () => {
     if (!syncConfig.isSyncConfigured()) {
-      if (syncConfig.runFirstTimeSetup()) showToast("Sync configured.", "success");
+      syncConfig.runFirstTimeSetup();
     } else if (confirmAction("Clear sync configuration?")) {
       syncConfig.clearSyncConfig();
     }
