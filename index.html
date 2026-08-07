@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Interview Question Viewer</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header id="appHeader" class="app-header">
+  <div class="header-top">
+    <h1 class="app-title"><i class="fa-solid fa-layer-group"></i> Interview Question Viewer</h1>
+    <div id="headerBreadcrumb" class="header-breadcrumb"></div>
+    <div class="header-timer">
+      <span id="timerDisplay" class="timer-display">00:00:00</span>
+      <button id="timerStartBtn" class="btn btn-sm btn-success" title="Start"><i class="fa-solid fa-play"></i></button>
+      <button id="timerPauseBtn" class="btn btn-sm btn-warning" title="Pause"><i class="fa-solid fa-pause"></i></button>
+      <button id="timerResetBtn" class="btn btn-sm btn-secondary" title="Reset"><i class="fa-solid fa-rotate-left"></i></button>
+    </div>
+  </div>
+</header>
+
+<main class="app-main">
+
+  <section id="toolbarCard" class="toolbar-card card">
+    <div class="toolbar-row">
+      <label class="btn btn-primary btn-sm">
+        <i class="fa-solid fa-file-csv"></i> CSV
+        <input type="file" id="csvFileInput" accept=".csv" hidden>
+      </label>
+      <button id="loadSampleBtn" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-flask"></i> Load Sample</button>
+
+      <select id="fileSwitcher" class="form-select form-select-sm file-switcher"></select>
+
+      <div class="temp-mode-wrap" title="Temp/Test Mode">
+        <label class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" id="tempModeToggle" aria-label="Temp/Test Mode">
+        </label>
+      </div>
+
+      <button id="downloadProgressBtn" class="btn btn-outline-success btn-sm"><i class="fa-solid fa-download"></i> Export</button>
+      <button id="copyProgressCsvBtn" class="btn btn-outline-success btn-sm" title="Copy Progress CSV"><i class="fa-solid fa-copy"></i></button>
+
+      <button id="syncSettingsBtn" class="btn btn-outline-secondary btn-sm" title="Cross-Device Sync"><i class="fa-solid fa-cloud"></i> Sync <span id="syncUsageBadge" class="badge sync-usage-badge" hidden>0%</span></button>
+      <button id="manualPullBtn" class="btn btn-outline-secondary btn-sm" title="Pull from cloud"><i class="fa-solid fa-cloud-arrow-down"></i></button>
+
+      <button id="resetAllBtn" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-trash"></i> Reset All Data</button>
+    </div>
+    <div id="bulkAddRootWrap" class="bulk-add-root-wrap"></div>
+  </section>
+
+  <section id="filterCard" class="filter-card card">
+    <button id="filterCardToggle" class="filter-card-toggle btn btn-sm btn-outline-secondary">
+      <i class="fa-solid fa-filter"></i> Filters
+    </button>
+    <div id="filterCardBody" class="filter-card-body">
+      <div class="filter-row">
+        <div class="filter-field">
+          <label>Subject</label>
+          <div id="subjectFilterMount"></div>
+        </div>
+        <div class="filter-field">
+          <label>Topic</label>
+          <div id="topicFilterMount"></div>
+        </div>
+        <div class="filter-field">
+          <label>SubTopic</label>
+          <div id="subTopicFilterMount"></div>
+        </div>
+        <div class="filter-field">
+          <label>Status</label>
+          <div id="statusFilterMount"></div>
+        </div>
+        <button id="clearFiltersBtn" class="btn btn-sm btn-outline-secondary">Clear Filters</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="bulkSelectionBar" class="select-count-bar" hidden>
+    <span id="bulkSelectionCount"></span>
+    <span>
+      <button id="bulkMoveSelectedBtn" class="btn btn-sm btn-outline-primary">Move Selected</button>
+      <button id="bulkDeleteSelectedBtn" class="btn btn-sm btn-outline-danger">Delete Selected</button>
+      <button id="bulkClearSelectedBtn" class="btn btn-sm btn-outline-secondary">Clear</button>
+    </span>
+  </section>
+
+  <section id="statsRow" class="stats-row">
+    <div id="globalStatsBadges" class="global-stats-badges"></div>
+    <div id="globalActionsGroup" class="global-actions-group"></div>
+  </section>
+
+  <section id="searchCard" class="search-card">
+    <input type="text" id="jumpSearchInput" class="form-control form-control-sm" placeholder="Jump to Question…">
+    <div id="jumpSearchResults" class="jump-search-results" hidden></div>
+  </section>
+
+  <section id="treeRoot" class="tree-root" aria-live="polite"></section>
+  <section id="flatRoot" class="flat-root" hidden></section>
+
+  <div id="noDataMessage" class="no-data-message" hidden>
+    No data loaded yet. Upload a CSV or click "Load Sample" to get started.
+  </div>
+
+</main>
+
+<div id="floatingToggleGroup" class="floating-toggle-group">
+  <button id="floatingMainBtn" class="floating-main-btn btn btn-primary"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+  <div class="floating-toggle-items">
+    <button id="closeAllBtn" class="btn btn-sm btn-light" title="Close All Accordions"><i class="fa-solid fa-compress"></i></button>
+    <button id="undoBtn" class="btn btn-sm btn-light" title="Undo"><i class="fa-solid fa-rotate-left"></i></button>
+    <button id="redoBtn" class="btn btn-sm btn-light" title="Redo"><i class="fa-solid fa-rotate-right"></i></button>
+    <button id="editModeToggleBtn" class="btn btn-sm btn-light" title="Toggle Edit Mode"><i class="fa-solid fa-pencil"></i></button>
+  </div>
+</div>
+
+<div id="modalHost" class="modal-host"></div>
+<div id="toastHost" class="toast-host" aria-live="assertive"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="data.js"></script>
+<script type="module" src="src/app.js"></script>
+</body>
+</html>

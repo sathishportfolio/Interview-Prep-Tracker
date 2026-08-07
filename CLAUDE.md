@@ -1,0 +1,28 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+- `npm test` — runs every `src/**/*.test.js` via `node --test` (no test runner dependency, plain Node).
+- `npm run typecheck` — `tsc --noEmit` against `src/**/*.js` using JSDoc types (see `tsconfig.json`; `checkJs: true`, `allowJs: true`, no build step/bundler).
+- Run a single test file directly: `node --test src/data/group.test.js`.
+- No build/lint script — this is a native-ES-module app served as static files (`index.html` loads `src/app.js` via `<script type="module">`). Open `index.html` directly or serve the directory with any static file server.
+
+## Architecture
+
+Vanilla JS, no framework, no bundler. Everything is wired through plain imports across four layers, each with a strict one-way dependency direction: `data/*` → `persistence/*` → `render/*` → `features/*` → `app.js`. `render/*` never imports `features/*`; it only takes a `handlers` object of callbacks (see `render/treeRenderer.js`).
+
+- **`data/*` — pure functions only.** `data/mutations.js` is the *only* place that mutates `{rawData, emptyGroups}`; every function takes the current pair and returns a new pair (or `{ok:false}`), never touching DOM/persistence/render. `data/group.js` regroups flat `rawData` rows into the `Subject → Topic → SubTopic → Question` tree; `data/filter.js` prunes that tree per `appState.filterState` (grouping and filtering are deliberately separate passes, not fused).
+- **`state/appState.js` — one mutable singleton.** Every render/feature module reads/writes `appState` directly (no reducer/store/event bus). It holds both the persisted-mirror fields (`rawData`, `emptyGroups`, `filterState`, `sync`, `toggles`, `timer`) and purely transient UI state that never reaches localStorage (`openNodeKeys`, `selectedQuestionIds`, `activeQuestion`).
+- **`persistence/store.js` — typed localStorage envelope.** `readSchema`/`writeSchema` + per-field writers (`writeFiles`, `writeSync`, etc.), all funneling through one `StorageSchemaV1` blob (`persistence/schema.js`). Every write emits an `"iqv:persisted"` DOM `CustomEvent` — that event is the explicit hook `sync/autoPush.js` subscribes to, not a monkey-patched `localStorage.setItem`. `setBackend()` lets `persistence/tempMode.js` redirect all writes to an in-memory `Map` for Temp/Test Mode without `store.js` knowing "temp mode" exists as a concept.
+- **`render/*` — keyed diff, not nuke-and-rebuild.** `render/keyedList.js` (`reconcileKeyedList`) is the reconciliation primitive every tree level uses: `render/treeRenderer.js` → `render/nodeViews/subjectView.js` → `topicView.js` → `subTopicView.js` → `questionView.js`, each level keyed (`S::subject`, `subject::T::topic`, ...) so unaffected subtrees are patched in place and open/scroll state survives mutations for free. This directly avoids the prior architecture's "rebuild entire DOM tree from scratch on every render" problem.
+- **`features/refresh.js` — the mandatory mutation pipeline.** `applyDataChange(pair)` is the one function nearly every feature calls after producing a new `{rawData, emptyGroups}`: it updates `appState`, recomputes `grouped`/`groupedUnfiltered`, persists (via `fileManager.persistCurrentProgress`), and repaints (`repaint()` → `renderTree`/`renderFlat` + stats/breadcrumb + `body` class toggles for edit-mode/drag-drop). `undoRedo.js` wraps this single choke point via `setBeforeChangeHook` to snapshot pre-mutation state — every mutation site is covered without each one remembering to push its own undo snapshot.
+- **`features/*` — one file per user-facing capability**, each thin and importing only `data/*`, `render/*` (via `refresh.js`), and `state/appState.js`. `app.js` is deliberately short: it bootstraps state, wires the render engine's `handlers` object (`features/treeHandlers.js`), and attaches every static `index.html` control to its feature module — no business logic lives there.
+- **`sync/*` — optional cross-device sync via JSONBin.io.** `sync/jsonbin.js` is a thin fetch wrapper (PUT/GET a bin); `sync/autoPush.js` debounces and gzips (`sync/gzip.js`) on every `"iqv:persisted"` event; `sync/manualPull.js`/`sync/autoPull.js` handle the read side. Free-tier size cap checking lives in `jsonbin.js` (`usageAgainstFreeTierCap`).
+- **Grouping hierarchy is fixed at Subject → Topic → SubTopic → Question.** Node keys, CSV columns, and filter state all mirror this exact 4-level shape — adding a 5th level means threading it through `data/group.js`, `data/filter.js`, every `render/nodeViews/*`, and the CSV modules in `data/csv/*`.
+- **Bulk CSV panels are shared UI.** `features/bulkPanelUI.js`'s `buildBulkPanel()` builds the toggle+textarea+submit shell reused by `bulkAdd.js`/`bulkUpdate.js`; `features/groupPanels.js` (`mountGroupPanels`) mounts Add/Update/Copy into the `.bulk-add-mount`/`.bulk-add-root-wrap` placeholders reserved by root (`index.html`) and by each `render/nodeViews/*` body — idempotently, so a re-render never clobbers an open, in-progress panel.
+
+## Reference docs
+
+`docs/archived/prompts/` holds spec/prompt material from this codebase's rewrite (feature checklist, prior-implementation gotchas, the rewrite prompt itself) — background only, not load-bearing for day-to-day work; treat `src/*` as the source of truth over anything there.

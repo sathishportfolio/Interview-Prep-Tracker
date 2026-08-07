@@ -1,0 +1,36 @@
+// @ts-check
+/**
+ * features/groupPanels.js — populates the "bulk-add-mount" placeholder each Subject/Topic/SubTopic
+ * body reserves (render/nodeViews/*) with its Bulk Add / Bulk Update / Bulk Copy panels, scoped to
+ * that node. Render creates the empty mount div as an explicit extension slot; this module is the
+ * only thing that fills it, and only does so once per mount (idempotent) so re-renders don't wipe
+ * an open panel's in-progress text.
+ */
+import { createBulkAddPanel } from "./bulkAdd.js";
+import { createBulkUpdatePanel } from "./bulkUpdate.js";
+import { bulkCopyScope } from "./bulkCopy.js";
+
+/**
+ * @param {"subject"|"topic"|"subTopic"|"root"} level
+ * @param {{subject?: string, topic?: string, subTopic?: string}} scope
+ * @param {HTMLElement} mountEl
+ */
+export function mountGroupPanels(level, scope, mountEl) {
+  if (mountEl.childElementCount > 0) return; // idempotent — don't clobber open panels on re-render
+
+  const fixed = {
+    fixedSubject: level === "root" ? null : scope.subject,
+    fixedTopic: level === "subject" || level === "root" ? null : scope.topic,
+    fixedSubTopic: level === "subTopic" ? scope.subTopic : null,
+  };
+
+  mountEl.appendChild(createBulkAddPanel(fixed));
+  mountEl.appendChild(createBulkUpdatePanel(fixed));
+
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.className = "btn btn-sm btn-outline-secondary";
+  copyBtn.textContent = "Bulk Copy (CSV)";
+  copyBtn.addEventListener("click", () => bulkCopyScope(level === "root" ? undefined : scope));
+  mountEl.appendChild(copyBtn);
+}
