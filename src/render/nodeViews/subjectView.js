@@ -7,6 +7,7 @@ import { createAccordionShell } from "../accordion.js";
 import { reconcileKeyedList } from "../keyedList.js";
 import { createTopicNode, patchTopicNode } from "./topicView.js";
 import { appState } from "../../state/appState.js";
+import { groupKey } from "../../data/selectionKeys.js";
 
 /**
  * @param {SubjectGroup} s
@@ -15,7 +16,9 @@ import { appState } from "../../state/appState.js";
  */
 export function createSubjectNode(s, handlers) {
   const key = `S::${s.subject}`;
-  const { item, header, headerControls, body } = createAccordionShell(key, "level-subject");
+  const { item, header, headerControls, body } = createAccordionShell(key, "level-subject", () =>
+    handlers.onGroupAutoExpand("subject", { subject: s.subject })
+  );
   item.dataset.subject = s.subject;
 
   const dragHandle = document.createElement("i");
@@ -48,9 +51,9 @@ export function createSubjectNode(s, handlers) {
     e.stopPropagation();
     handlers.onDeleteGroup("subject", { subject: s.subject });
   }, true));
-  headerControls.appendChild(iconBtn("fa-square-check", "Select mode", (e) => {
+  headerControls.appendChild(iconBtn("fa-square-check", "Select Topics", (e) => {
     e.stopPropagation();
-    handlers.onToggleSubjectSelectMode();
+    handlers.onToggleChildSelectMode("subject", { subject: s.subject });
   }, true));
 
   const bulkAddMount = document.createElement("div");
@@ -97,6 +100,10 @@ export function patchSubjectNode(el, s, handlers) {
     header.classList.toggle("expanded", appState.openNodeKeys.has(key));
     body.classList.toggle("open", appState.openNodeKeys.has(key));
   }
+  el.classList.toggle("child-select-on", appState.childSelectModeKeys.has(groupKey("subject", { subject: s.subject })));
+
+  const selectBox = /** @type {HTMLInputElement|null} */ (el.querySelector(":scope > .acc-header > .group-select-checkbox"));
+  if (selectBox) selectBox.checked = appState.selectedGroupKeys.has(groupKey("subject", { subject: s.subject }));
 
   const bulkAddMount = el.querySelector(".bulk-add-mount");
   if (bulkAddMount && handlers.onMountGroupPanels) {

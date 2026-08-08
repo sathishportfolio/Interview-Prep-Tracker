@@ -42,7 +42,7 @@ export function renderStatsBadges(stats, handlers) {
 }
 
 /**
- * @param {{flatGroupView: boolean, dragDropOn: boolean}} toggles
+ * @param {{flatGroupView: boolean, dragDropOn: boolean, autoExpandChildrenOn?: boolean}} toggles
  * @param {Record<string, any>} handlers
  */
 export function renderGlobalActions(toggles, handlers) {
@@ -66,6 +66,15 @@ export function renderGlobalActions(toggles, handlers) {
   dragBtn.classList.toggle("active", toggles.dragDropOn);
   dragBtn.addEventListener("click", () => handlers.onToggleDragDrop());
   actionsEl.appendChild(dragBtn);
+
+  const autoExpandBtn = document.createElement("button");
+  autoExpandBtn.type = "button";
+  autoExpandBtn.className = "btn btn-sm btn-outline-secondary edit-gated";
+  autoExpandBtn.title = "Toggle Auto-Expand Children (opening a Subject/Topic also opens its first Topic/SubTopic)";
+  autoExpandBtn.innerHTML = '<i class="fa-solid fa-angles-down"></i>';
+  autoExpandBtn.classList.toggle("active", !!toggles.autoExpandChildrenOn);
+  autoExpandBtn.addEventListener("click", () => handlers.onToggleAutoExpand());
+  actionsEl.appendChild(autoExpandBtn);
 
   const copyBtn = document.createElement("div");
   copyBtn.className = "btn-group edit-gated";

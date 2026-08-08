@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  addQuestion, deleteQuestion, deleteGroup, renameGroup, moveQuestions,
+  addQuestion, deleteQuestion, deleteGroup, deleteGroupCascade, renameGroup, moveQuestions, moveGroup,
   bulkAddRows, bulkUpdateRows, questionExists,
 } from "./mutations.js";
 
@@ -58,6 +58,93 @@ test("moveQuestions relocates and marks source empty / consumes destination mark
   assert.equal(result.rawData[0].subject, "S2");
   assert.equal(result.emptyGroups.some((e) => e.subTopic === "ST1"), true); // source marked empty
   assert.equal(result.emptyGroups.some((e) => e.subTopic === "ST2"), false); // destination marker consumed
+});
+
+test("moveGroup(subTopic) merges into an identically-named SubTopic at the destination Topic", () => {
+  let data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
+  data = addQuestion(data, { subject: "S1", topic: "T2", subTopic: "ST1", question: "Q2" });
+  const result = moveGroup(data, "subTopic", { subject: "S1", topic: "T1", subTopic: "ST1" }, { subject: "S1", topic: "T2" });
+  const moved = result.rawData.find((q) => q.question === "Q1");
+  assert.equal(moved.topic, "T2");
+  assert.equal(moved.subTopic, "ST1"); // name preserved, merged with Q2's existing ST1
+  // A whole-SubTopic move leaves nothing behind at the source — unlike a single-question move,
+  // which intentionally leaves an "(empty)" placeholder so the vacated SubTopic stays visible.
+  assert.equal(result.emptyGroups.some((e) => e.topic === "T1"), false);
+});
+
+test("moveGroup(subTopic) creates a new SubTopic when none matches at the destination Topic", () => {
+  let data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
+  data = addQuestion(data, { subject: "S1", topic: "T2", subTopic: "Other", question: "Q2" });
+  const result = moveGroup(data, "subTopic", { subject: "S1", topic: "T1", subTopic: "ST1" }, { subject: "S1", topic: "T2" });
+  const moved = result.rawData.find((q) => q.question === "Q1");
+  assert.equal(moved.topic, "T2");
+  assert.equal(moved.subTopic, "ST1");
+});
+
+test("moveGroup(subTopic) transfers an empty placeholder SubTopic (no questions) to the destination", () => {
+  const data = { rawData: [], emptyGroups: [{ subject: "S1", topic: "T1", subTopic: "ST1", createdOrder: 0 }] };
+  const result = moveGroup(data, "subTopic", { subject: "S1", topic: "T1", subTopic: "ST1" }, { subject: "S1", topic: "T2" });
+  assert.equal(result.emptyGroups.some((e) => e.subject === "S1" && e.topic === "T1"), false);
+  assert.equal(result.emptyGroups.some((e) => e.subject === "S1" && e.topic === "T2" && e.subTopic === "ST1"), true);
+});
+
+test("moveGroup(subTopic) dropped onto its own current parent Topic is a no-op", () => {
+  const data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
+  const result = moveGroup(data, "subTopic", { subject: "S1", topic: "T1", subTopic: "ST1" }, { subject: "S1", topic: "T1" });
+  assert.deepEqual(result, data);
+});
+
+test("moveGroup(topic) moves every child SubTopic and question to the new Subject, merging by name", () => {
+  let data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
+  data = addQuestion(data, { subject: "S1", topic: "T1", subTopic: "ST2", question: "Q2" });
+  data = addQuestion(data, { subject: "S2", topic: "T1", subTopic: "ST1", question: "Q3" }); // pre-existing match at destination
+  const result = moveGroup(data, "topic", { subject: "S1", topic: "T1" }, { subject: "S2" });
+  const q1 = result.rawData.find((q) => q.question === "Q1");
+  const q2 = result.rawData.find((q) => q.question === "Q2");
+  assert.equal(q1.subject, "S2");
+  assert.equal(q1.subTopic, "ST1"); // merged into Q3's existing S2::T1::ST1
+  assert.equal(q2.subject, "S2");
+  assert.equal(q2.subTopic, "ST2"); // no match at destination -> created
+  assert.equal(result.rawData.some((q) => q.subject === "S1"), false); // source Subject fully vacated
+  assert.equal(result.emptyGroups.some((e) => e.subject === "S1"), false); // no leftover "(empty)" ghost either
+});
+
+test("moveGroup(topic) dropped onto its own current parent Subject is a no-op", () => {
+  const data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
+  const result = moveGroup(data, "topic", { subject: "S1", topic: "T1" }, { subject: "S1" });
+  assert.deepEqual(result, data);
+});
+
+test("moveGroup(subject) merges every child Topic/SubTopic/question into the destination Subject", () => {
+  let data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
+  data = addQuestion(data, { subject: "S1", topic: "T2", subTopic: "STx", question: "Q2" });
+  data = addQuestion(data, { subject: "S2", topic: "T1", subTopic: "ST1", question: "Q3" }); // pre-existing match
+  const result = moveGroup(data, "subject", { subject: "S1" }, { subject: "S2" });
+  const q1 = result.rawData.find((q) => q.question === "Q1");
+  const q2 = result.rawData.find((q) => q.question === "Q2");
+  assert.equal(q1.subject, "S2");
+  assert.equal(q1.topic, "T1");
+  assert.equal(q1.subTopic, "ST1"); // merged into Q3's existing S2::T1::ST1
+  assert.equal(q2.subject, "S2");
+  assert.equal(q2.topic, "T2"); // no match at destination -> created
+  assert.equal(result.rawData.some((q) => q.subject === "S1"), false);
+  assert.equal(result.emptyGroups.some((e) => e.subject === "S1"), false);
+});
+
+test("moveGroup(subject) into itself is a no-op", () => {
+  const data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
+  const result = moveGroup(data, "subject", { subject: "S1" }, { subject: "S1" });
+  assert.deepEqual(result, data);
+});
+
+test("deleteGroupCascade removes a non-empty Topic and every question/placeholder nested under it", () => {
+  let data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
+  data = addQuestion(data, { subject: "S1", topic: "T2", subTopic: "STx", question: "Q2" }); // sibling, untouched
+  data = { rawData: data.rawData, emptyGroups: [{ subject: "S1", topic: "T1", subTopic: "ST2", createdOrder: 0 }, ...data.emptyGroups] };
+  const result = deleteGroupCascade(data, "topic", { subject: "S1", topic: "T1" });
+  assert.equal(result.rawData.some((q) => q.topic === "T1"), false);
+  assert.equal(result.rawData.some((q) => q.topic === "T2"), true); // sibling untouched
+  assert.equal(result.emptyGroups.some((e) => e.topic === "T1"), false);
 });
 
 test("bulkAddRows skips case-insensitive duplicates and invalid rows, reports counts", () => {

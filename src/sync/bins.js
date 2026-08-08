@@ -6,8 +6,8 @@
  * getting full, or just because the user prefers isolating it. This module is the only place that
  * knows how to read/write a *bin's* contents (a small subset schema: just the files that live
  * there, plus the app-level singletons — globalToggles/activeQuestion/timer — carried only by the
- * default bin); autoPush.js/manualPull.js/syncConfig.js all go through it rather than talking to
- * jsonbin.js directly.
+ * default bin); manualPush.js/manualPull.js/autoPush.js/syncConfig.js all go through it rather than
+ * talking to jsonbin.js directly.
  *
  * Every write here is pull-merge-push, never a blind overwrite: a bin may hold files from other
  * devices this device hasn't loaded locally, and PUT replaces a bin's entire content, so clobbering
@@ -19,7 +19,7 @@
 import { appState } from "../state/appState.js";
 import * as store from "../persistence/store.js";
 import { gzipToBase64, gunzipFromBase64 } from "./gzip.js";
-import { pushToBin, pullFromBin, createBin as createBinRemote } from "./jsonbin.js";
+import { pushToBin, pullFromBin, createBin as createBinRemote, usageAgainstFreeTierCap } from "./jsonbin.js";
 
 /** @param {FileRecord} file @returns {string|null} The bin this file actually lives in. */
 export function resolveBinId(file) {
@@ -69,9 +69,24 @@ function serializeBinPayload(files, includeAppMeta) {
 }
 
 /**
- * Fetches a bin's raw contents without touching local state — the read half of pull, exposed so
- * autoPull.js can peek at `updatedAt` before deciding whether a full local-state merge is worth
- * doing (see applyBinToLocalState).
+ * Gzipped size of the default bin's local files against the free-tier cap, computed from local
+ * state alone (no network call) — matches what a push would actually send (see serializeBinPayload)
+ * so the usage badge reflects reality even before anything's been pushed this session.
+ * @returns {Promise<{percent: number, overCap: boolean}>}
+ */
+export async function computeDefaultBinUsage() {
+  const defaultBinId = appState.sync.defaultBinId;
+  if (!defaultBinId) return { percent: 0, overCap: false };
+  const files = groupLocalFilesByBin().get(defaultBinId) || [];
+  const compressed = await gzipToBase64(serializeBinPayload(files, true));
+  return usageAgainstFreeTierCap(compressed.length);
+}
+
+/**
+ * Fetches a bin's raw contents without touching local state — the read half of pull. Used
+ * internally by pushBin (to merge in files from other devices before writing back) and exposed for
+ * anything else that needs to peek at a bin's `updatedAt`/files without applying it to local state
+ * (see applyBinToLocalState for the part that does).
  * @param {string} binId
  * @returns {Promise<{ok: boolean, files: FileRecord[], globalToggles?: any, activeQuestion?: any, timer?: any, updatedAt: number|null, error?: string}>}
  */
@@ -122,7 +137,10 @@ export async function pushBin(binId, options = {}) {
   const json = serializeBinPayload([...merged.values()], includeAppMeta);
   const compressed = await gzipToBase64(json);
   const result = await pushToBin({ masterKey, binId, payload: compressed });
-  if (result.ok) appState.sync = { ...appState.sync, lastPushAt: Date.now() };
+  if (result.ok) {
+    appState.sync = { ...appState.sync, lastPushAt: Date.now(), lastKnownRemoteUpdatedAt: Date.now() };
+    store.writeSync(appState.sync);
+  }
   return result;
 }
 
@@ -143,8 +161,8 @@ export async function pushAllLocalBins() {
 /**
  * Applies an already-fetched bin payload (from pullBinRaw) to local state: files from this bin
  * upserted by id, app-level meta applied only if this is the default bin. Split out from
- * pullBinIntoLocalState so autoPull.js can peek at `updatedAt` (via pullBinRaw) and skip this
- * merge/persist entirely when nothing's actually newer.
+ * pullBinIntoLocalState as its own step so callers that already have a fetched payload (e.g.
+ * fetchAllBins) can apply it without a redundant re-fetch.
  * @param {string} binId
  * @param {{files: FileRecord[], globalToggles?: any, activeQuestion?: any, timer?: any, updatedAt: number|null}} remote
  */

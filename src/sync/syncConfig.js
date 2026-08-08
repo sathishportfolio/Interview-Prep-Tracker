@@ -30,15 +30,27 @@ export function isSyncConfigured() {
 }
 
 /**
- * Human-readable "last synced" label for the Manual Pull button, e.g. "Aug 7, 2026". Takes the
- * more recent of the last push/pull timestamps (both session-scoped bookkeeping, not persisted —
- * see autoPush.js) so it reflects sync activity from either direction, across any bin.
+ * Human-readable "last synced" label for the Manual Pull button, e.g. "5 min ago" — reflects when
+ * the jsonbin's content itself was last updated (`lastKnownRemoteUpdatedAt`), not merely when this
+ * device last talked to it: a push sets it to now (this device just wrote that value to the bin), a
+ * pull sets it to the bin's own `updatedAt` (which may be older, or newer if another device pushed
+ * first) — so after pulling in a change from another device, the label reports when that change
+ * actually landed in the bin, not when this device happened to fetch it.
  * @returns {string}
  */
 export function lastSyncedLabel() {
-  const ts = Math.max(appState.sync?.lastPushAt || 0, appState.sync?.lastPullAt || 0);
+  const ts = appState.sync?.lastKnownRemoteUpdatedAt || 0;
   if (!ts) return "Never synced";
-  return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const seconds = Math.floor((Date.now() - ts) / 1000);
+  if (seconds < 60) return "Just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} day${days !== 1 ? "s" : ""} ago`;
+  const months = Math.floor(days / 30);
+  return `${months} month${months !== 1 ? "s" : ""} ago`;
 }
 
 /** Loads sync config into appState (called at bootstrap). */
@@ -72,25 +84,43 @@ function renderInto(wrap) {
 function buildSetupForm(wrap) {
   const section = document.createElement("div");
 
+  const intro = document.createElement("p");
+  intro.className = "small text-muted";
+  intro.style.marginBottom = "0.6rem";
+  intro.textContent =
+    "Sync stores your data in a free, private online database (JSONBin.io) so you can pick up your progress on any device. Nobody else can see it without your Master Key.";
+  section.appendChild(intro);
+
+  const stepsBox = document.createElement("div");
+  stepsBox.className = "sync-setup-steps";
+  const step1 = document.createElement("div");
+  step1.innerHTML = "<strong>1.</strong> Create a free JSONBin.io account, then copy your Master Key and a Bin ID from its dashboard.";
   const helpLink = document.createElement("a");
   helpLink.href = "https://jsonbin.io";
   helpLink.target = "_blank";
   helpLink.rel = "noopener noreferrer";
-  helpLink.textContent = "Open JSONBin.io to get a Master Key + create a Bin ↗";
-  helpLink.style.display = "block";
-  helpLink.style.marginBottom = "0.6rem";
+  helpLink.className = "btn btn-sm btn-outline-primary";
+  helpLink.style.margin = "0.4rem 0 0.8rem";
+  helpLink.textContent = "Open JSONBin.io ↗";
+  const step2 = document.createElement("div");
+  step2.innerHTML = "<strong>2.</strong> Paste them below to connect this device.";
+  step2.style.marginBottom = "0.5rem";
+  stepsBox.append(step1, helpLink, step2);
+  section.appendChild(stepsBox);
 
   const keyLabel = mkLabel("Master Key");
   const keyInput = mkInput(appState.sync?.masterKey || "");
+  const keyHelp = mkHelpText("Your private password for JSONBin.io — keep it secret, use the same one on every device you sync.");
 
   const binLabel = mkLabel("Default Bin ID");
   const binInput = mkInput(appState.sync?.defaultBinId || "");
+  const binHelp = mkHelpText("Where your data lives, like a folder. Create a new one on JSONBin.io, or paste an existing Bin ID here to load its data.");
 
   const saveBtn = document.createElement("button");
   saveBtn.type = "button";
   saveBtn.className = "btn btn-sm btn-primary";
-  saveBtn.textContent = "Save";
-  saveBtn.style.marginTop = "0.5rem";
+  saveBtn.textContent = "Connect";
+  saveBtn.style.marginTop = "0.3rem";
   saveBtn.addEventListener("click", () => {
     const masterKey = keyInput.value.trim();
     const defaultBinId = binInput.value.trim();
@@ -105,7 +135,7 @@ function buildSetupForm(wrap) {
     renderInto(wrap);
   });
 
-  section.append(helpLink, keyLabel, keyInput, binLabel, binInput, saveBtn);
+  section.append(keyLabel, keyInput, keyHelp, binLabel, binInput, binHelp, saveBtn);
   return section;
 }
 
@@ -115,16 +145,20 @@ function buildConfiguredView(wrap) {
 
   const summary = document.createElement("div");
   summary.className = "small text-muted";
-  summary.style.marginBottom = "0.6rem";
-  summary.textContent = `Default bin: ${appState.sync.defaultBinId}`;
+  summary.style.marginBottom = "0.8rem";
+  summary.innerHTML = `Connected. Your data is stored in bin <code>${appState.sync.defaultBinId}</code> — use the same Master Key and Bin ID on another device to see the same data there.`;
   section.appendChild(summary);
 
   // --- Known bins + create new ---
   const binsHeading = document.createElement("div");
   binsHeading.style.fontWeight = "600";
-  binsHeading.style.marginBottom = "0.3rem";
-  binsHeading.textContent = "Bins";
+  binsHeading.style.marginBottom = "0.15rem";
+  binsHeading.textContent = "Bins (storage folders)";
   section.appendChild(binsHeading);
+
+  const binsBlurb = mkHelpText("Most people only need the default bin below. Add another one only if you want to split some questions into separate storage.");
+  binsBlurb.style.marginTop = "0";
+  section.appendChild(binsBlurb);
 
   const binList = document.createElement("div");
   binList.className = "sync-bin-list";
@@ -159,6 +193,9 @@ function buildConfiguredView(wrap) {
   });
   newBinRow.append(newBinLabelInput, newBinBtn);
   section.appendChild(newBinRow);
+  const newBinHelp = mkHelpText("Creates a new, empty bin you can move or copy files into below.");
+  newBinHelp.style.marginTop = "0.2rem";
+  section.appendChild(newBinHelp);
 
   const registerBinRow = document.createElement("div");
   registerBinRow.className = "sync-inline-row";
@@ -180,11 +217,14 @@ function buildConfiguredView(wrap) {
   });
   registerBinRow.append(registerIdInput, registerBtn);
   section.appendChild(registerBinRow);
+  const registerHelp = mkHelpText("Already have a Bin ID from another device or a teammate? Add it here to manage it too.");
+  registerHelp.style.marginTop = "0.2rem";
+  section.appendChild(registerHelp);
 
   const fetchAllBtn = document.createElement("button");
   fetchAllBtn.type = "button";
   fetchAllBtn.className = "btn btn-sm btn-outline-secondary";
-  fetchAllBtn.style.marginTop = "0.5rem";
+  fetchAllBtn.style.marginTop = "0.4rem";
   fetchAllBtn.textContent = "Fetch All Bins";
   fetchAllBtn.title = "Pull every known bin and merge its files into this device";
   fetchAllBtn.addEventListener("click", async () => {
@@ -196,13 +236,22 @@ function buildConfiguredView(wrap) {
     renderInto(wrap);
   });
   section.appendChild(fetchAllBtn);
+  const fetchAllHelp = mkHelpText("Pulls the latest data from every bin listed above into this device.");
+  fetchAllHelp.style.marginTop = "0.2rem";
+  section.appendChild(fetchAllHelp);
 
   // --- Per-file bin assignment ---
   const filesHeading = document.createElement("div");
   filesHeading.style.fontWeight = "600";
-  filesHeading.style.margin = "0.8rem 0 0.3rem";
+  filesHeading.style.margin = "0.8rem 0 0.15rem";
   filesHeading.textContent = "Files";
   section.appendChild(filesHeading);
+
+  if (appState.files.length > 1 || bins.listBins().length > 1) {
+    const filesBlurb = mkHelpText("Move sends a file to a different bin. Copy duplicates it into another bin too, keeping the original where it is.");
+    filesBlurb.style.marginTop = "0";
+    section.appendChild(filesBlurb);
+  }
 
   const availableBins = bins.listBins();
   for (const file of appState.files) {
@@ -214,9 +263,9 @@ function buildConfiguredView(wrap) {
   clearBtn.type = "button";
   clearBtn.className = "btn btn-sm btn-outline-danger";
   clearBtn.style.marginTop = "0.8rem";
-  clearBtn.textContent = "Clear sync configuration";
+  clearBtn.textContent = "Disconnect this device";
   clearBtn.addEventListener("click", () => {
-    if (!confirmAction("Clear sync configuration? Bin IDs and the Master Key will be forgotten on this device (the bins themselves are untouched).")) return;
+    if (!confirmAction("Disconnect this device from cloud sync? Your Master Key and Bin ID will be forgotten here only — your data in the cloud is untouched, and you can reconnect any time with the same Master Key and Bin ID.")) return;
     clearSyncConfig();
     if (onSyncedDataChanged) onSyncedDataChanged();
     renderInto(wrap);
@@ -304,4 +353,14 @@ function mkInput(value) {
   input.style.marginBottom = "0.5rem";
   input.value = value;
   return input;
+}
+
+/** @param {string} text Plain-language explanation shown under a field, e.g. what a Bin ID is for. */
+function mkHelpText(text) {
+  const help = document.createElement("div");
+  help.className = "form-text";
+  help.style.marginTop = "-0.3rem";
+  help.style.marginBottom = "0.6rem";
+  help.textContent = text;
+  return help;
 }

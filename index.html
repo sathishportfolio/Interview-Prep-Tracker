@@ -28,7 +28,7 @@
   <section id="toolbarCard" class="toolbar-card card">
     <div class="toolbar-row">
       <label class="btn btn-primary btn-sm">
-        <i class="fa-solid fa-file-csv"></i> CSV
+        <i class="fa-solid fa-file-csv"></i> Upload CSV
         <input type="file" id="csvFileInput" accept=".csv" hidden>
       </label>
       <button id="loadSampleBtn" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-flask"></i> Load Sample</button>
@@ -41,15 +41,43 @@
         </label>
       </div>
 
-      <button id="downloadProgressBtn" class="btn btn-outline-success btn-sm"><i class="fa-solid fa-download"></i> Export</button>
-      <button id="copyProgressCsvBtn" class="btn btn-outline-success btn-sm" title="Copy Progress CSV"><i class="fa-solid fa-copy"></i></button>
+      <div class="export-btn-wrap">
+        <button id="exportMenuBtn" class="btn btn-outline-success btn-sm" aria-haspopup="true" aria-expanded="false"><i class="fa-solid fa-file-export"></i> Export</button>
+        <div id="exportMenuPanel" class="export-menu-panel" hidden>
+          <button id="downloadProgressBtn" type="button" class="btn btn-sm btn-outline-secondary export-menu-item"><i class="fa-solid fa-download"></i> Download as CSV</button>
+          <button id="copyProgressCsvBtn" type="button" class="btn btn-sm btn-outline-secondary export-menu-item"><i class="fa-solid fa-copy"></i> Copy as CSV</button>
+        </div>
+      </div>
 
-      <button id="syncSettingsBtn" class="btn btn-outline-secondary btn-sm" title="Cross-Device Sync"><i class="fa-solid fa-cloud"></i> Sync <span id="syncUsageBadge" class="badge sync-usage-badge" hidden>0%</span></button>
-      <button id="manualPullBtn" class="btn btn-outline-secondary btn-sm" title="Pull from cloud"><i class="fa-solid fa-cloud-arrow-down"></i> <span id="lastSyncedLabel" class="last-synced-label"></span></button>
+      <div class="sync-menu-wrap">
+        <button id="syncMenuBtn" class="btn btn-outline-secondary btn-sm" title="Cloud Sync" aria-haspopup="true" aria-expanded="false">
+          <i class="fa-solid fa-cloud"></i> Sync <span id="syncMenuStatusDot" class="sync-status-dot" hidden aria-hidden="true"></span>
+        </button>
+        <div id="syncMenuPanel" class="sync-menu-panel" hidden>
+          <div id="syncMenuSetupPrompt" class="sync-menu-setup">
+            <p class="sync-menu-blurb">Sync your questions and progress across devices — edit on one, pick up on another.</p>
+            <button id="syncMenuSetupBtn" type="button" class="btn btn-sm btn-primary">Set Up Cloud Sync</button>
+          </div>
+          <div id="syncMenuConnected" class="sync-menu-connected" hidden>
+            <div class="sync-menu-status">
+              <span id="lastSyncedLabel" class="last-synced-label"></span>
+            </div>
+            <div class="sync-menu-actions">
+              <button id="manualPushBtn" type="button" class="btn btn-sm btn-outline-primary" title="Send your local changes to the cloud"><i class="fa-solid fa-cloud-arrow-up"></i> Push</button>
+              <button id="manualPullBtn" type="button" class="btn btn-sm btn-outline-primary" title="Get the latest changes from the cloud"><i class="fa-solid fa-cloud-arrow-down"></i> Pull</button>
+            </div>
+            <div class="sync-menu-usage-row" title="How much of your free cloud storage this device's data is using">
+              <div class="progress sync-usage-progress" role="progressbar" aria-label="Cloud storage used" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                <div id="syncUsageFill" class="progress-bar bg-success" style="width: 0%">0%</div>
+              </div>
+            </div>
+            <button id="syncSettingsBtn" type="button" class="btn btn-sm btn-link sync-menu-manage">Manage cloud sync →</button>
+          </div>
+        </div>
+      </div>
 
       <button id="resetAllBtn" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-trash"></i> Reset All Data</button>
     </div>
-    <div id="bulkAddRootWrap" class="bulk-add-root-wrap"></div>
   </section>
 
   <section id="filterCard" class="filter-card card">
@@ -79,15 +107,6 @@
     </div>
   </section>
 
-  <section id="bulkSelectionBar" class="select-count-bar" hidden>
-    <span id="bulkSelectionCount"></span>
-    <span>
-      <button id="bulkMoveSelectedBtn" class="btn btn-sm btn-outline-primary">Move Selected</button>
-      <button id="bulkDeleteSelectedBtn" class="btn btn-sm btn-outline-danger">Delete Selected</button>
-      <button id="bulkClearSelectedBtn" class="btn btn-sm btn-outline-secondary">Clear</button>
-    </span>
-  </section>
-
   <section id="statsRow" class="stats-row">
     <div id="globalStatsBadges" class="global-stats-badges"></div>
     <div id="globalActionsGroup" class="global-actions-group"></div>
@@ -96,6 +115,18 @@
   <section id="searchCard" class="search-card">
     <input type="text" id="jumpSearchInput" class="form-control form-control-sm" placeholder="Jump to Question…">
     <div id="jumpSearchResults" class="jump-search-results" hidden></div>
+  </section>
+
+  <div id="bulkAddRootWrap" class="bulk-add-root-wrap edit-gated"></div>
+
+  <section id="bulkSelectionBar" class="select-count-bar" hidden>
+    <span id="bulkSelectionCount"></span>
+    <span>
+      <button id="bulkSelectAllBtn" class="btn btn-sm btn-outline-secondary" title="Select everything in the currently active group(s)">Select All</button>
+      <button id="bulkMoveSelectedBtn" class="btn btn-sm btn-primary">Move Selected</button>
+      <button id="bulkDeleteSelectedBtn" class="btn btn-sm btn-danger">Delete Selected</button>
+      <button id="bulkClearSelectedBtn" class="btn btn-sm btn-light">Clear</button>
+    </span>
   </section>
 
   <section id="treeRoot" class="tree-root" aria-live="polite"></section>

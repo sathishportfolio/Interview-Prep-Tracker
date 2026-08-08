@@ -1,10 +1,11 @@
 // @ts-check
 /**
  * persistence/store.js — typed read/write of the single StorageSchemaV1 envelope. Emits an
- * "iqv:persisted" DOM CustomEvent on every successful write (the sync layer's hook — see
- * sync/autoPush.js). The actual storage backend is pluggable (see setBackend) so tempMode.js can
- * redirect writes to an in-memory Map without this module needing to know about "temp mode" as a
- * concept itself.
+ * "iqv:persisted" DOM CustomEvent on every successful write — the explicit hook `sync/autoPush.js`
+ * subscribes to (not a monkey-patched `localStorage.setItem`), not to push on every edit, but as
+ * the dirty-tracking signal for its 1-minute-unpushed backstop and close-tab warning. The actual
+ * storage backend is pluggable (see setBackend) so tempMode.js can redirect writes to an in-memory
+ * Map without this module needing to know about "temp mode" as a concept itself.
  * @typedef {import('../types.js').StorageSchemaV1} StorageSchemaV1
  * @typedef {import('../types.js').FileRecord} FileRecord
  * @typedef {import('../types.js').GlobalToggles} GlobalToggles

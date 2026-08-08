@@ -69,6 +69,8 @@
  * @property {boolean} dragDropOn     default true
  * @property {boolean} editModeOn
  * @property {boolean} tempMode
+ * @property {boolean} autoExpandChildrenOn default false — opening a Subject/Topic also opens its
+ *   first Topic/SubTopic in the same click (see features/autoExpand.js); never cascades to Questions.
  */
 
 /**
@@ -89,8 +91,9 @@
  * that account), so there's exactly one masterKey but potentially many bins: `defaultBinId` is
  * where files sync to unless a FileRecord.binId overrides it, and `knownBins` is the registry of
  * every other bin the user has created/used (for the "move/copy file to a bin" and "fetch all
- * bins" UI in sync/syncConfig.js's manager). Per-bin sync timestamps are session-scoped bookkeeping
- * (see sync/autoPush.js) rather than persisted state.
+ * bins" UI in sync/syncConfig.js's manager). Sync timestamps (`lastPushAt`/`lastPullAt`/
+ * `lastKnownRemoteUpdatedAt`) are set by sync/bins.js on manual push/pull (see sync/manualPush.js,
+ * sync/manualPull.js) and persisted like the rest of this config.
  * @typedef {Object} SyncConfig
  * @property {string|null} masterKey
  * @property {string|null} defaultBinId

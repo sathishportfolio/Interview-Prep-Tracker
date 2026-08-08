@@ -176,9 +176,12 @@ export function createQuestionNode(q, handlers) {
   const deleteBtn = mkBtn("fa-trash icon-duplicate", "Delete question", () => handlers.onDeleteQuestion(q.id));
   [moveBtn, upBtn, downBtn, topBtn, bottomBtn, deleteBtn].forEach((b) => statusControls.appendChild(b));
 
+  // statusControls nests INSIDE answerEditRow (not a separate body child) so both button groups
+  // share one row — edit-gated hiding still applies to just the statusControls buttons.
+  answerEditRow.appendChild(statusControls);
+
   body.appendChild(answerContent);
   body.appendChild(answerEditRow);
-  body.appendChild(statusControls);
 
   item.appendChild(header);
   item.appendChild(body);

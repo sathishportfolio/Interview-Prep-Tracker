@@ -9,6 +9,8 @@
 import { createBulkAddPanel } from "./bulkAdd.js";
 import { createBulkUpdatePanel } from "./bulkUpdate.js";
 import { bulkCopyScope } from "./bulkCopy.js";
+import * as bulkSelection from "./bulkSelection.js";
+import { mountBulkSelectMenu } from "./bulkSelectMenu.js";
 
 /**
  * @param {"subject"|"topic"|"subTopic"|"root"} level
@@ -33,4 +35,17 @@ export function mountGroupPanels(level, scope, mountEl) {
   copyBtn.textContent = "Bulk Copy (CSV)";
   copyBtn.addEventListener("click", () => bulkCopyScope(level === "root" ? undefined : scope));
   mountEl.appendChild(copyBtn);
+
+  if (level === "root") {
+    mountBulkSelectMenu(mountEl);
+  } else {
+    const selectAllBtn = document.createElement("button");
+    selectAllBtn.type = "button";
+    selectAllBtn.className = "btn btn-sm btn-outline-secondary";
+    selectAllBtn.textContent = "Select All";
+    selectAllBtn.title =
+      level === "subject" ? "Select every Topic in this Subject" : level === "topic" ? "Select every SubTopic in this Topic" : "Select every Question in this SubTopic";
+    selectAllBtn.addEventListener("click", () => bulkSelection.selectAllChildren(level, /** @type {{subject: string, topic?: string, subTopic?: string}} */ (scope)));
+    mountEl.appendChild(selectAllBtn);
+  }
 }

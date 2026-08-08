@@ -44,6 +44,7 @@ export const appState = {
     dragDropOn: true,
     editModeOn: true,
     tempMode: false,
+    autoExpandChildrenOn: false,
   },
 
   /** @type {TimerState} */
@@ -53,10 +54,20 @@ export const appState = {
   sync: { masterKey: null, defaultBinId: null, knownBins: [], lastPushAt: null, lastPullAt: null, lastKnownRemoteUpdatedAt: null },
 
   // --- Transient (never persisted) UI state ---
-  /** @type {Set<string>} question IDs currently bulk-selected (per active SubTopic selection UI) */
+  /** @type {Set<string>} question IDs currently bulk-selected */
   selectedQuestionIds: new Set(),
-  /** @type {Set<string>} "Subject::name" / "Topic::subj::topic" / "SubTopic::..." selected group keys */
+  /** @type {Set<string>} "subject::name" / "topic::subj::topic" / "subTopic::..." selected group keys —
+   *  a Subject/Topic/SubTopic selected as a WHOLE UNIT for bulk move/delete (its own children are
+   *  implied, not separately listed here). */
   selectedGroupKeys: new Set(),
+  /** @type {Set<string>} Which specific Subject/Topic/SubTopic containers currently have their OWN
+   *  "select mode" turned on — scoped per instance, not a single global on/off. Turning select mode
+   *  on for one Topic reveals checkboxes on THAT Topic's own SubTopics only, independent of every
+   *  other Topic's select mode. Keyed the same way as selectedGroupKeys (e.g. "topic::S1::T1").
+   *  Subject-level selection is the one exception — see enableSubjectSelectMode in bulkSelection.js:
+   *  Subjects have no parent container to scope a drill-down from, so selecting SUBJECTS themselves
+   *  is a single global toggle (`select-subject-on` body class), not tracked in this set. */
+  childSelectModeKeys: new Set(),
   /** @type {string|null} */
   pendingFocusQid: null,
 };
@@ -73,6 +84,7 @@ export function loadFileIntoState(file) {
   appState.openNodeKeys = new Set();
   appState.selectedQuestionIds = new Set();
   appState.selectedGroupKeys = new Set();
+  appState.childSelectModeKeys = new Set();
 }
 
 /**

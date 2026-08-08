@@ -202,6 +202,35 @@ export function deleteGroup(data, level, scope) {
 }
 
 /**
+ * Deletes a Subject/Topic/SubTopic AND every question nested underneath it, bypassing deleteGroup's
+ * non-empty guard entirely — used by bulk "Delete Selected" when the user has explicitly selected a
+ * whole accordion (see features/bulkSelection.js, which confirms the nested question count with the
+ * user first, since unlike deleteGroup this is never blocked).
+ * @param {DataPair} data
+ * @param {"subject"|"topic"|"subTopic"} level
+ * @param {{subject: string, topic?: string, subTopic?: string}} scope
+ * @returns {DataPair}
+ */
+export function deleteGroupCascade(data, level, scope) {
+  const rawData = data.rawData.filter((q) => {
+    if (level === "subject") return q.subject !== scope.subject;
+    if (level === "topic") return !(q.subject === scope.subject && q.topic === scope.topic);
+    return !(q.subject === scope.subject && q.topic === scope.topic && q.subTopic === scope.subTopic);
+  });
+  let emptyGroups;
+  if (level === "subject") {
+    emptyGroups = data.emptyGroups.filter((eg) => eg.subject !== scope.subject);
+  } else if (level === "topic") {
+    emptyGroups = data.emptyGroups.filter((eg) => !(eg.subject === scope.subject && eg.topic === scope.topic));
+  } else {
+    emptyGroups = data.emptyGroups.filter(
+      (eg) => !(eg.subject === scope.subject && eg.topic === scope.topic && eg.subTopic === scope.subTopic)
+    );
+  }
+  return { rawData, emptyGroups };
+}
+
+/**
  * Moves one or more questions to a new Subject/Topic/SubTopic destination. Marks any source
  * SubTopic empty if it becomes empty; unmarks/consumes a destination empty-group marker if present.
  * @param {DataPair} data
@@ -236,6 +265,150 @@ export function moveQuestions(data, questionIds, destination) {
   emptyGroups = pruneEmptyGroups(emptyGroups, rawData);
 
   return { rawData, emptyGroups };
+}
+
+/**
+ * @param {DataPair} data
+ * @param {string} subject
+ * @param {string} topic
+ * @returns {string[]} Every distinct SubTopic name under this Topic, whether it has real questions
+ *   or is only an empty-group placeholder — both kinds must move together with the Topic.
+ */
+function subTopicNamesUnder(data, subject, topic) {
+  const fromRows = data.rawData.filter((q) => q.subject === subject && q.topic === topic).map((q) => q.subTopic);
+  const fromEmpty = data.emptyGroups
+    .filter((eg) => eg.subject === subject && eg.topic === topic && eg.subTopic != null)
+    .map((eg) => /** @type {string} */ (eg.subTopic));
+  return [...new Set([...fromRows, ...fromEmpty])];
+}
+
+/**
+ * Moves one SubTopic (by name) to a new Subject/Topic parent, preserving its own name. If it has
+ * real questions, delegates to moveQuestions (which already merges into a same-named destination
+ * SubTopic, or creates one, purely by string match — see group.js) — except moveQuestions' own
+ * "mark the vacated source empty" bookkeeping is right for *its* use case (moving individual
+ * questions out, where the SubTopic itself should stick around as a visible "(empty)" placeholder)
+ * but wrong for this one: moving the WHOLE SubTopic away should leave nothing behind at the source
+ * at all, so that placeholder is stripped back off immediately after. If it's a placeholder with no
+ * questions yet, transfers the empty-group marker directly instead (never creating one behind it).
+ * @param {DataPair} data
+ * @param {{subject: string, topic: string, subTopic: string}} source
+ * @param {string} destSubject
+ * @param {string} destTopic
+ * @returns {DataPair}
+ */
+function moveSubTopicInto(data, source, destSubject, destTopic) {
+  if (source.subject === destSubject && source.topic === destTopic) return data; // dropped onto its own parent
+  const ids = data.rawData
+    .filter((q) => q.subject === source.subject && q.topic === source.topic && q.subTopic === source.subTopic)
+    .map((q) => q.id);
+  if (ids.length > 0) {
+    const moved = moveQuestions(data, ids, { subject: destSubject, topic: destTopic, subTopic: source.subTopic });
+    const emptyGroups = unmarkGroupEmpty(moved.emptyGroups, source.subject, source.topic, source.subTopic);
+    return { rawData: moved.rawData, emptyGroups };
+  }
+  let emptyGroups = unmarkGroupEmpty(data.emptyGroups, source.subject, source.topic, source.subTopic);
+  emptyGroups = markGroupEmpty(emptyGroups, destSubject, destTopic, source.subTopic);
+  emptyGroups = pruneEmptyGroups(emptyGroups, data.rawData);
+  return { rawData: data.rawData, emptyGroups };
+}
+
+/**
+ * Moves one Topic (by name), with every SubTopic and question underneath it, to a new Subject,
+ * preserving its own name. Each child SubTopic is moved individually via moveSubTopicInto so it
+ * merges into (or creates) a same-named SubTopic at the destination Topic exactly as a direct
+ * SubTopic-level move would; a wholly-empty Topic (no SubTopics at all yet) transfers its own
+ * topic-level placeholder marker directly.
+ * @param {DataPair} data
+ * @param {{subject: string, topic: string}} source
+ * @param {string} destSubject
+ * @returns {DataPair}
+ */
+function moveTopicInto(data, source, destSubject) {
+  if (source.subject === destSubject) return data; // dropped onto its own parent
+  let acc = data;
+  for (const subTopic of subTopicNamesUnder(acc, source.subject, source.topic)) {
+    acc = moveSubTopicInto(acc, { subject: source.subject, topic: source.topic, subTopic }, destSubject, source.topic);
+  }
+  const hasTopicPlaceholder = acc.emptyGroups.some(
+    (eg) => eg.subject === source.subject && eg.topic === source.topic && eg.subTopic == null
+  );
+  if (hasTopicPlaceholder) {
+    let emptyGroups = unmarkGroupEmpty(acc.emptyGroups, source.subject, source.topic, null);
+    emptyGroups = markGroupEmpty(emptyGroups, destSubject, source.topic, null);
+    emptyGroups = pruneEmptyGroups(emptyGroups, acc.rawData);
+    acc = { rawData: acc.rawData, emptyGroups };
+  }
+  return acc;
+}
+
+/**
+ * @param {DataPair} data
+ * @param {string} subject
+ * @returns {string[]} Every distinct Topic name under this Subject, whether it has real questions,
+ *   sub-placeholders, or is only a topic-level empty-group placeholder itself.
+ */
+function topicNamesUnder(data, subject) {
+  const fromRows = data.rawData.filter((q) => q.subject === subject).map((q) => q.topic);
+  const fromEmpty = data.emptyGroups.filter((eg) => eg.subject === subject && eg.topic != null).map((eg) => /** @type {string} */ (eg.topic));
+  return [...new Set([...fromRows, ...fromEmpty])];
+}
+
+/**
+ * Merges one Subject entirely into another (there's no "preserve the source Subject's own name"
+ * case the way Topic/SubTopic moves have — merging IS the operation, since a Subject has no parent
+ * to relocate within). Every child Topic is moved individually via moveTopicInto so it merges into
+ * (or creates) a same-named Topic at the destination Subject; a wholly-empty source Subject (no
+ * Topics at all) transfers its own subject-level placeholder marker directly.
+ * @param {DataPair} data
+ * @param {string} sourceSubject
+ * @param {string} destSubject
+ * @returns {DataPair}
+ */
+function moveSubjectInto(data, sourceSubject, destSubject) {
+  if (sourceSubject === destSubject) return data;
+  let acc = data;
+  for (const topic of topicNamesUnder(acc, sourceSubject)) {
+    acc = moveTopicInto(acc, { subject: sourceSubject, topic }, destSubject);
+  }
+  const hasSubjectPlaceholder = acc.emptyGroups.some((eg) => eg.subject === sourceSubject && eg.topic == null);
+  if (hasSubjectPlaceholder) {
+    let emptyGroups = unmarkGroupEmpty(acc.emptyGroups, sourceSubject, null, null);
+    emptyGroups = markGroupEmpty(emptyGroups, destSubject, null, null);
+    emptyGroups = pruneEmptyGroups(emptyGroups, acc.rawData);
+    acc = { rawData: acc.rawData, emptyGroups };
+  }
+  return acc;
+}
+
+/**
+ * Moves an entire Subject/Topic/SubTopic — with every child Topic/SubTopic/Question underneath it —
+ * to (or, for "subject", into) a new parent, preserving its own name where it has one and merging
+ * into an identically-named sibling that already exists at the destination (both purely via
+ * group.js's string-keyed bucketing, same as moveQuestions). Used by drag-and-drop (a SubTopic
+ * dropped on a Topic/Subject accordion, a Topic dropped on a Subject accordion — see
+ * features/dragDrop.js) and by the bulk "Move Selected" flow for whole-group selections.
+ * @param {DataPair} data
+ * @param {"subject"|"topic"|"subTopic"} level
+ * @param {{subject: string, topic?: string, subTopic?: string}} scope Source group being moved.
+ * @param {{subject: string, topic?: string}} destination New parent — `topic` is required when
+ *   `level` is "subTopic" (the SubTopic's own name is preserved, not overridden here); for
+ *   `level: "subject"`, `destination.subject` is the Subject being merged into.
+ * @returns {DataPair}
+ */
+export function moveGroup(data, level, scope, destination) {
+  if (level === "subject") {
+    return moveSubjectInto(data, scope.subject, destination.subject);
+  }
+  if (level === "subTopic") {
+    return moveSubTopicInto(
+      data,
+      { subject: scope.subject, topic: /** @type {string} */ (scope.topic), subTopic: /** @type {string} */ (scope.subTopic) },
+      destination.subject,
+      /** @type {string} */ (destination.topic)
+    );
+  }
+  return moveTopicInto(data, { subject: scope.subject, topic: /** @type {string} */ (scope.topic) }, destination.subject);
 }
 
 /**

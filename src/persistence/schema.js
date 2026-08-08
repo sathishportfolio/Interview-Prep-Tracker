@@ -22,6 +22,7 @@ export function emptySchema() {
       dragDropOn: true,
       editModeOn: true,
       tempMode: false,
+      autoExpandChildrenOn: false,
     },
     activeQuestion: null,
     sync: {

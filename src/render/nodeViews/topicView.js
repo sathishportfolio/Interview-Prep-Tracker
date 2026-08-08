@@ -7,6 +7,7 @@ import { createAccordionShell } from "../accordion.js";
 import { reconcileKeyedList } from "../keyedList.js";
 import { createSubTopicNode, patchSubTopicNode } from "./subTopicView.js";
 import { appState } from "../../state/appState.js";
+import { groupKey } from "../../data/selectionKeys.js";
 
 /**
  * @param {TopicGroup} t
@@ -15,7 +16,9 @@ import { appState } from "../../state/appState.js";
  */
 export function createTopicNode(t, handlers) {
   const key = `${t.subject}::T::${t.topic}`;
-  const { item, header, headerControls, body } = createAccordionShell(key, "level-topic");
+  const { item, header, headerControls, body } = createAccordionShell(key, "level-topic", () =>
+    handlers.onGroupAutoExpand("topic", { subject: t.subject, topic: t.topic })
+  );
   item.dataset.subject = t.subject;
   item.dataset.topic = t.topic;
 
@@ -49,9 +52,9 @@ export function createTopicNode(t, handlers) {
     e.stopPropagation();
     handlers.onDeleteGroup("topic", { subject: t.subject, topic: t.topic });
   }, true));
-  headerControls.appendChild(iconBtn("fa-square-check", "Select mode", (e) => {
+  headerControls.appendChild(iconBtn("fa-square-check", "Select SubTopics", (e) => {
     e.stopPropagation();
-    handlers.onToggleTopicSelectMode(t.subject);
+    handlers.onToggleChildSelectMode("topic", { subject: t.subject, topic: t.topic });
   }, true));
 
   const bulkAddMount = document.createElement("div");
@@ -98,6 +101,10 @@ export function patchTopicNode(el, t, handlers) {
     header.classList.toggle("expanded", appState.openNodeKeys.has(key));
     body.classList.toggle("open", appState.openNodeKeys.has(key));
   }
+  el.classList.toggle("child-select-on", appState.childSelectModeKeys.has(groupKey("topic", { subject: t.subject, topic: t.topic })));
+
+  const selectBox = /** @type {HTMLInputElement|null} */ (el.querySelector(":scope > .acc-header > .group-select-checkbox"));
+  if (selectBox) selectBox.checked = appState.selectedGroupKeys.has(groupKey("topic", { subject: t.subject, topic: t.topic }));
 
   const bulkAddMount = el.querySelector(".bulk-add-mount");
   if (bulkAddMount && handlers.onMountGroupPanels) {

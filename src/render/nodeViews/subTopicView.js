@@ -10,6 +10,7 @@ import { createAccordionShell } from "../accordion.js";
 import { reconcileKeyedList } from "../keyedList.js";
 import { createQuestionNode, patchQuestionNode } from "./questionView.js";
 import { appState } from "../../state/appState.js";
+import { groupKey } from "../../data/selectionKeys.js";
 
 /**
  * @param {SubTopicGroup} st
@@ -56,9 +57,9 @@ export function createSubTopicNode(st, handlers) {
     }, true)
   );
   headerControls.appendChild(
-    iconBtn("fa-square-check", "Select mode", (e) => {
+    iconBtn("fa-square-check", "Select Questions", (e) => {
       e.stopPropagation();
-      handlers.onToggleQuestionSelectMode(st.subject, st.topic, st.subTopic);
+      handlers.onToggleChildSelectMode("subTopic", { subject: st.subject, topic: st.topic, subTopic: st.subTopic });
     }, true)
   );
 
@@ -108,6 +109,13 @@ export function patchSubTopicNode(el, st, handlers) {
     header.classList.toggle("expanded", appState.openNodeKeys.has(key));
     body.classList.toggle("open", appState.openNodeKeys.has(key));
   }
+  el.classList.toggle(
+    "child-select-on",
+    appState.childSelectModeKeys.has(groupKey("subTopic", { subject: st.subject, topic: st.topic, subTopic: st.subTopic }))
+  );
+
+  const selectBox = /** @type {HTMLInputElement|null} */ (el.querySelector(":scope > .acc-header > .group-select-checkbox"));
+  if (selectBox) selectBox.checked = appState.selectedGroupKeys.has(groupKey("subTopic", { subject: st.subject, topic: st.topic, subTopic: st.subTopic }));
 
   const bulkAddMount = el.querySelector(".bulk-add-mount");
   if (bulkAddMount && handlers.onMountGroupPanels) {

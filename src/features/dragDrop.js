@@ -1,27 +1,48 @@
 // @ts-check
 /**
- * features/dragDrop.js — Drag & Drop Reordering. Owns every `Sortable.create()` call (Subject/
- * Topic/SubTopic/Question lists). On reorder/cross-list drop, reads the post-drag DOM key order,
- * maps to IDs, calls data/order.js + data/mutations.js.moveQuestions (the same function
- * moveForm.js uses), then the shared refresh pipeline reconciles just the affected part (any
- * tiering violation from the raw drag position self-corrects on that patch, since groupData()
- * re-sorts by tier on every recompute).
+ * features/dragDrop.js — Drag & Drop Reordering + cross-hierarchy moves. Owns every
+ * `Sortable.create()` call (Topic/SubTopic/Question lists — Subjects are never draggable, only
+ * valid drop targets). Same-list drags (reorder) are handled entirely by Sortable's own onEnd/
+ * onUpdate; a Question dropped into an EXPANDED SubTopic's own list is handled by Sortable's onAdd.
  *
- * Dropping onto a COLLAPSED SubTopic header is handled via a document-level hit-test during active
- * question drags (elementFromPoint-based, using the shared highlight.js overlay for the drop-target
- * indicator) that bypasses Sortable's own DOM-insertion path and calls moveQuestions directly,
- * since a collapsed target has no live list DOM to reconcile against.
+ * Everything else goes through one shared document-level dragover/drop hit-test
+ * (elementFromPoint-based, using the shared highlight.js overlay for the drop-target indicator):
+ * dropping onto an accordion HEADER rather than into a list. That covers every cross-hierarchy move
+ * — Question -> Topic/Subject accordion, SubTopic -> Topic/Subject accordion, Topic -> Subject
+ * accordion — plus the pre-existing case of a Question -> a COLLAPSED SubTopic, which has no live
+ * list DOM to target. `dropTargetFor` is the compatibility matrix: which header LEVELS are valid
+ * drop targets for which drag KIND (a Topic can only ever land on a Subject; a SubTopic can land on
+ * a Topic or a Subject; a Question can land on a SubTopic, Topic, or Subject).
+ *
+ * Every cross-hierarchy destination preserves the dragged item's own name(s) and merges into an
+ * identically-named sibling at the destination if one exists, or creates it if not — that's just
+ * group.js's string-keyed bucketing, so no separate "create vs merge" branching is needed here: see
+ * data/mutations.js's moveQuestions (question-level) and moveGroup (SubTopic/Topic-level), which
+ * this module calls with a computed destination and nothing else.
  */
 import { reorderSiblingsByIdList } from "../data/order.js";
-import { moveQuestions } from "../data/mutations.js";
+import { moveQuestions, moveGroup } from "../data/mutations.js";
 import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import { showDropTargetHighlight, clearDropTargetHighlight } from "../render/highlight.js";
 
 const initializedContainers = new WeakSet();
 
-let draggingQuestionIds = null;
-let draggingSourceScope = null;
+/**
+ * The item currently being drag-handled, or null between drags. `kind` drives which header levels
+ * `dropTargetFor` treats as valid cross-hierarchy drop targets. `el` is the dragged DOM element
+ * itself — a successful cross-hierarchy move calls applyDataChange mid-drag, which re-renders and
+ * removes `el`'s original ancestry from the tree (it moved elsewhere); without proactively removing
+ * `el` first, SortableJS's own native drag-revert (triggered by the browser's `dragend`, since no
+ * Sortable list "accepted" this drop) reinserts it back into its now-stale cached parent reference,
+ * leaving a phantom duplicate — see finishDrop. Mirrors the same `evt.item.remove()` guard the
+ * pre-existing Question-onto-expanded-SubTopic path already used for the identical reason.
+ * @type {null
+ *   | {kind: "question", ids: string[], source: {subject: string, topic: string, subTopic: string}, el: HTMLElement}
+ *   | {kind: "subTopic", source: {subject: string, topic: string, subTopic: string}, el: HTMLElement}
+ *   | {kind: "topic", source: {subject: string, topic: string}, el: HTMLElement}}
+ */
+let dragState = null;
 
 /** Call after every repaint to attach Sortable to any not-yet-initialized list container. */
 export function refreshSortables() {
@@ -37,6 +58,9 @@ export function refreshSortables() {
 }
 
 /**
+ * Wires a Topic-list or SubTopic-list for same-list reordering (unchanged from before). Also now
+ * tracks `dragState` on drag start so the shared document-level hit-test can offer this item as a
+ * cross-hierarchy drop candidate on OTHER lists' headers — see module doc comment.
  * @param {Element} el
  * @param {any} Sortable
  * @param {"topic"|"subTopic"} level
@@ -47,9 +71,20 @@ function initGroupSortable(el, Sortable, level) {
   Sortable.create(el, {
     handle: ".drag-handle",
     animation: 150,
+    onStart: (evt) => {
+      const item = /** @type {HTMLElement} */ (evt.item);
+      const key = /** @type {string} */ (item.dataset.key);
+      const parts = key.split("::");
+      dragState =
+        level === "topic"
+          ? { kind: "topic", source: { subject: parts[0], topic: parts[2] }, el: item } // "Subject::T::Topic"
+          : { kind: "subTopic", source: { subject: parts[0], topic: parts[1], subTopic: parts[3] }, el: item }; // "Subject::Topic::ST::SubTopic"
+    },
     onEnd: () => {
       const orderedKeys = Array.from(el.children).map((c) => /** @type {string} */ (/** @type {HTMLElement} */ (c).dataset.key));
       reorderGroups(level, orderedKeys);
+      dragState = null;
+      clearDropTargetHighlight();
     },
   });
 }
@@ -95,15 +130,13 @@ function initQuestionSortable(el, Sortable) {
     animation: 150,
     group: "questions",
     onStart: (evt) => {
-      const draggedId = /** @type {string} */ (/** @type {HTMLElement} */ (evt.item).dataset.qid);
-      draggingQuestionIds = appState.selectedQuestionIds.has(draggedId)
-        ? [...appState.selectedQuestionIds]
-        : [draggedId];
-      draggingSourceScope = { subject, topic, subTopic };
+      const item = /** @type {HTMLElement} */ (evt.item);
+      const draggedId = /** @type {string} */ (item.dataset.qid);
+      const ids = appState.selectedQuestionIds.has(draggedId) ? [...appState.selectedQuestionIds] : [draggedId];
+      dragState = { kind: "question", ids, source: { subject, topic, subTopic }, el: item };
     },
     onEnd: () => {
-      draggingQuestionIds = null;
-      draggingSourceScope = null;
+      dragState = null;
       clearDropTargetHighlight();
     },
     onUpdate: () => {
@@ -113,7 +146,8 @@ function initQuestionSortable(el, Sortable) {
       applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
     },
     onAdd: (evt) => {
-      // Cross-list drop onto a rendered (expanded) SubTopic's question list.
+      // Cross-list drop onto a rendered (expanded) SubTopic's question list — exact target, no
+      // creation/merge ambiguity since the destination SubTopic already exists and is on-screen.
       const draggedId = /** @type {string} */ (/** @type {HTMLElement} */ (evt.item).dataset.qid);
       const ids = appState.selectedQuestionIds.has(draggedId) ? [...appState.selectedQuestionIds] : [draggedId];
       evt.item.remove(); // let the keyed re-render own placement, not Sortable's raw DOM insert
@@ -127,6 +161,55 @@ function initQuestionSortable(el, Sortable) {
   });
 }
 
+/**
+ * Compatibility matrix for cross-hierarchy drops: given the in-progress drag and a candidate
+ * header's accordion item, returns the move's destination if this is a valid target, or null if
+ * not (wrong kind/level pairing, or — for a Question over a SubTopic header — an EXPANDED SubTopic,
+ * whose own list Sortable's onAdd already owns). Destinations always carry over the dragged item's
+ * own name(s) from `dragState.source`, letting moveQuestions/moveGroup's string-keyed bucketing
+ * decide merge-vs-create.
+ * @param {NonNullable<typeof dragState>} state The in-progress drag — passed explicitly (not read
+ *   off the module-level `dragState`) so callers can still resolve a target after already clearing
+ *   `dragState` themselves (see finishDrop, which nulls it up front to guard against re-entrancy).
+ * @param {HTMLElement} header
+ * @returns {{kind: "question"|"subTopic"|"topic", destination: any} | null}
+ */
+function dropTargetFor(state, header) {
+  const item = /** @type {HTMLElement} */ (header.parentElement);
+
+  if (state.kind === "question") {
+    const source = state.source;
+    if (item.classList.contains("level-subtopic")) {
+      if (header.classList.contains("expanded")) return null; // Sortable's onAdd handles this one
+      return { kind: "question", destination: { subject: item.dataset.subject, topic: item.dataset.topic, subTopic: item.dataset.subTopic } };
+    }
+    if (item.classList.contains("level-topic")) {
+      return { kind: "question", destination: { subject: item.dataset.subject, topic: item.dataset.topic, subTopic: source.subTopic } };
+    }
+    if (item.classList.contains("level-subject")) {
+      return { kind: "question", destination: { subject: item.dataset.subject, topic: source.topic, subTopic: source.subTopic } };
+    }
+    return null;
+  }
+
+  if (state.kind === "subTopic") {
+    const source = state.source;
+    if (item.classList.contains("level-topic")) {
+      return { kind: "subTopic", destination: { subject: item.dataset.subject, topic: item.dataset.topic } };
+    }
+    if (item.classList.contains("level-subject")) {
+      return { kind: "subTopic", destination: { subject: item.dataset.subject, topic: source.topic } };
+    }
+    return null;
+  }
+
+  // state.kind === "topic"
+  if (item.classList.contains("level-subject")) {
+    return { kind: "topic", destination: { subject: item.dataset.subject } };
+  }
+  return null;
+}
+
 let documentTrackingAttached = false;
 
 function attachDocumentDragTracking() {
@@ -134,50 +217,47 @@ function attachDocumentDragTracking() {
   documentTrackingAttached = true;
 
   document.addEventListener("dragover", (e) => {
-    if (!draggingQuestionIds) return;
+    if (!dragState) return;
     e.preventDefault();
     const target = /** @type {HTMLElement|null} */ (document.elementFromPoint(e.clientX, e.clientY));
-    handleHoverForCollapsedDrop(target);
+    handleHover(target);
   });
 
   document.addEventListener("drop", (e) => {
-    if (!draggingQuestionIds) return;
+    if (!dragState) return;
     const target = /** @type {HTMLElement|null} */ (document.elementFromPoint(e.clientX, e.clientY));
-    finishDropOnCollapsedHeaderIfAny(target);
+    finishDrop(target);
   });
 }
 
 /** @param {HTMLElement|null} target */
-function handleHoverForCollapsedDrop(target) {
+function handleHover(target) {
   clearDropTargetHighlight();
-  if (!target) return;
-  const header = target.closest(".level-subtopic > .acc-header");
+  if (!target || !dragState) return;
+  const header = /** @type {HTMLElement|null} */ (target.closest(".acc-header"));
   if (!header) return;
-  const item = header.closest(".level-subtopic");
-  const isCollapsed = !header.classList.contains("expanded");
-  if (item && isCollapsed) {
-    showDropTargetHighlight(/** @type {HTMLElement} */ (header));
-  }
+  if (dropTargetFor(dragState, header)) showDropTargetHighlight(header);
 }
 
 /** @param {HTMLElement|null} target */
-function finishDropOnCollapsedHeaderIfAny(target) {
-  if (!target || !draggingQuestionIds) return;
-  const header = target.closest(".level-subtopic > .acc-header");
-  if (!header) return;
-  const item = /** @type {HTMLElement} */ (header.closest(".level-subtopic"));
-  if (!item) return;
-  const isCollapsed = !header.classList.contains("expanded");
-  if (!isCollapsed) return; // expanded targets are handled by Sortable's own onAdd
-
-  const destination = { subject: item.dataset.subject, topic: item.dataset.topic, subTopic: item.dataset.subTopic };
-  const result = moveQuestions(
-    { rawData: appState.rawData, emptyGroups: appState.emptyGroups },
-    draggingQuestionIds,
-    /** @type {any} */ (destination)
-  );
-  applyDataChange(result);
+function finishDrop(target) {
+  const state = dragState;
+  dragState = null;
   clearDropTargetHighlight();
-  draggingQuestionIds = null;
-  draggingSourceScope = null;
+  if (!target || !state) return;
+  const header = /** @type {HTMLElement|null} */ (target.closest(".acc-header"));
+  if (!header) return;
+  const match = dropTargetFor(state, header);
+  if (!match) return;
+
+  // Proactively remove the dragged element before mutating — see dragState's doc comment for why
+  // (SortableJS's own native-drag-revert would otherwise reinsert a stale duplicate on `dragend`).
+  state.el.remove();
+
+  const data = { rawData: appState.rawData, emptyGroups: appState.emptyGroups };
+  if (state.kind === "question") {
+    applyDataChange(moveQuestions(data, state.ids, match.destination));
+  } else {
+    applyDataChange(moveGroup(data, state.kind, state.source, match.destination));
+  }
 }

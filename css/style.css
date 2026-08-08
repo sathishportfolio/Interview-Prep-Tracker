@@ -35,14 +35,70 @@ body {
 .toolbar-row { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
 .file-switcher { max-width: 220px; }
 .temp-mode-wrap { display: flex; align-items: center; }
-.sync-usage-badge { margin-left: 0.25rem; }
-.sync-usage-badge.badge-green { background: #198754; }
-.sync-usage-badge.badge-red { background: #dc3545; }
+.export-btn-wrap { position: relative; display: flex; gap: 0.4rem; }
+.export-menu-panel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 60;
+  min-width: 190px;
+  background: #fff;
+  border: 1px solid #e3e5e8;
+  border-radius: 0.5rem;
+  box-shadow: 0 0.5rem 1.25rem rgba(0, 0, 0, 0.12);
+  padding: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.export-menu-item { justify-content: flex-start; border: none; }
 .last-synced-label { font-size: 0.75rem; opacity: 0.8; }
+
+.bulk-select-menu-wrap { position: relative; display: inline-block; }
+.bulk-select-menu-panel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 60;
+  min-width: 190px;
+  background: #fff;
+  border: 1px solid #e3e5e8;
+  border-radius: 0.5rem;
+  box-shadow: 0 0.5rem 1.25rem rgba(0, 0, 0, 0.12);
+  padding: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.bulk-select-menu-item { justify-content: flex-start; border: none; }
+
+.sync-menu-wrap { position: relative; }
+.sync-status-dot { display: inline-block; width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--review); margin-left: 0.2rem; vertical-align: middle; }
+.sync-menu-panel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 60;
+  width: 260px;
+  background: #fff;
+  border: 1px solid #e3e5e8;
+  border-radius: 0.5rem;
+  box-shadow: 0 0.5rem 1.25rem rgba(0, 0, 0, 0.12);
+  padding: 0.75rem;
+}
+.sync-menu-blurb { font-size: 0.82rem; color: #555; margin: 0 0 0.6rem; }
+.sync-menu-status { font-size: 0.82rem; color: #444; margin-bottom: 0.5rem; }
+.sync-menu-actions { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; }
+.sync-menu-actions .btn { flex: 1; }
+.sync-menu-usage-row { margin-bottom: 0.5rem; }
+.sync-usage-progress { height: 1.1rem; font-size: 0.7rem; }
+.sync-menu-manage { padding: 0; font-size: 0.8rem; }
 
 .sync-bin-list { font-size: 0.82rem; margin-bottom: 0.5rem; }
 .sync-bin-row { padding: 0.15rem 0; }
-.sync-inline-row { display: flex; gap: 0.4rem; align-items: center; }
+.sync-inline-row { display: flex; gap: 0.4rem; align-items: stretch; }
+.sync-inline-row input { flex: 1; min-width: 0; }
+.sync-inline-row button { flex-shrink: 0; white-space: nowrap; }
 .sync-file-row { display: flex; gap: 0.4rem; align-items: center; padding: 0.3rem 0; border-top: 1px solid #eee; }
 .sync-file-row:first-of-type { border-top: none; }
 .sync-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; }
@@ -90,10 +146,15 @@ body.edit-mode-off #globalActionsGroup button.edit-gated { display: none; }
 
 .drag-handle { cursor: grab; color: #999; margin-right: 0.15rem; }
 .group-select-checkbox, .question-select-checkbox { display: none; margin-right: 0.2rem; }
+/* Selecting SUBJECTS themselves is the one global toggle — Subjects have no parent to scope a
+   drill-down from (see bulkSelection.js's module doc comment). */
 body.select-subject-on .level-subject > .acc-header > .group-select-checkbox { display: inline-block; }
-body.select-topic-on .level-topic > .acc-header > .group-select-checkbox { display: inline-block; }
-body.select-subtopic-on .level-subtopic > .acc-header > .group-select-checkbox { display: inline-block; }
-body.select-question-on .question-select-checkbox { display: inline-block; }
+/* Every other level's "select mode" is scoped to the ONE container it was toggled on (.child-select-on
+   is applied per-instance by subjectView/topicView/subTopicView's patch functions, not body-wide),
+   revealing checkboxes only on that container's own direct children. */
+.level-subject.child-select-on .level-topic > .acc-header > .group-select-checkbox { display: inline-block; }
+.level-topic.child-select-on .level-subtopic > .acc-header > .group-select-checkbox { display: inline-block; }
+.level-subtopic.child-select-on .question-select-checkbox { display: inline-block; }
 .select-count-bar-mount:empty { display: none; }
 body.drag-drop-off .drag-handle { display: none; }
 body.edit-mode-off .edit-gated { display: none !important; }
@@ -118,8 +179,7 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .question-body.open { display: block; }
 .answer-content { font-size: 0.9rem; }
 .answer-edit-row { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.4rem; }
-.status-controls { display: flex; gap: 0.3rem; margin-top: 0.5rem; flex-wrap: wrap; }
-body.edit-mode-off .status-controls { display: none; }
+.status-controls { display: flex; gap: 0.3rem; flex-wrap: wrap; }
 
 .flash-overlay, .drop-target-highlight {
   position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
@@ -158,8 +218,38 @@ body.edit-mode-off .status-controls { display: none; }
 
 .move-form { border: 1px solid #ddd; border-radius: 0.4rem; padding: 0.5rem; margin-top: 0.4rem; background: #fbfbfd; }
 .move-form-row { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.4rem; align-items: center; }
+.move-form-3col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; margin-top: 0.4rem; }
+.move-form-col { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.move-form-col label { font-size: 0.75rem; font-weight: 600; color: #666; }
+.move-form-col select[size] { width: 100%; }
+.move-form-add-btn { align-self: flex-start; }
+@media (max-width: 640px) { .move-form-3col { grid-template-columns: 1fr; } }
+/* The move form needs room for 3 side-by-side listboxes — roughly 2x the default modal width. */
+.modal-host .modal-box:has(.move-form-3col) { max-width: 960px; }
 
-.select-count-bar { background: #fff3cd; border: 1px solid #ffe69c; padding: 0.3rem 0.6rem; border-radius: 0.3rem; font-size: 0.8rem; margin-bottom: 0.4rem; display: flex; justify-content: space-between; align-items: center; }
+/* Floating full-width bulk-action bar, pinned to the bottom of the viewport (spec: "Global & Fixed
+   Position ... remains visible while scrolling"). Shifts the floating toggle cluster up via
+   body.bulk-bar-visible so the two never overlap — see refresh.js. */
+.select-count-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 70;
+  background: #343a40;
+  color: #fff;
+  border-top: 1px solid #212529;
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  box-shadow: 0 -0.25rem 0.75rem rgba(0, 0, 0, 0.15);
+}
+#bulkSelectionCount { font-weight: 600; }
+body.bulk-bar-visible .floating-toggle-group { bottom: 4.5rem; }
+body.bulk-bar-visible { padding-bottom: 3.5rem; }
 
 .multiselect { position: relative; }
 .multiselect-control { border: 1px solid #ccc; border-radius: 0.35rem; padding: 0.3rem 0.5rem; min-height: 2rem; display: flex; flex-wrap: wrap; gap: 0.2rem; cursor: text; background: #fff; font-size: 0.82rem; }

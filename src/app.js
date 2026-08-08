@@ -17,6 +17,7 @@ import * as filters from "./features/filters.js";
 import * as editMode from "./features/editMode.js";
 import * as flattenView from "./features/flattenView.js";
 import * as dragDropToggle from "./features/dragDropToggle.js";
+import * as autoExpand from "./features/autoExpand.js";
 import * as dragDrop from "./features/dragDrop.js";
 import * as copyVisible from "./features/copyVisible.js";
 import * as undoRedo from "./features/undoRedo.js";
@@ -29,21 +30,108 @@ import * as tempModeFeature from "./features/tempModeFeature.js";
 import * as groupPanels from "./features/groupPanels.js";
 import { showToast, confirmAction } from "./features/toast.js";
 import * as syncConfig from "./sync/syncConfig.js";
-import * as autoPush from "./sync/autoPush.js";
-import * as autoPull from "./sync/autoPull.js";
 import * as manualPull from "./sync/manualPull.js";
+import * as manualPush from "./sync/manualPush.js";
+import * as autoPush from "./sync/autoPush.js";
+import * as bins from "./sync/bins.js";
 
 function $(id) {
   return document.getElementById(id);
 }
 
-/** Reflects the last push/pull time next to the Manual Pull button's icon, e.g. "Aug 7, 2026". */
-function updateManualPullBtnTitle() {
-  const btn = $("manualPullBtn");
+/** Reflects the cloud data's freshness inside the Sync menu, e.g. "5 min ago". */
+function updateSyncStatusLabel() {
+  const menuBtn = $("syncMenuBtn");
   const label = $("lastSyncedLabel");
   const text = syncConfig.lastSyncedLabel();
-  if (btn) btn.title = `Pull from cloud — Last synced: ${text}`;
+  const title = text === "Never synced" ? text : `Last sync with cloud: ${text}`;
+  if (menuBtn) menuBtn.title = title;
   if (label) label.textContent = text;
+}
+
+/** Shows the default bin's size against the JSONBin free-tier cap as a single Bootstrap progress bar in the Sync menu. */
+function updateSyncUsageBadge(usage) {
+  const fill = $("syncUsageFill");
+  if (!usage || !fill) return;
+  const percent = Math.min(usage.percent, 100);
+  fill.style.width = `${percent}%`;
+  fill.textContent = `${usage.percent}%`;
+  fill.closest(".progress")?.setAttribute("aria-valuenow", String(usage.percent));
+  fill.classList.toggle("bg-success", !usage.overCap);
+  fill.classList.toggle("bg-danger", usage.overCap);
+}
+
+/** Recomputes the usage badge from local state alone (no network call) — see bins.computeDefaultBinUsage. */
+function refreshSyncUsageBadge() {
+  if (!syncConfig.isSyncConfigured()) return;
+  bins.computeDefaultBinUsage().then(updateSyncUsageBadge);
+}
+
+/** Toggles the setup-prompt vs. connected views inside the Sync menu panel to match current config. */
+function renderSyncMenuState() {
+  const configured = syncConfig.isSyncConfigured();
+  const setupPrompt = $("syncMenuSetupPrompt");
+  const connected = $("syncMenuConnected");
+  if (setupPrompt) setupPrompt.hidden = configured;
+  if (connected) connected.hidden = !configured;
+  if (configured) {
+    updateSyncStatusLabel();
+    refreshSyncUsageBadge();
+  }
+}
+
+/** Shows/hides the small dot on the Sync button that flags unpushed local changes. */
+function updateSyncDot(dirty) {
+  const dot = $("syncMenuStatusDot");
+  if (!dot) return;
+  dot.hidden = !dirty;
+  dot.title = dirty ? "You have local changes not yet pushed to the cloud" : "";
+}
+
+/** Every dropdown menu's close() registered via initDropdownMenu, so opening one can close the rest. */
+const openDropdownClosers = [];
+
+/**
+ * Wires a small "Button -> dropdown panel" pattern: click the button to toggle the panel, click
+ * anywhere else (or Escape) to close it, clicks inside the panel don't bubble out and close it.
+ * Opening one dropdown closes every other one registered this way (each button's own click handler
+ * stops propagation so it can toggle itself without the document listener re-closing it immediately
+ * — which also means, without this, opening one dropdown would never close a different one already
+ * open, since that other dropdown's document click-listener never sees a stopped-propagation click).
+ * Shared by the Sync menu and the Export menu so both behave identically.
+ * @param {string} btnId
+ * @param {string} panelId
+ * @param {() => void} [onOpen] Called right before the panel becomes visible (e.g. to refresh its contents).
+ */
+function initDropdownMenu(btnId, panelId, onOpen) {
+  const btn = $(btnId);
+  const panel = $(panelId);
+  if (!btn || !panel) return { close: () => {} };
+
+  const close = () => {
+    panel.hidden = true;
+    btn.setAttribute("aria-expanded", "false");
+  };
+  const toggle = () => {
+    const opening = panel.hidden;
+    for (const closeOther of openDropdownClosers) closeOther();
+    if (opening && onOpen) onOpen();
+    panel.hidden = !opening;
+    btn.setAttribute("aria-expanded", String(opening));
+  };
+
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggle();
+  });
+  panel.addEventListener("click", (e) => e.stopPropagation());
+  document.addEventListener("click", close);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") close();
+  });
+
+  openDropdownClosers.push(close);
+  return { close };
 }
 
 /** Shared refresh after anything that changes appState.files/filters from outside the normal edit flow (file switch, load, or a sync pull/move/copy/fetch). */
@@ -54,7 +142,7 @@ function refreshAfterExternalDataChange() {
   // dropdowns before this recompute would show stale (usually empty) options.
   refreshView();
   filters.syncControlsFromState();
-  updateManualPullBtnTitle();
+  renderSyncMenuState();
 }
 
 function init() {
@@ -82,6 +170,7 @@ function init() {
     actions: {
       onToggleFlatten: () => flattenView.toggleFlatten(),
       onToggleDragDrop: () => dragDropToggle.toggleDragDrop(),
+      onToggleAutoExpand: () => autoExpand.toggleAutoExpandChildren(),
       onCopyVisible: (format) => copyVisible.copyVisible(format),
     },
     breadcrumb: () => activeQuestionFeature.computeBreadcrumbData(),
@@ -125,8 +214,16 @@ function init() {
     if (!result.ok) showToast(result.error || "Failed to load CSV.", "error");
   });
 
-  $("downloadProgressBtn")?.addEventListener("click", () => fileManager.downloadProgressCsv());
-  $("copyProgressCsvBtn")?.addEventListener("click", () => fileManager.copyProgressCsvToClipboard());
+  // Single "Export" menu: click to choose Download or Copy, instead of two separate toolbar buttons.
+  const exportMenu = initDropdownMenu("exportMenuBtn", "exportMenuPanel");
+  $("downloadProgressBtn")?.addEventListener("click", () => {
+    exportMenu.close();
+    fileManager.downloadProgressCsv();
+  });
+  $("copyProgressCsvBtn")?.addEventListener("click", () => {
+    exportMenu.close();
+    fileManager.copyProgressCsvToClipboard();
+  });
 
   $("resetAllBtn")?.addEventListener("click", () => {
     if (!confirmAction("Reset ALL data? This deletes every uploaded CSV, progress, and setting from this browser. This cannot be undone.")) return;
@@ -161,14 +258,14 @@ function init() {
   floatingToggles.initFloatingToggles();
 
   // --- Bulk selection bar ---
-  $("bulkDeleteSelectedBtn")?.addEventListener("click", () => {
-    if (appState.selectedGroupKeys.size > 0) bulkSelection.bulkDeleteSelectedGroups();
-  });
+  $("bulkSelectAllBtn")?.addEventListener("click", () => bulkSelection.selectAllInActiveGroups());
+  $("bulkDeleteSelectedBtn")?.addEventListener("click", () => bulkSelection.bulkDeleteSelected());
   $("bulkClearSelectedBtn")?.addEventListener("click", () => bulkSelection.clearAllSelections());
   $("bulkMoveSelectedBtn")?.addEventListener("click", async () => {
-    if (appState.selectedQuestionIds.size === 0) return;
+    const selection = bulkSelection.getSelection();
+    if (selection.groups.length === 0 && selection.questionIds.length === 0) return;
     const { openMoveForm } = await import("./features/moveForm.js");
-    openMoveForm([...appState.selectedQuestionIds]);
+    openMoveForm(selection);
   });
 
   // --- Timer ---
@@ -180,39 +277,49 @@ function init() {
   // --- Sync ---
   syncConfig.initSyncConfig({
     onSyncedDataChanged: () => {
+      autoPush.markSynced(); // bin management (move/copy/fetch/clear) already left local state in sync
       fileManager.bootstrapFromStorage();
       refreshAfterExternalDataChange();
     },
   });
-  $("syncSettingsBtn")?.addEventListener("click", () => syncConfig.openSyncManager());
-  updateManualPullBtnTitle();
+  // Single "Sync" menu is the one entry point for sync — status, Push, Pull, storage usage, and a
+  // link into the full Sync Manager modal, instead of separate always-visible toolbar icons.
+  const syncMenu = initDropdownMenu("syncMenuBtn", "syncMenuPanel", renderSyncMenuState);
+  $("syncMenuSetupBtn")?.addEventListener("click", () => {
+    syncMenu.close();
+    syncConfig.openSyncManager();
+  });
+  $("syncSettingsBtn")?.addEventListener("click", () => {
+    syncMenu.close();
+    syncConfig.openSyncManager();
+  });
+  renderSyncMenuState();
+  // Keeps the relative-time label ("5 min ago" -> "1 hr ago") advancing even with no new sync activity.
+  setInterval(updateSyncStatusLabel, 30000);
+  // No push-per-edit or pull-on-load (JSONBin's free tier has tight request-rate/size limits) — the
+  // Push/Pull buttons are the primary sync path. autoPush.js only backstops edits left unpushed for
+  // a full minute, and blocks tab close while something is still unpushed.
+  autoPush.initAutoPush(
+    (usage) => updateSyncUsageBadge(usage),
+    () => updateSyncStatusLabel(),
+    (dirty) => updateSyncDot(dirty)
+  );
   $("manualPullBtn")?.addEventListener("click", async () => {
     const result = await manualPull.manualPull();
     if (result.ok) {
+      autoPush.markSynced();
       fileManager.bootstrapFromStorage();
       refreshAfterExternalDataChange();
     }
   });
-  autoPush.initAutoPush(
-    (usage) => {
-      const badge = $("syncUsageBadge");
-      if (!badge) return;
-      badge.hidden = false;
-      badge.textContent = `${usage.percent}%`;
-      badge.classList.toggle("badge-green", !usage.overCap);
-      badge.classList.toggle("badge-red", usage.overCap);
-    },
-    () => updateManualPullBtnTitle()
-  );
-  if (syncConfig.isSyncConfigured()) {
-    autoPull.checkAndPullIfNewer().then((result) => {
-      if (result.changed) {
-        fileManager.bootstrapFromStorage();
-        refreshAfterExternalDataChange();
-        showToast("Synced newer data from the cloud.", "info");
-      }
-    });
-  }
+  $("manualPushBtn")?.addEventListener("click", async () => {
+    const result = await manualPush.manualPush();
+    updateSyncUsageBadge(result.usage);
+    if (result.ok) {
+      autoPush.markSynced();
+      updateSyncStatusLabel();
+    }
+  });
 
   // --- Initial paint ---
   refreshView();
@@ -221,7 +328,13 @@ function init() {
 
 function renderFileSwitcher() {
   const select = /** @type {HTMLSelectElement} */ ($("fileSwitcher"));
+  // First-time users have nothing to sample-load from yet, so "Load Sample" is the obvious next
+  // step; once real data exists it's just clutter next to Upload CSV.
+  const loadSampleBtn = $("loadSampleBtn");
+  if (loadSampleBtn) loadSampleBtn.hidden = appState.files.length > 0;
   if (!select) return;
+  // A switcher only means something once there's something to switch between.
+  select.hidden = appState.files.length <= 1;
   select.textContent = "";
   if (appState.files.length === 0) {
     const opt = document.createElement("option");

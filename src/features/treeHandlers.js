@@ -17,6 +17,7 @@ import * as quickAdd from "./quickAdd.js";
 import * as bulkSelection from "./bulkSelection.js";
 import * as moveForm from "./moveForm.js";
 import * as groupPanels from "./groupPanels.js";
+import * as autoExpand from "./autoExpand.js";
 import { appState } from "../state/appState.js";
 
 export function buildTreeHandlers() {
@@ -36,9 +37,8 @@ export function buildTreeHandlers() {
     onDeleteGroup: (level, scope) => deleteGroupFeature.deleteGroupWithGuard(level, scope),
     onQuickAddTopic: (subject) => quickAdd.quickAddTopic(subject),
     onQuickAddSubTopic: (subject, topic) => quickAdd.quickAddSubTopic(subject, topic),
-    onToggleQuestionSelectMode: (subject, topic, subTopic) => bulkSelection.toggleQuestionSelectMode(subject, topic, subTopic),
-    onToggleTopicSelectMode: () => bulkSelection.toggleGroupSelectMode("topic"),
-    onToggleSubjectSelectMode: () => bulkSelection.toggleGroupSelectMode("subject"),
+    onToggleChildSelectMode: (parentLevel, parentScope) => bulkSelection.toggleChildSelectMode(parentLevel, parentScope),
+    onGroupAutoExpand: (level, scope) => autoExpand.autoExpandFirstChild(level, scope),
     onToggleGroupSelect: (level, scope) => bulkSelection.toggleGroupSelect(level, scope),
     onMountGroupPanels: (level, scope, mountEl) => groupPanels.mountGroupPanels(level, scope, mountEl),
     onMountMoveSelectedButton: (mountEl) => {

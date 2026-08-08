@@ -34,11 +34,11 @@ export async function copyAndSearch(questionId) {
   showDuplicateResultsModal(questionId, q.question);
 }
 
-/** @param {string} questionId Opens a new tab Google-searching the question's full chain + text. */
+/** @param {string} questionId Opens a new tab Google-searching a prompt asking how to best answer this question. */
 export function googleSearchQuestion(questionId) {
   const q = appState.rawData.find((x) => x.id === questionId);
   if (!q) return;
-  const query = `${q.subject} ${q.topic} ${q.subTopic} ${q.question}`;
+  const query = `How can I give an impressive answer to ${q.question} in a Senior Angular and Java Spring Boot Full-Stack Developer interview? Please also provide a one-line summary for the interview`;
   const url = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
   window.open(url, "_blank", "noopener,noreferrer");
 }

@@ -11,9 +11,11 @@ import { appState, isNodeOpen, toggleNodeOpen } from "../state/appState.js";
  * Builds a header/body accordion shell. Caller fills in header content and body content.
  * @param {string} key Unique node key (e.g. "S::Subject", "Q::qid").
  * @param {string} levelClass e.g. "level-subject", "level-topic".
+ * @param {() => void} [onToggle] Optional extra callback after this node's own open/close toggles
+ *   (e.g. auto-expanding its first child — see features/autoExpand.js).
  * @returns {{item: HTMLElement, header: HTMLElement, headerControls: HTMLElement, body: HTMLElement, caret: HTMLElement, titleEl: HTMLElement}}
  */
-export function createAccordionShell(key, levelClass) {
+export function createAccordionShell(key, levelClass, onToggle) {
   const item = document.createElement("div");
   item.className = `acc-item ${levelClass}`;
 
@@ -41,7 +43,7 @@ export function createAccordionShell(key, levelClass) {
   item.appendChild(header);
   item.appendChild(body);
 
-  bindHeader(header, key);
+  bindHeader(header, key, onToggle);
   applyOpenState(header, body, key);
 
   return { item, header, headerControls, body, caret, titleEl };

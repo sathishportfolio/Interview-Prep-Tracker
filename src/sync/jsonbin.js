@@ -1,7 +1,8 @@
 // @ts-check
 /**
  * sync/jsonbin.js — thin fetch wrapper around the JSONBin.io REST API. No app-specific logic here
- * (that's autoPush.js/autoPull.js/manualPull.js); this module just knows how to PUT/GET a bin.
+ * (that's manualPush.js/manualPull.js/autoPush.js/bins.js); this module just knows how to PUT/GET a
+ * bin.
  */
 
 const API_BASE = "https://api.jsonbin.io/v3/b";
