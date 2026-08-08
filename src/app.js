@@ -344,8 +344,10 @@ function init() {
 
   // A persisted Active Question should be immediately visible on load/refresh, not just after the
   // user manually clicks the breadcrumb flag link — same expand+scroll+flash jumpToActiveQuestion
-  // already does for that click, just triggered once up front instead.
-  if (appState.activeQuestion) {
+  // already does for that click, just triggered once up front instead. Skipped while Edit Mode is
+  // on: that's when someone is mid-editing/reorganizing data, and an unrequested jump+scroll would
+  // yank them away from whatever they were about to work on.
+  if (appState.activeQuestion && !appState.toggles.editModeOn) {
     activeQuestionFeature.jumpToActiveQuestion();
   }
 }
