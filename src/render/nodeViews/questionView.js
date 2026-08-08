@@ -22,6 +22,7 @@ function toggleOpenAndApply(header, body, key) {
  * @typedef {Object} TreeHandlers
  * @property {(qid: string, flag: "done"|"reviewLater"|"duplicate"|"lessImportant"|"starred") => void} onToggleStatus
  * @property {(qid: string) => void} onEditAnswer
+ * @property {(qid: string) => void} onEditQuestionText
  * @property {(qid: string) => void} onOpenMoveForm
  * @property {(qid: string) => void} onDeleteQuestion
  * @property {(qid: string) => void} onCopyQuestion
@@ -168,13 +169,14 @@ export function createQuestionNode(q, handlers) {
   const statusControls = document.createElement("div");
   statusControls.className = "status-controls edit-gated";
 
+  const editTextBtn = mkBtn("fa-pen-to-square", "Edit question text", () => handlers.onEditQuestionText(q.id));
   const moveBtn = mkBtn("fa-arrows-turn-right icon-move", "Move to different Subject/Topic/SubTopic", () => handlers.onOpenMoveForm(q.id));
   const upBtn = mkBtn("fa-arrow-up", "Move up", () => handlers.onMoveQuestionOrder(q.id, "up"));
   const downBtn = mkBtn("fa-arrow-down", "Move down", () => handlers.onMoveQuestionOrder(q.id, "down"));
   const topBtn = mkBtn("fa-angles-up", "Move to top", () => handlers.onMoveQuestionOrder(q.id, "top"));
   const bottomBtn = mkBtn("fa-angles-down", "Move to bottom", () => handlers.onMoveQuestionOrder(q.id, "bottom"));
   const deleteBtn = mkBtn("fa-trash icon-duplicate", "Delete question", () => handlers.onDeleteQuestion(q.id));
-  [moveBtn, upBtn, downBtn, topBtn, bottomBtn, deleteBtn].forEach((b) => statusControls.appendChild(b));
+  [editTextBtn, moveBtn, upBtn, downBtn, topBtn, bottomBtn, deleteBtn].forEach((b) => statusControls.appendChild(b));
 
   // statusControls nests INSIDE answerEditRow (not a separate body child) so both button groups
   // share one row — edit-gated hiding still applies to just the statusControls buttons.

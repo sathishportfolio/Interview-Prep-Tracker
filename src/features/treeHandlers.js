@@ -8,6 +8,7 @@
 import * as statusFlags from "./statusFlags.js";
 import * as activeQuestion from "./activeQuestion.js";
 import * as answerEditor from "./answerEditor.js";
+import * as editQuestionText from "./editQuestionText.js";
 import * as moveButtons from "./moveButtons.js";
 import * as deleteGroupFeature from "./deleteGroupFeature.js";
 import * as copySingle from "./copySingle.js";
@@ -26,6 +27,7 @@ export function buildTreeHandlers() {
   return {
     onToggleStatus: (qid, flag) => statusFlags.toggleStatus(qid, flag),
     onEditAnswer: (qid) => answerEditor.openAnswerEditor(qid),
+    onEditQuestionText: (qid) => editQuestionText.editQuestionTextPrompt(qid),
     onOpenMoveForm: (qid) => moveForm.openMoveForm(appState.selectedQuestionIds.has(qid) ? [...appState.selectedQuestionIds] : [qid]),
     onDeleteQuestion: (qid) => deleteGroupFeature.deleteQuestionWithConfirm(qid),
     onCopyQuestion: (qid) => copySingle.copyQuestionText(qid),
