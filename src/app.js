@@ -246,7 +246,10 @@ function init() {
   $("resetAllBtn")?.addEventListener("click", () => {
     if (!confirmAction("Reset ALL data? This deletes every uploaded CSV, progress, setting, and Cross-Device Sync connection (Master Key/Bin IDs) from this browser. This cannot be undone.")) return;
     fileManager.resetAllData();
-    refreshAfterExternalDataChange();
+    // A full reload (rather than re-running the refresh pipeline in place) guarantees every bit of
+    // in-memory state boots fresh from the now-empty persisted schema, instead of relying on every
+    // feature module's own state to have been hand-reset correctly.
+    window.location.reload();
   });
 
   $("fileSwitcher")?.addEventListener("change", (e) => {

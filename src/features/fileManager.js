@@ -32,7 +32,14 @@ export function initFileManager(callbacks) {
   onFilesChanged = callbacks.onFilesChanged;
 }
 
-/** Loads persisted schema into appState at startup. */
+/**
+ * Loads persisted schema into appState — at startup, and also re-run after anything that replaces
+ * the schema wholesale (Reset All, a sync pull/bin switch). When there's no file to load, the
+ * working copy (rawData/emptyGroups/filterState) must be explicitly cleared here too — appState is
+ * one long-lived object for the whole session, so without this a Reset All (or switching to an
+ * empty bin) would leave whatever was in rawData before untouched, showing stale questions even
+ * though appState.files is now empty.
+ */
 export function bootstrapFromStorage() {
   const schema = store.readSchema();
   appState.files = schema.files;
@@ -45,6 +52,11 @@ export function bootstrapFromStorage() {
   const active = schema.files.find((f) => f.id === schema.activeFileId) || schema.files[0];
   if (active) {
     loadFileIntoState(active);
+  } else {
+    appState.activeFileId = null;
+    appState.rawData = [];
+    appState.emptyGroups = [];
+    appState.filterState = emptyFilterState();
   }
 }
 

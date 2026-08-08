@@ -298,18 +298,17 @@ export function deleteKnownBin(binId) {
 /**
  * Switches which bin is "current" — the one the File Switcher scopes to (see resolveBinId), that
  * every unassigned local file resolves to, and the only one that carries app-level
- * globalToggles/Active Question/timer on push (see serializeBinPayload/applyBinToLocalState).
- * Immediately pulls the new current bin's files into local state, so switching + loading is one
- * action instead of two. The bin that WAS current gets registered into knownBins under its current
- * label first (it otherwise has no knownBins entry at all while it's still current — see
- * listBins), so it doesn't disappear from the bin list once it's no longer current.
+ * globalToggles/Active Question/timer on push (see serializeBinPayload/applyBinToLocalState). The
+ * bin that WAS current gets registered into knownBins under its current label first (it otherwise
+ * has no knownBins entry at all while it's still current — see listBins), so it doesn't disappear
+ * from the bin list once it's no longer current.
  *
- * Every currently-unpinned local file (binId: null) gets explicitly pinned to the outgoing bin
- * FIRST, before the switch: a null binId means "floats with whichever bin is current" (resolveBinId),
- * so without this those files would silently follow the switch into the new bin's view even though
- * they were never pushed there — an empty bin would still show the old bin's questions locally.
- * applyBinToLocalState only ever upserts remote files into appState.files, never removes ones that
- * aren't present remotely, so this pinning step is what actually keeps the two bins' files separate.
+ * Switching bins is a hard reset, not a merge: local files are pushed to the outgoing bin (so
+ * nothing unpushed is lost — this includes any "floating"/unpinned files, since resolveBinId still
+ * treats them as belonging to the OLD bin at this point), then wiped from local state entirely,
+ * then the new bin is pulled in fresh. applyBinToLocalState only ever upserts remote files into
+ * appState.files and never removes stale ones on its own, so without wiping first, switching to an
+ * empty bin would still show the previous bin's questions locally.
  * @param {string} binId
  * @returns {Promise<{ok: boolean, error?: string}>}
  */
@@ -322,12 +321,14 @@ export async function setCurrentBin(binId) {
   const oldCurrentLabel = listBins().find((b) => b.id === oldCurrentId)?.label;
 
   if (oldCurrentId) {
-    const hadUnpinned = appState.files.some((f) => f.binId === null);
-    if (hadUnpinned) {
-      appState.files = appState.files.map((f) => (f.binId === null ? { ...f, binId: oldCurrentId } : f));
-      store.writeFiles(appState.files);
+    const pushResult = await pushBin(oldCurrentId);
+    if (!pushResult.ok) {
+      return { ok: false, error: `Could not save the current bin's changes before switching: ${pushResult.error || "push failed"}` };
     }
   }
+
+  appState.files = [];
+  store.writeFiles(appState.files);
 
   appState.sync = { ...appState.sync, currentBinId: binId };
   store.writeSync(appState.sync);
