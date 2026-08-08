@@ -281,4 +281,9 @@ body.bulk-bar-visible { padding-bottom: 3.5rem; }
   .filter-row { flex-direction: column; align-items: stretch; }
   .toolbar-row { gap: 0.3rem; }
   .app-main { padding: 0.6rem; }
+  /* Single-line ellipsis truncation reads fine on desktop's wider rows, but on a narrow phone
+     screen it hides most of the question text — wrap it so a quick review pass doesn't require
+     opening every row just to see what's being asked. */
+  .q-text { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+  .question-header { align-items: flex-start; }
 }
