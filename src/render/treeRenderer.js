@@ -56,12 +56,19 @@ export function getCurrentTree() {
   return currentTree;
 }
 
-/** @returns {HTMLElement|null} */
+/**
+ * Looks up a question's header element wherever it's currently rendered — the nested-accordion
+ * tree (#treeRoot, this module) OR Flatten View's own container (#flatRoot, render/flatRenderer.js:
+ * a per-group heading followed directly by question accordions, no nesting). Only one of the two is
+ * populated at a time (see features/refresh.js repaint()), but callers of this (jumpToActiveQuestion,
+ * statusFlags' post-toggle flash, copySingle's duplicate-jump) don't know or care which — so this
+ * checks the tree root first, then falls back to a page-wide lookup that also covers Flatten View.
+ * @returns {HTMLElement|null}
+ */
 export function findQuestionHeaderEl(questionId) {
-  if (!rootEl) return null;
-  const item = rootEl.querySelector(`[data-qid="${cssEscape(questionId)}"]`);
-  if (!item) return null;
-  return /** @type {HTMLElement} */ (item.querySelector(":scope > .question-header"));
+  const selector = `[data-qid="${cssEscape(questionId)}"] > .question-header`;
+  const scoped = rootEl && rootEl.querySelector(selector);
+  return /** @type {HTMLElement|null} */ (scoped || document.querySelector(selector));
 }
 
 /** @param {string} s */
