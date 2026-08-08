@@ -15,7 +15,18 @@
  */
 function matchesStatus(q, statuses) {
   if (!statuses || statuses.length === 0) return true;
-  return statuses.some((s) => q[s] === true);
+  return statuses.some((s) => (s === "dueForReview" ? isDueForReview(q) : q[s] === true));
+}
+
+/**
+ * "dueForReview" isn't a stored boolean like the other status flags — it's a live comparison of
+ * `srsDue` against today, so a question naturally falls in/out of this filter as days pass without
+ * needing any write.
+ * @param {Question} q
+ * @returns {boolean}
+ */
+function isDueForReview(q) {
+  return !!q.srsDue && q.srsDue <= new Date().toISOString().slice(0, 10);
 }
 
 /**

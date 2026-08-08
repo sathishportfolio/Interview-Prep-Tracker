@@ -25,6 +25,8 @@ import * as closeAll from "./features/closeAll.js";
 import * as floatingToggles from "./features/floatingToggles.js";
 import * as timer from "./features/timer.js";
 import * as search from "./features/search.js";
+import * as reviewShortcuts from "./features/reviewShortcuts.js";
+import { openShortcutsHelp } from "./features/keyboardShortcutsHelp.js";
 import * as bulkSelection from "./features/bulkSelection.js";
 import * as tempModeFeature from "./features/tempModeFeature.js";
 import * as groupPanels from "./features/groupPanels.js";
@@ -261,11 +263,15 @@ function init() {
   // --- Search ---
   search.initSearch(/** @type {HTMLInputElement} */ ($("jumpSearchInput")), /** @type {HTMLElement} */ ($("jumpSearchResults")));
 
+  // --- Review keyboard shortcuts (Up/Down navigate, d = Done, r = Review Later) ---
+  reviewShortcuts.initReviewShortcuts();
+
   // --- Edit Mode / Drag-Drop / Close All / Undo / Redo / Floating toggles ---
   $("editModeToggleBtn")?.addEventListener("click", () => editMode.toggleEditMode());
   $("closeAllBtn")?.addEventListener("click", () => closeAll.closeAllAccordions());
   $("undoBtn")?.addEventListener("click", () => undoRedo.undo());
   $("redoBtn")?.addEventListener("click", () => undoRedo.redo());
+  $("keyboardShortcutsBtn")?.addEventListener("click", () => openShortcutsHelp());
   floatingToggles.initFloatingToggles();
 
   // --- Bulk selection bar ---

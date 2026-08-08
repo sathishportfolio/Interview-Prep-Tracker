@@ -10,10 +10,10 @@ import { createMultiSelect } from "../multiselect/multiSelect.js";
 import { getFilterOptions, refreshView } from "./refresh.js";
 import * as fileManager from "./fileManager.js";
 
-const STATUS_OPTIONS = /** @type {const} */ (["done", "reviewLater", "duplicate", "lessImportant", "starred"]);
+const STATUS_OPTIONS = /** @type {const} */ (["done", "reviewLater", "dueForReview", "duplicate", "lessImportant", "starred"]);
 /** @type {Record<string, string>} */
 const STATUS_LABELS = {
-  done: "Done", reviewLater: "Review Later", duplicate: "Duplicate", lessImportant: "Less Important", starred: "Starred",
+  done: "Done", reviewLater: "Review Later", dueForReview: "Due for Review", duplicate: "Duplicate", lessImportant: "Less Important", starred: "Starred",
 };
 /** @type {Record<string, string>} */
 const LABEL_TO_STATUS = Object.fromEntries(Object.entries(STATUS_LABELS).map(([k, v]) => [v, k]));
@@ -96,7 +96,7 @@ export function clearGroupFiltersOnly() {
 
 /**
  * Toggles a single status filter on/off directly (Global Stats Badges click-to-filter).
- * @param {"done"|"reviewLater"|"duplicate"|"lessImportant"|"starred"} status
+ * @param {"done"|"reviewLater"|"dueForReview"|"duplicate"|"lessImportant"|"starred"} status
  */
 export function toggleStatusFilter(status) {
   const set = new Set(appState.filterState.statuses);

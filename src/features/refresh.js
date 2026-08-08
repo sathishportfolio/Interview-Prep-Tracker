@@ -61,6 +61,7 @@ export function repaint() {
   }
 
   const filteredQuestions = flattenTreeQuestions(appState.grouped);
+  const todayISO = new Date().toISOString().slice(0, 10);
   renderStatsBadges(
     {
       total: appState.rawData.length,
@@ -68,6 +69,7 @@ export function repaint() {
       review: filteredQuestions.filter((q) => q.reviewLater).length,
       done: filteredQuestions.filter((q) => q.done).length,
       starred: filteredQuestions.filter((q) => q.starred).length,
+      due: filteredQuestions.filter((q) => q.srsDue && q.srsDue <= todayISO).length,
     },
     statsHandlers
   );

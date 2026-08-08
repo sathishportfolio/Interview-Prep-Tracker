@@ -28,6 +28,8 @@
  * @property {number} subjectOrder
  * @property {number} topicOrder
  * @property {number} subTopicOrder
+ * @property {string|null} [srsDue]     Spaced-repetition: ISO date (YYYY-MM-DD) this question is next due for review, or null/undefined if never scheduled.
+ * @property {number} [srsStreak]       Spaced-repetition: consecutive "remembered" reviews, used to pick the next interval (see data/mutations.js scheduleReview).
  */
 
 /**
@@ -47,7 +49,11 @@
  * @property {StatusFilterKey[]} statuses
  */
 
-/** @typedef {"done"|"reviewLater"|"duplicate"|"lessImportant"|"starred"} StatusFilterKey */
+/**
+ * "dueForReview" is not a real boolean field on Question — it's a computed match against
+ * `srsDue` vs today, handled as a special case in data/filter.js's matchesStatus.
+ * @typedef {"done"|"reviewLater"|"duplicate"|"lessImportant"|"starred"|"dueForReview"} StatusFilterKey
+ */
 
 /**
  * @typedef {Object} FileRecord

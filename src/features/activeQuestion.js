@@ -24,8 +24,27 @@ export function toggleActiveQuestion(questionId) {
   repaint();
 }
 
+/**
+ * Sets the Active Question unconditionally (unlike toggleActiveQuestion, never clears it) and
+ * reveals it — expanding ancestors and scrolling into view, same as jumpToActiveQuestion — but
+ * WITHOUT opening its own answer body. Used by keyboard Up/Down review navigation: each press
+ * should land on a question without also expanding it, since Enter is the dedicated shortcut for
+ * that (see features/reviewShortcuts.js).
+ * @param {string} questionId
+ */
+export function setActiveQuestion(questionId) {
+  appState.activeQuestion = { fileId: /** @type {string} */ (appState.activeFileId), questionId };
+  store.writeActiveQuestion(appState.activeQuestion);
+  revealActiveQuestion({ openAnswer: false });
+}
+
 /** Jumps to (expands + scrolls + flashes) the current Active Question, from anywhere in the app. */
 export function jumpToActiveQuestion() {
+  revealActiveQuestion({ openAnswer: true });
+}
+
+/** @param {{openAnswer: boolean}} options */
+function revealActiveQuestion({ openAnswer }) {
   if (!appState.activeQuestion) return;
   const activeQuestionId = appState.activeQuestion.questionId;
   const q = appState.rawData.find((x) => x.id === activeQuestionId);
@@ -33,7 +52,7 @@ export function jumpToActiveQuestion() {
   openNode(`S::${q.subject}`);
   openNode(`${q.subject}::T::${q.topic}`);
   openNode(`${q.subject}::${q.topic}::ST::${q.subTopic}`);
-  openNode(`Q::${q.id}`);
+  if (openAnswer) openNode(`Q::${q.id}`);
   repaint();
   const el = findQuestionHeaderEl(q.id);
   if (el) scrollAndFlash(el);

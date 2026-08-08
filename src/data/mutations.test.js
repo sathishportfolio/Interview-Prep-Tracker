@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   addQuestion, deleteQuestion, deleteGroup, deleteGroupCascade, renameGroup, moveQuestions, moveGroup,
-  bulkAddRows, bulkUpdateRows, questionExists,
+  bulkAddRows, bulkUpdateRows, questionExists, scheduleReview,
 } from "./mutations.js";
 
 function emptyData() {
@@ -177,4 +177,29 @@ test("questionExists matches case-insensitively", () => {
   let data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Hello World" });
   assert.equal(questionExists(data.rawData, "s1", "t1", "st1", "HELLO WORLD"), true);
   assert.equal(questionExists(data.rawData, "s1", "t1", "st1", "Something Else"), false);
+});
+
+test("scheduleReview 'advance' grows the streak and pushes srsDue out by the matching Leitner interval", () => {
+  const data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
+  const ref = new Date("2026-08-08T00:00:00Z");
+  let rawData = scheduleReview(data.rawData, data.question.id, "advance", ref);
+  let q = rawData.find((x) => x.id === data.question.id);
+  assert.equal(q.srsStreak, 1);
+  assert.equal(q.srsDue, "2026-08-09"); // +1 day
+
+  rawData = scheduleReview(rawData, data.question.id, "advance", ref);
+  q = rawData.find((x) => x.id === data.question.id);
+  assert.equal(q.srsStreak, 2);
+  assert.equal(q.srsDue, "2026-08-10"); // +2 days
+});
+
+test("scheduleReview 'reset' clears the streak and brings srsDue back to tomorrow", () => {
+  const data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
+  const ref = new Date("2026-08-08T00:00:00Z");
+  let rawData = scheduleReview(data.rawData, data.question.id, "advance", ref);
+  rawData = scheduleReview(rawData, data.question.id, "advance", ref);
+  rawData = scheduleReview(rawData, data.question.id, "reset", ref);
+  const q = rawData.find((x) => x.id === data.question.id);
+  assert.equal(q.srsStreak, 0);
+  assert.equal(q.srsDue, "2026-08-09");
 });

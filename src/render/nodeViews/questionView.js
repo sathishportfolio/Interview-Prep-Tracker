@@ -226,7 +226,12 @@ export function patchQuestionNode(el, q, handlers) {
 
   for (const s of STATUS_ICONS) {
     const btn = header.querySelector(`.icon-${s.flag === "reviewLater" ? "review" : s.flag === "lessImportant" ? "less" : s.flag}`);
-    if (btn) btn.classList.toggle("is-active", !!q[s.flag]);
+    if (btn) {
+      btn.classList.toggle("is-active", !!q[s.flag]);
+      if (s.flag === "done") {
+        btn.setAttribute("title", q.srsDue ? `Done — next review due ${q.srsDue}` : s.title);
+      }
+    }
   }
 
   const flagBtn = header.querySelector(".icon-flag");

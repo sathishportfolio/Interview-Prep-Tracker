@@ -24,6 +24,7 @@ export function initStatsBadges(badgesContainer, actionsContainer) {
  * @property {number} review
  * @property {number} done
  * @property {number} starred
+ * @property {number} due
  */
 
 /**
@@ -39,6 +40,7 @@ export function renderStatsBadges(stats, handlers) {
   badgesEl.appendChild(mkBadge("warning", `Review: ${stats.review}`, () => handlers.onStatusBadgeClick("reviewLater")));
   badgesEl.appendChild(mkBadge("success", `Done: ${stats.done}`, () => handlers.onStatusBadgeClick("done")));
   badgesEl.appendChild(mkBadge("info", `Starred: ${stats.starred}`, () => handlers.onStatusBadgeClick("starred")));
+  badgesEl.appendChild(mkBadge("danger", `Due: ${stats.due}`, () => handlers.onStatusBadgeClick("dueForReview")));
 }
 
 /**

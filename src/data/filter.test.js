@@ -40,3 +40,13 @@ test("computeFilterOptions narrows Topic/SubTopic options by selected Subject, n
   assert.deepEqual(opts.subjects, ["S1", "S2"]); // subject list itself unaffected by its own filter
   assert.deepEqual(opts.topics, ["T1", "T2"]); // narrowed to S1's topics only
 });
+
+test("filterGroupedData 'dueForReview' status matches by comparing srsDue to today, not a stored boolean", () => {
+  const past = q({ id: "d1", subject: "S1", topic: "T1", subTopic: "ST1", srsDue: "2000-01-01" });
+  const future = q({ id: "d2", subject: "S1", topic: "T1", subTopic: "ST1", srsDue: "2999-01-01" });
+  const never = q({ id: "d3", subject: "S1", topic: "T1", subTopic: "ST1", srsDue: null });
+  const tree = groupData([past, future, never], []);
+  const filtered = filterGroupedData(tree, { ...emptyFilterState(), statuses: ["dueForReview"] });
+  const ids = filtered.subjects[0].topics[0].subTopics[0].questions.map((qq) => qq.id);
+  assert.deepEqual(ids, ["d1"]);
+});

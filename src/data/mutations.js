@@ -64,6 +64,8 @@ export function addQuestion(data, input) {
     subjectOrder: existing ? existing.subjectOrder : subjectOrder,
     topicOrder: existing ? existing.topicOrder : topicOrder,
     subTopicOrder: existing ? existing.subTopicOrder : subTopicOrder,
+    srsDue: null,
+    srsStreak: 0,
   };
 
   const rawData = [...data.rawData, newQuestion];
@@ -92,6 +94,48 @@ export function updateQuestion(rawData, questionId, patch) {
  */
 export function toggleStatusFlag(rawData, questionId, flag) {
   return rawData.map((q) => (q.id === questionId ? { ...q, [flag]: !q[flag] } : q));
+}
+
+/**
+ * Leitner-style spaced-repetition intervals (days), indexed by consecutive "remembered" streak.
+ * The last entry repeats for any streak beyond its length.
+ */
+const SRS_INTERVAL_DAYS = [1, 2, 4, 7, 14, 30, 60];
+
+/**
+ * Adds `days` to an ISO date string, doing the arithmetic in UTC throughout so it matches
+ * `referenceDate.toISOString()` (also UTC) regardless of the machine's local timezone.
+ * @param {string} iso @param {number} days @returns {string}
+ */
+function addDaysISO(iso, days) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Schedules (or reschedules) a question's next spaced-repetition review. "advance" pushes the due
+ * date further out and grows the streak (called when a question is marked Done — the user says
+ * they know it); "reset" clears the streak and brings the due date back to tomorrow (called when
+ * Done is unmarked, or when Review Later is turned on — either way, it needs re-surfacing soon).
+ * @param {Question[]} rawData
+ * @param {string} questionId
+ * @param {"advance"|"reset"} outcome
+ * @param {Date} [referenceDate] Injectable for tests; defaults to now.
+ * @returns {Question[]}
+ */
+export function scheduleReview(rawData, questionId, outcome, referenceDate = new Date()) {
+  const todayISO = referenceDate.toISOString().slice(0, 10);
+  return rawData.map((q) => {
+    if (q.id !== questionId) return q;
+    if (outcome === "advance") {
+      const streak = (q.srsStreak || 0) + 1;
+      const days = SRS_INTERVAL_DAYS[Math.min(streak - 1, SRS_INTERVAL_DAYS.length - 1)];
+      return { ...q, srsStreak: streak, srsDue: addDaysISO(todayISO, days) };
+    }
+    return { ...q, srsStreak: 0, srsDue: addDaysISO(todayISO, 1) };
+  });
 }
 
 /**

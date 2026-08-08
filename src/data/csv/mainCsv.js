@@ -12,7 +12,7 @@ import { parseCsvObjects, serializeCsvObjects } from "./csvCore.js";
 import { newQuestionId } from "../id.js";
 
 export const REQUIRED_COLUMNS = ["Subject", "Topic", "SubTopic", "Question", "Answer", "Done", "ReviewLater"];
-export const OPTIONAL_COLUMNS = ["Duplicate", "LessImportant", "Starred", "Order", "SubjectOrder", "TopicOrder", "SubTopicOrder"];
+export const OPTIONAL_COLUMNS = ["Duplicate", "LessImportant", "Starred", "Order", "SubjectOrder", "TopicOrder", "SubTopicOrder", "SrsDue", "SrsStreak"];
 export const ALL_COLUMNS = [...REQUIRED_COLUMNS, ...OPTIONAL_COLUMNS];
 
 function toBool(v) {
@@ -75,6 +75,8 @@ export function parseMainCsv(text) {
       subjectOrder: toNum(rec.SubjectOrder, 0),
       topicOrder: toNum(rec.TopicOrder, 0),
       subTopicOrder: toNum(rec.SubTopicOrder, 0),
+      srsDue: rec.SrsDue ? rec.SrsDue.trim() || null : null,
+      srsStreak: toNum(rec.SrsStreak, 0),
     });
   }
 
@@ -106,6 +108,8 @@ export function serializeMainCsv(rawData, emptyGroups) {
       SubjectOrder: q.subjectOrder ?? 0,
       TopicOrder: q.topicOrder ?? 0,
       SubTopicOrder: q.subTopicOrder ?? 0,
+      SrsDue: q.srsDue ?? "",
+      SrsStreak: q.srsStreak ?? 0,
     });
   }
   for (const eg of emptyGroups) {
@@ -124,6 +128,8 @@ export function serializeMainCsv(rawData, emptyGroups) {
       SubjectOrder: 0,
       TopicOrder: 0,
       SubTopicOrder: 0,
+      SrsDue: "",
+      SrsStreak: 0,
     });
   }
   return serializeCsvObjects(ALL_COLUMNS, records);
