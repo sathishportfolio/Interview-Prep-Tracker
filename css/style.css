@@ -158,15 +158,34 @@ body {
 .sync-usage-progress { height: 1.1rem; font-size: 0.7rem; }
 .sync-menu-manage { padding: 0; font-size: 0.8rem; }
 
-.sync-bin-list { font-size: 0.82rem; margin-bottom: 0.5rem; }
-.sync-bin-row { padding: 0.15rem 0; }
-.sync-inline-row { display: flex; gap: 0.4rem; align-items: stretch; }
-.sync-inline-row input { flex: 1; min-width: 0; }
+/* The bin manager (table + multi-field rows) is cramped at the default modal width — 2x it, same
+   pattern as the Move form's 3-column picker below. */
+.modal-host .modal-box:has(.sync-bin-table) { max-width: 960px; }
+
+.sync-bin-table { width: 100%; table-layout: fixed; font-size: 0.82rem; margin-bottom: 0.5rem; border-collapse: collapse; }
+.sync-bin-table th { text-align: left; font-weight: 600; color: var(--text-muted); padding: 0.3rem 0.5rem 0.3rem 0; border-bottom: 1px solid var(--border-soft); }
+.sync-bin-table td { padding: 0.4rem 0.5rem 0.4rem 0; border-bottom: 1px solid var(--border-soft); vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sync-bin-table th:nth-child(1), .sync-bin-table td:nth-child(1) { width: 18%; }
+.sync-bin-table th:nth-child(2), .sync-bin-table td:nth-child(2) { width: 19%; }
+.sync-bin-table th:nth-child(3), .sync-bin-table td:nth-child(3) { width: 24%; }
+.sync-bin-table th:nth-child(4), .sync-bin-table td:nth-child(4) { width: 23%; }
+.sync-bin-table th:nth-child(5), .sync-bin-table td:nth-child(5) { width: 16%; }
+.sync-bin-table code { font-size: 0.78rem; }
+.sync-bin-description { color: var(--text-muted); font-style: italic; }
+.sync-bin-table td.sync-bin-actions { display: flex; gap: 0.3rem; justify-content: flex-end; white-space: nowrap; overflow: visible; text-overflow: clip; }
+.sync-bin-actions .btn { padding: 0.1rem 0.35rem; font-size: 0.75rem; }
+.sync-bin-edit-row td { padding: 0.5rem 0; border-bottom: 1px solid var(--border-soft); white-space: normal; overflow: visible; }
+.sync-bin-edit-form { display: flex; gap: 0.5rem; align-items: flex-start; background: var(--bg-surface-alt); border-radius: 0.35rem; padding: 0.5rem; }
+.sync-bin-edit-form input { flex: 0 1 220px; min-width: 0; margin-bottom: 0; }
+.sync-bin-edit-form textarea { flex: 1 1 auto; min-width: 0; resize: vertical; font-size: 0.82rem; }
+.sync-bin-edit-form button { flex-shrink: 0; white-space: nowrap; }
+.sync-inline-row { display: flex; gap: 0.5rem; align-items: center; }
+.sync-inline-row input { flex: 1; min-width: 0; margin-bottom: 0; }
 .sync-inline-row button { flex-shrink: 0; white-space: nowrap; }
-.sync-file-row { display: flex; gap: 0.4rem; align-items: center; padding: 0.3rem 0; border-top: 1px solid var(--border-soft); }
+.sync-file-row { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(200px, 280px) auto auto; gap: 0.5rem; align-items: center; padding: 0.4rem 0; border-top: 1px solid var(--border-soft); }
 .sync-file-row:first-of-type { border-top: none; }
-.sync-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; }
-.sync-file-row select { max-width: 160px; }
+.sync-file-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; }
+.sync-file-row select { width: 100%; }
 
 .bulk-add-root-wrap,
 .bulk-add-mount { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }

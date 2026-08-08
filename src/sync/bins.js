@@ -26,15 +26,23 @@ export function resolveBinId(file) {
   return file.binId || appState.sync.defaultBinId || null;
 }
 
-/** @returns {Array<{id: string, label: string, isDefault: boolean}>} Every bin the app knows about. */
+/**
+ * @returns {Array<{id: string, label: string, description: string, isDefault: boolean}>} Every bin
+ * the app knows about. The default bin's label prefers a real name from knownBins (the user may
+ * have named it via "+ New Bin" or "+ Register Bin") over the generic "Default bin" fallback, so a
+ * named bin shows its actual name instead of being masked by isDefault.
+ */
 export function listBins() {
   const defaultBinId = appState.sync.defaultBinId;
-  /** @type {Array<{id: string, label: string, isDefault: boolean}>} */
+  /** @type {Array<{id: string, label: string, description: string, isDefault: boolean}>} */
   const bins = [];
-  if (defaultBinId) bins.push({ id: defaultBinId, label: "Default bin", isDefault: true });
+  if (defaultBinId) {
+    const known = (appState.sync.knownBins || []).find((b) => b.id === defaultBinId);
+    bins.push({ id: defaultBinId, label: (known && known.label) || "Default bin", description: (known && known.description) || "", isDefault: true });
+  }
   for (const b of appState.sync.knownBins || []) {
     if (b.id === defaultBinId) continue;
-    bins.push({ id: b.id, label: b.label || b.id, isDefault: false });
+    bins.push({ id: b.id, label: b.label || b.id, description: b.description || "", isDefault: false });
   }
   return bins;
 }
@@ -226,12 +234,89 @@ export async function createNewBin(label) {
   return { ok: true, binId: result.binId };
 }
 
-/** @param {string} binId @param {string} label */
-export function registerKnownBin(binId, label) {
+/** @param {string} binId @param {string} label @param {string} [description] */
+export function registerKnownBin(binId, label, description) {
   const existing = appState.sync.knownBins || [];
   if (existing.some((b) => b.id === binId)) return;
-  appState.sync = { ...appState.sync, knownBins: [...existing, { id: binId, label: label || binId }] };
+  const entry = { id: binId, label: label || binId };
+  if (description && description.trim()) entry.description = description.trim();
+  appState.sync = { ...appState.sync, knownBins: [...existing, entry] };
   store.writeSync(appState.sync);
+}
+
+/**
+ * Renames a bin's local label and/or description (never touches anything on JSONBin itself) —
+ * works for the default bin too, upserting it into knownBins if it isn't already there (the
+ * default bin otherwise has no knownBins entry at all, see listBins). Description is optional and
+ * left untouched when omitted — most users only ever set a name, never a description.
+ * @param {string} binId
+ * @param {string} label
+ * @param {string} [description]
+ */
+export function renameKnownBin(binId, label, description) {
+  const trimmedLabel = (label || "").trim();
+  if (!trimmedLabel) return;
+  const existing = appState.sync.knownBins || [];
+  const idx = existing.findIndex((b) => b.id === binId);
+  const trimmedDescription = description === undefined ? undefined : description.trim();
+  const knownBins =
+    idx === -1
+      ? [...existing, { id: binId, label: trimmedLabel, ...(trimmedDescription ? { description: trimmedDescription } : {}) }]
+      : existing.map((b, i) => (i === idx ? { ...b, label: trimmedLabel, ...(trimmedDescription !== undefined ? { description: trimmedDescription || undefined } : {}) } : b));
+  appState.sync = { ...appState.sync, knownBins };
+  store.writeSync(appState.sync);
+}
+
+/**
+ * Removes a bin from this device's local registry only — never deletes anything on JSONBin itself.
+ * Refuses to remove the default bin (every file needs somewhere to resolve to). Any local file
+ * explicitly assigned to the removed bin falls back to the default bin (binId: null) instead of
+ * being left pointing at a bin this device no longer lists anywhere.
+ * @param {string} binId
+ * @returns {{ok: boolean, error?: string}}
+ */
+export function deleteKnownBin(binId) {
+  if (binId === appState.sync.defaultBinId) {
+    return { ok: false, error: "Can't remove the default bin — it's where every unassigned file lives." };
+  }
+  const knownBins = (appState.sync.knownBins || []).filter((b) => b.id !== binId);
+  appState.sync = { ...appState.sync, knownBins };
+  store.writeSync(appState.sync);
+
+  const reassigned = appState.files.some((f) => f.binId === binId);
+  if (reassigned) {
+    appState.files = appState.files.map((f) => (f.binId === binId ? { ...f, binId: null } : f));
+    store.writeFiles(appState.files);
+  }
+  return { ok: true };
+}
+
+/**
+ * Switches which bin is the "default" — the one every unassigned local file resolves to (see
+ * resolveBinId) and the only one that carries app-level globalToggles/Active Question/timer on
+ * push (see serializeBinPayload/applyBinToLocalState). Immediately pulls the new default bin's
+ * files into local state, so switching + loading is one action instead of two. The bin that WAS
+ * default gets registered into knownBins under its current label first (it otherwise has no
+ * knownBins entry at all while it's still the default — see listBins), so it doesn't disappear
+ * from the bin list once it's no longer the default.
+ * @param {string} binId
+ * @returns {Promise<{ok: boolean, error?: string}>}
+ */
+export async function setDefaultBin(binId) {
+  const masterKey = appState.sync.masterKey;
+  if (!masterKey) return { ok: false, error: "No Master Key configured." };
+  if (binId === appState.sync.defaultBinId) return { ok: true };
+
+  const oldDefaultId = appState.sync.defaultBinId;
+  const oldDefaultLabel = listBins().find((b) => b.id === oldDefaultId)?.label;
+
+  appState.sync = { ...appState.sync, defaultBinId: binId };
+  store.writeSync(appState.sync);
+  if (oldDefaultId) registerKnownBin(oldDefaultId, oldDefaultLabel || oldDefaultId);
+
+  const result = await pullBinIntoLocalState(binId);
+  if (!result.ok) return { ok: false, error: result.error };
+  return { ok: true };
 }
 
 /**

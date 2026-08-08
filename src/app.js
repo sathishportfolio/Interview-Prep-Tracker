@@ -151,6 +151,9 @@ function initDropdownMenu(btnId, panelId, onOpen) {
 /** Shared refresh after anything that changes appState.files/filters from outside the normal edit flow (file switch, load, or a sync pull/move/copy/fetch). */
 function refreshAfterExternalDataChange() {
   renderFileSwitcher();
+  // A cross-device pull can bring in a themeDark preference set on another device — re-apply it so
+  // this device's display matches immediately, not just after its own next manual toggle.
+  theme.applyTheme();
   // refreshView() first: it recomputes appState.grouped/groupedUnfiltered from the new file's
   // rawData, which filters.syncControlsFromState()'s option lists read from — populating the
   // dropdowns before this recompute would show stale (usually empty) options.
@@ -241,10 +244,9 @@ function init() {
   });
 
   $("resetAllBtn")?.addEventListener("click", () => {
-    if (!confirmAction("Reset ALL data? This deletes every uploaded CSV, progress, and setting from this browser. This cannot be undone.")) return;
+    if (!confirmAction("Reset ALL data? This deletes every uploaded CSV, progress, setting, and Cross-Device Sync connection (Master Key/Bin IDs) from this browser. This cannot be undone.")) return;
     fileManager.resetAllData();
-    renderFileSwitcher();
-    refreshView();
+    refreshAfterExternalDataChange();
   });
 
   $("fileSwitcher")?.addEventListener("change", (e) => {

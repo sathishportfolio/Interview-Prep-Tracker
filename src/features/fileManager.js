@@ -171,13 +171,15 @@ export async function copyProgressCsvToClipboard() {
   }
 }
 
+/**
+ * Wipes every uploaded CSV, all progress, and every setting from this browser — including
+ * Cross-Device Sync (Master Key, Bin IDs, known bins) and theme/toggles, not just file data.
+ * Re-runs bootstrapFromStorage() against the now-empty schema (store.clearAll()) rather than
+ * hand-resetting each appState field here, so this can never drift out of sync with what a fresh
+ * install actually looks like — anything bootstrapFromStorage reads from schema gets reset too.
+ */
 export function resetAllData() {
-  appState.files = [];
-  appState.activeFileId = null;
-  appState.rawData = [];
-  appState.emptyGroups = [];
-  appState.filterState = emptyFilterState();
-  appState.activeQuestion = null;
   store.clearAll();
+  bootstrapFromStorage();
   if (onFilesChanged) onFilesChanged();
 }

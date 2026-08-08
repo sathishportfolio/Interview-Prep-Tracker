@@ -1,9 +1,10 @@
 // @ts-check
 /**
- * sync/syncConfig.js — Cross-Device Sync manager: setup form (Master Key + default Bin ID) plus,
- * once configured, a bin manager UI — create bins, see which local file lives in which bin, move
- * or copy a file to another bin, and fetch every known bin. All actual reads/writes go through
- * sync/bins.js; this module is presentation only.
+ * sync/syncConfig.js — Cross-Device Sync manager: a two-step setup wizard (Master Key, then either
+ * create a new named bin or connect an existing one) plus, once configured, a bin manager UI —
+ * create/register bins, see which local file lives in which bin, move or copy a file to another
+ * bin, and fetch every known bin. All actual reads/writes go through sync/bins.js; this module is
+ * presentation only.
  *
  * A prior version used window.open() immediately followed by window.prompt(): opening the new tab
  * steals focus in most browsers, so the prompt() dialog fired on the now-backgrounded original tab
@@ -66,76 +67,189 @@ export function clearSyncConfig() {
 /** Opens the Sync Manager modal (setup form if not yet configured, full bin manager otherwise). */
 export function openSyncManager() {
   const wrap = document.createElement("div");
-  openModal({ title: "Cross-Device Sync", bodyEl: wrap });
-  renderInto(wrap);
+  const modal = openModal({ title: "Cross-Device Sync", bodyEl: wrap });
+  renderInto(wrap, modal.close);
 }
 
-/** @param {HTMLElement} wrap Rebuilds the manager body in place, so actions can re-render without reopening the modal. */
-function renderInto(wrap) {
+/**
+ * Rebuilds the manager body in place, so actions can re-render without reopening the modal.
+ * `closeModal` is only needed for the not-yet-configured (setup wizard) branch — every other call
+ * site is already inside the configured bin-manager view re-rendering itself in place.
+ * @param {HTMLElement} wrap
+ * @param {() => void} [closeModal]
+ */
+function renderInto(wrap, closeModal) {
   wrap.textContent = "";
   if (!isSyncConfigured()) {
-    wrap.appendChild(buildSetupForm(wrap));
+    wrap.appendChild(buildSetupForm(wrap, /** @type {() => void} */ (closeModal)));
     return;
   }
   wrap.appendChild(buildConfiguredView(wrap));
 }
 
-/** @param {HTMLElement} wrap */
-function buildSetupForm(wrap) {
+/**
+ * Two-step setup wizard: Master Key first, then a Bin step that defaults to creating a brand-new
+ * (named) bin — which becomes the default bin every current/future local file resolves to (see
+ * bins.resolveBinId) — or, behind a toggle, connecting an existing Bin ID with a mandatory name,
+ * pulling in whatever questions already live there. Either way, a successful connect closes the
+ * modal straight back to the app instead of dropping into the full bin management view — that's
+ * one click away later via Sync -> Manage cloud sync, not forced on first connect.
+ * @param {HTMLElement} wrap
+ * @param {() => void} closeModal
+ */
+function buildSetupForm(wrap, closeModal) {
   const section = document.createElement("div");
+  let step = "key";
+  let masterKeyValue = appState.sync?.masterKey || "";
+  let binMode = "create";
 
-  const intro = document.createElement("p");
-  intro.className = "small text-muted";
-  intro.style.marginBottom = "0.6rem";
-  intro.textContent =
-    "Sync stores your data in a free, private online database (JSONBin.io) so you can pick up your progress on any device. Nobody else can see it without your Master Key.";
-  section.appendChild(intro);
+  function render() {
+    section.textContent = "";
+    section.appendChild(step === "key" ? buildKeyStep() : buildBinStep());
+  }
 
-  const stepsBox = document.createElement("div");
-  stepsBox.className = "sync-setup-steps";
-  const step1 = document.createElement("div");
-  step1.innerHTML = "<strong>1.</strong> Create a free JSONBin.io account, then copy your Master Key and a Bin ID from its dashboard.";
-  const helpLink = document.createElement("a");
-  helpLink.href = "https://jsonbin.io";
-  helpLink.target = "_blank";
-  helpLink.rel = "noopener noreferrer";
-  helpLink.className = "btn btn-sm btn-outline-primary";
-  helpLink.style.margin = "0.4rem 0 0.8rem";
-  helpLink.textContent = "Open JSONBin.io ↗";
-  const step2 = document.createElement("div");
-  step2.innerHTML = "<strong>2.</strong> Paste them below to connect this device.";
-  step2.style.marginBottom = "0.5rem";
-  stepsBox.append(step1, helpLink, step2);
-  section.appendChild(stepsBox);
+  function buildKeyStep() {
+    const box = document.createElement("div");
+    const helpLinkWrap = document.createElement("div");
+    helpLinkWrap.style.marginBottom = "0.7rem";
+    const helpLink = document.createElement("a");
+    helpLink.href = "https://jsonbin.io";
+    helpLink.target = "_blank";
+    helpLink.rel = "noopener noreferrer";
+    helpLink.className = "btn btn-sm btn-outline-primary";
+    helpLink.textContent = "Open JSONBin.io ↗";
+    helpLinkWrap.appendChild(helpLink);
 
-  const keyLabel = mkLabel("Master Key");
-  const keyInput = mkInput(appState.sync?.masterKey || "");
-  const keyHelp = mkHelpText("Your private password for JSONBin.io — keep it secret, use the same one on every device you sync.");
+    const keyLabel = mkLabel("Master Key");
+    const keyInput = mkInput(masterKeyValue);
 
-  const binLabel = mkLabel("Default Bin ID");
-  const binInput = mkInput(appState.sync?.defaultBinId || "");
-  const binHelp = mkHelpText("Where your data lives, like a folder. Create a new one on JSONBin.io, or paste an existing Bin ID here to load its data.");
+    const nextBtn = document.createElement("button");
+    nextBtn.type = "button";
+    nextBtn.className = "btn btn-sm btn-primary";
+    nextBtn.textContent = "Next";
+    nextBtn.addEventListener("click", () => {
+      const v = keyInput.value.trim();
+      if (!v) {
+        showToast("Master Key is required.", "error");
+        return;
+      }
+      masterKeyValue = v;
+      step = "bin";
+      render();
+    });
 
-  const saveBtn = document.createElement("button");
-  saveBtn.type = "button";
-  saveBtn.className = "btn btn-sm btn-primary";
-  saveBtn.textContent = "Connect";
-  saveBtn.style.marginTop = "0.3rem";
-  saveBtn.addEventListener("click", () => {
-    const masterKey = keyInput.value.trim();
-    const defaultBinId = binInput.value.trim();
-    if (!masterKey || !defaultBinId) {
-      showToast("Master Key and Default Bin ID are both required.", "error");
-      return;
+    box.append(helpLinkWrap, keyLabel, keyInput, nextBtn);
+    return box;
+  }
+
+  function buildBinStep() {
+    const box = document.createElement("div");
+
+    const backLink = document.createElement("a");
+    backLink.href = "#";
+    backLink.className = "small";
+    backLink.style.display = "block";
+    backLink.style.marginBottom = "0.6rem";
+    backLink.textContent = "← Back";
+    backLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      step = "key";
+      render();
+    });
+    box.appendChild(backLink);
+
+    const toggleModeLink = document.createElement("a");
+    toggleModeLink.href = "#";
+    toggleModeLink.className = "small";
+    toggleModeLink.style.display = "block";
+    toggleModeLink.style.marginTop = "0.5rem";
+
+    if (binMode === "create") {
+      const nameLabel = mkLabel("Bin Name");
+      const nameInput = mkInput("");
+
+      const createBtn = document.createElement("button");
+      createBtn.type = "button";
+      createBtn.className = "btn btn-sm btn-primary";
+      createBtn.textContent = "Create Bin";
+      createBtn.addEventListener("click", async () => {
+        const name = nameInput.value.trim();
+        if (!name) {
+          showToast("Bin Name is required.", "error");
+          return;
+        }
+        createBtn.disabled = true;
+        appState.sync = { ...appState.sync, masterKey: masterKeyValue };
+        const result = await bins.createNewBin(name);
+        createBtn.disabled = false;
+        if (!result.ok || !result.binId) {
+          showToast(result.error || "Could not create bin.", "error");
+          return;
+        }
+        appState.sync = { ...appState.sync, masterKey: masterKeyValue, defaultBinId: result.binId };
+        store.writeSync(appState.sync);
+        showToast("Sync configured.", "success");
+        if (onSyncedDataChanged) onSyncedDataChanged();
+        closeModal();
+      });
+
+      toggleModeLink.textContent = "Already have a bin? Add existing bin";
+      toggleModeLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        binMode = "existing";
+        render();
+      });
+
+      box.append(nameLabel, nameInput, createBtn, toggleModeLink);
+    } else {
+      const idLabel = mkLabel("Bin ID");
+      const idInput = mkInput("");
+      const nameLabel = mkLabel("Bin Name");
+      const nameInput = mkInput("");
+
+      const connectBtn = document.createElement("button");
+      connectBtn.type = "button";
+      connectBtn.className = "btn btn-sm btn-primary";
+      connectBtn.textContent = "Connect";
+      connectBtn.addEventListener("click", async () => {
+        const id = idInput.value.trim();
+        const name = nameInput.value.trim();
+        if (!id || !name) {
+          showToast("Bin ID and Bin Name are both required.", "error");
+          return;
+        }
+        connectBtn.disabled = true;
+        connectBtn.textContent = "Connecting…";
+        appState.sync = { ...appState.sync, masterKey: masterKeyValue, defaultBinId: id };
+        store.writeSync(appState.sync);
+        bins.registerKnownBin(id, name);
+        // Load whatever's already in this bin (a returning user reconnecting, or a bin shared from
+        // another device) right away — a fresh/empty bin just no-ops here (no files to apply).
+        const pullResult = await bins.pullBinIntoLocalState(id);
+        connectBtn.disabled = false;
+        connectBtn.textContent = "Connect";
+        if (!pullResult.ok) {
+          showToast(`Connected, but couldn't load existing data: ${pullResult.error || "unknown error"}`, "error");
+        } else {
+          showToast("Sync configured.", "success");
+        }
+        if (onSyncedDataChanged) onSyncedDataChanged();
+        closeModal();
+      });
+
+      toggleModeLink.textContent = "Create a new bin instead";
+      toggleModeLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        binMode = "create";
+        render();
+      });
+
+      box.append(idLabel, idInput, nameLabel, nameInput, connectBtn, toggleModeLink);
     }
-    appState.sync = { ...appState.sync, masterKey, defaultBinId };
-    store.writeSync(appState.sync);
-    showToast("Sync configured.", "success");
-    if (onSyncedDataChanged) onSyncedDataChanged();
-    renderInto(wrap);
-  });
+    return box;
+  }
 
-  section.append(keyLabel, keyInput, keyHelp, binLabel, binInput, binHelp, saveBtn);
+  render();
   return section;
 }
 
@@ -143,39 +257,22 @@ function buildSetupForm(wrap) {
 function buildConfiguredView(wrap) {
   const section = document.createElement("div");
 
-  const summary = document.createElement("div");
-  summary.className = "small text-muted";
-  summary.style.marginBottom = "0.8rem";
-  summary.innerHTML = `Connected. Your data is stored in bin <code>${appState.sync.defaultBinId}</code> — use the same Master Key and Bin ID on another device to see the same data there.`;
-  section.appendChild(summary);
-
   // --- Known bins + create new ---
   const binsHeading = document.createElement("div");
   binsHeading.style.fontWeight = "600";
-  binsHeading.style.marginBottom = "0.15rem";
-  binsHeading.textContent = "Bins (storage folders)";
+  binsHeading.style.marginBottom = "0.3rem";
+  binsHeading.textContent = "Bins";
   section.appendChild(binsHeading);
 
-  const binsBlurb = mkHelpText("Most people only need the default bin below. Add another one only if you want to split some questions into separate storage.");
-  binsBlurb.style.marginTop = "0";
-  section.appendChild(binsBlurb);
-
-  const binList = document.createElement("div");
-  binList.className = "sync-bin-list";
-  for (const b of bins.listBins()) {
-    const row = document.createElement("div");
-    row.className = "sync-bin-row";
-    row.textContent = `${b.label}${b.isDefault ? " (default)" : ""} — ${b.id}`;
-    binList.appendChild(row);
-  }
-  section.appendChild(binList);
+  section.appendChild(buildBinsTable(wrap));
 
   const newBinRow = document.createElement("div");
   newBinRow.className = "sync-inline-row";
+  newBinRow.style.marginTop = "0.5rem";
   const newBinLabelInput = document.createElement("input");
   newBinLabelInput.type = "text";
   newBinLabelInput.className = "form-control form-control-sm";
-  newBinLabelInput.placeholder = "New bin label (e.g. \"Archive\")";
+  newBinLabelInput.placeholder = "New bin name";
   const newBinBtn = document.createElement("button");
   newBinBtn.type = "button";
   newBinBtn.className = "btn btn-sm btn-outline-primary";
@@ -193,40 +290,56 @@ function buildConfiguredView(wrap) {
   });
   newBinRow.append(newBinLabelInput, newBinBtn);
   section.appendChild(newBinRow);
-  const newBinHelp = mkHelpText("Creates a new, empty bin you can move or copy files into below.");
-  newBinHelp.style.marginTop = "0.2rem";
-  section.appendChild(newBinHelp);
 
+  // Registering an existing bin is the less-common path — tucked behind a show/hide toggle so it
+  // doesn't compete with "+ New Bin" for attention.
   const registerBinRow = document.createElement("div");
   registerBinRow.className = "sync-inline-row";
   registerBinRow.style.marginTop = "0.3rem";
+  registerBinRow.hidden = true;
   const registerIdInput = document.createElement("input");
   registerIdInput.type = "text";
   registerIdInput.className = "form-control form-control-sm";
-  registerIdInput.placeholder = "Existing Bin ID to manage here";
+  registerIdInput.placeholder = "Existing Bin ID";
+  const registerLabelInput = document.createElement("input");
+  registerLabelInput.type = "text";
+  registerLabelInput.className = "form-control form-control-sm";
+  registerLabelInput.placeholder = "Name";
   const registerBtn = document.createElement("button");
   registerBtn.type = "button";
   registerBtn.className = "btn btn-sm btn-outline-primary";
-  registerBtn.textContent = "+ Register Bin";
-  registerBtn.title = "Add a Bin ID you already have (e.g. from another device) to this manager";
+  registerBtn.textContent = "Add";
   registerBtn.addEventListener("click", () => {
     const id = registerIdInput.value.trim();
-    if (!id) return;
-    bins.registerKnownBin(id, id);
+    const name = registerLabelInput.value.trim();
+    if (!id || !name) {
+      showToast("Bin ID and Name are both required.", "error");
+      return;
+    }
+    bins.registerKnownBin(id, name);
     renderInto(wrap);
   });
-  registerBinRow.append(registerIdInput, registerBtn);
+  registerBinRow.append(registerIdInput, registerLabelInput, registerBtn);
+
+  const toggleRegisterLink = document.createElement("a");
+  toggleRegisterLink.href = "#";
+  toggleRegisterLink.className = "small";
+  toggleRegisterLink.style.display = "block";
+  toggleRegisterLink.style.marginTop = "0.3rem";
+  toggleRegisterLink.textContent = "+ Add existing bin";
+  toggleRegisterLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    registerBinRow.hidden = !registerBinRow.hidden;
+    toggleRegisterLink.textContent = registerBinRow.hidden ? "+ Add existing bin" : "− Hide";
+  });
+  section.appendChild(toggleRegisterLink);
   section.appendChild(registerBinRow);
-  const registerHelp = mkHelpText("Already have a Bin ID from another device or a teammate? Add it here to manage it too.");
-  registerHelp.style.marginTop = "0.2rem";
-  section.appendChild(registerHelp);
 
   const fetchAllBtn = document.createElement("button");
   fetchAllBtn.type = "button";
   fetchAllBtn.className = "btn btn-sm btn-outline-secondary";
-  fetchAllBtn.style.marginTop = "0.4rem";
+  fetchAllBtn.style.marginTop = "0.5rem";
   fetchAllBtn.textContent = "Fetch All Bins";
-  fetchAllBtn.title = "Pull every known bin and merge its files into this device";
   fetchAllBtn.addEventListener("click", async () => {
     fetchAllBtn.disabled = true;
     const result = await bins.fetchAllBins();
@@ -236,22 +349,13 @@ function buildConfiguredView(wrap) {
     renderInto(wrap);
   });
   section.appendChild(fetchAllBtn);
-  const fetchAllHelp = mkHelpText("Pulls the latest data from every bin listed above into this device.");
-  fetchAllHelp.style.marginTop = "0.2rem";
-  section.appendChild(fetchAllHelp);
 
   // --- Per-file bin assignment ---
   const filesHeading = document.createElement("div");
   filesHeading.style.fontWeight = "600";
-  filesHeading.style.margin = "0.8rem 0 0.15rem";
+  filesHeading.style.margin = "0.9rem 0 0.3rem";
   filesHeading.textContent = "Files";
   section.appendChild(filesHeading);
-
-  if (appState.files.length > 1 || bins.listBins().length > 1) {
-    const filesBlurb = mkHelpText("Move sends a file to a different bin. Copy duplicates it into another bin too, keeping the original where it is.");
-    filesBlurb.style.marginTop = "0";
-    section.appendChild(filesBlurb);
-  }
 
   const availableBins = bins.listBins();
   for (const file of appState.files) {
@@ -337,6 +441,167 @@ function buildFileRow(wrap, file, availableBins) {
   return row;
 }
 
+/**
+ * Bin ID + Name + Description + which local files currently resolve to it (comma-separated, like a
+ * CSV list), plus per-row Edit (rename/re-describe the local label — see buildBinEditRow) and
+ * Delete (forget it locally, never touches the bin's actual data on JSONBin — see
+ * bins.deleteKnownBin) — one row per known bin (see bins.listBins). Also the reference table for
+ * what "Fetch All Bins" just pulled, and which file lives where.
+ * @param {HTMLElement} wrap
+ */
+function buildBinsTable(wrap) {
+  const filesByBin = bins.groupLocalFilesByBin();
+
+  const table = document.createElement("table");
+  table.className = "sync-bin-table";
+  const thead = document.createElement("thead");
+  thead.innerHTML = "<tr><th>Name</th><th>Bin ID</th><th>Description</th><th>Files</th><th></th></tr>";
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  for (const b of bins.listBins()) {
+    const row = document.createElement("tr");
+
+    const nameCell = document.createElement("td");
+    nameCell.textContent = b.label;
+    if (b.isDefault) {
+      const badge = document.createElement("span");
+      badge.className = "badge text-bg-secondary";
+      badge.textContent = "default";
+      badge.style.marginLeft = "0.4rem";
+      nameCell.appendChild(badge);
+    }
+
+    const idCell = document.createElement("td");
+    const code = document.createElement("code");
+    code.textContent = b.id;
+    idCell.appendChild(code);
+
+    const descCell = document.createElement("td");
+    descCell.className = "sync-bin-description";
+    descCell.textContent = b.description || "—";
+    descCell.title = b.description || "";
+
+    const filesCell = document.createElement("td");
+    filesCell.textContent = (filesByBin.get(b.id) || []).map((f) => f.fileName).join(", ") || "—";
+
+    const actionsCell = document.createElement("td");
+    actionsCell.className = "sync-bin-actions";
+
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "btn btn-sm btn-light";
+    editBtn.title = "Edit this bin's name/description";
+    editBtn.innerHTML = '<i class="fa-solid fa-pen"></i>';
+    editBtn.addEventListener("click", () => {
+      const existingEditRow = row.nextElementSibling;
+      if (existingEditRow && existingEditRow.classList.contains("sync-bin-edit-row")) {
+        existingEditRow.remove();
+        return;
+      }
+      row.after(buildBinEditRow(wrap, b, row));
+    });
+    actionsCell.appendChild(editBtn);
+
+    if (!b.isDefault) {
+      const setDefaultBtn = document.createElement("button");
+      setDefaultBtn.type = "button";
+      setDefaultBtn.className = "btn btn-sm btn-light";
+      setDefaultBtn.title = "Set as default bin (pulls its files into this device now)";
+      setDefaultBtn.innerHTML = '<i class="fa-solid fa-star"></i>';
+      setDefaultBtn.addEventListener("click", async () => {
+        if (!confirmAction(`Set "${b.label}" as the default bin? This pulls its files into this device now (matching local files are overwritten with the cloud version), and it becomes where new/unassigned files sync to from now on.`)) return;
+        setDefaultBtn.disabled = true;
+        const result = await bins.setDefaultBin(b.id);
+        setDefaultBtn.disabled = false;
+        if (!result.ok) {
+          showToast(result.error || "Could not switch default bin.", "error");
+          return;
+        }
+        showToast(`"${b.label}" is now the default bin.`, "success");
+        if (onSyncedDataChanged) onSyncedDataChanged();
+        renderInto(wrap);
+      });
+      actionsCell.appendChild(setDefaultBtn);
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "btn btn-sm btn-light";
+      deleteBtn.title = "Remove this bin from this device (does not delete its data on JSONBin)";
+      deleteBtn.innerHTML = '<i class="fa-solid fa-trash icon-duplicate"></i>';
+      deleteBtn.addEventListener("click", () => {
+        if (!confirmAction(`Remove bin "${b.label}" from this device? Its data on JSONBin is untouched — any local file assigned to it falls back to the default bin.`)) return;
+        const result = bins.deleteKnownBin(b.id);
+        if (!result.ok) {
+          showToast(result.error || "Could not remove bin.", "error");
+          return;
+        }
+        if (onSyncedDataChanged) onSyncedDataChanged();
+        renderInto(wrap);
+      });
+      actionsCell.appendChild(deleteBtn);
+    }
+
+    row.append(nameCell, idCell, descCell, filesCell, actionsCell);
+    tbody.appendChild(row);
+  }
+  table.appendChild(tbody);
+  return table;
+}
+
+/**
+ * The inline edit row that opens directly under a bin's row when its Edit button is clicked — a
+ * Name field (pre-filled, basically never actually edited since it was just set on create/register)
+ * and an optional Description field, both in one seamless step instead of two separate prompts.
+ * Collapses back into a single click via the same Edit button (see buildBinsTable); Save re-renders
+ * the whole manager view, Cancel/Escape-equivalent just removes this row again with no side effects.
+ * @param {HTMLElement} wrap
+ * @param {{id: string, label: string, description: string}} b
+ * @param {HTMLTableRowElement} afterRow
+ * @returns {HTMLTableRowElement}
+ */
+function buildBinEditRow(wrap, b, afterRow) {
+  const editRow = document.createElement("tr");
+  editRow.className = "sync-bin-edit-row";
+  const cell = document.createElement("td");
+  cell.colSpan = 5;
+
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.className = "form-control form-control-sm";
+  nameInput.placeholder = "Name";
+  nameInput.value = b.label;
+
+  const descInput = document.createElement("textarea");
+  descInput.className = "form-control form-control-sm";
+  descInput.placeholder = "Description (optional)";
+  descInput.rows = 1;
+  descInput.value = b.description || "";
+
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.className = "btn btn-sm btn-primary";
+  saveBtn.textContent = "Save";
+  saveBtn.addEventListener("click", () => {
+    const name = nameInput.value.trim() || b.label;
+    bins.renameKnownBin(b.id, name, descInput.value);
+    renderInto(wrap);
+  });
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "btn btn-sm btn-light";
+  cancelBtn.textContent = "Cancel";
+  cancelBtn.addEventListener("click", () => editRow.remove());
+
+  const form = document.createElement("div");
+  form.className = "sync-bin-edit-form";
+  form.append(nameInput, descInput, saveBtn, cancelBtn);
+  cell.appendChild(form);
+  editRow.appendChild(cell);
+  return editRow;
+}
+
 /** @param {string} text */
 function mkLabel(text) {
   const label = document.createElement("label");
@@ -353,14 +618,4 @@ function mkInput(value) {
   input.style.marginBottom = "0.5rem";
   input.value = value;
   return input;
-}
-
-/** @param {string} text Plain-language explanation shown under a field, e.g. what a Bin ID is for. */
-function mkHelpText(text) {
-  const help = document.createElement("div");
-  help.className = "form-text";
-  help.style.marginTop = "-0.3rem";
-  help.style.marginBottom = "0.6rem";
-  help.textContent = text;
-  return help;
 }

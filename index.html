@@ -9,13 +9,16 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link rel="stylesheet" href="css/style.css">
 <script>
-  // Applied synchronously, before first paint, so returning dark-theme users don't see a flash of
-  // the light theme while app.js's module script (theme.js) loads and runs — see features/theme.js.
+  // Applied synchronously, before first paint, so returning users don't see a theme flash while
+  // app.js's module script (theme.js) loads and runs — see features/theme.js. Defaults to dark for
+  // first-time visitors and any older saved schema that predates themeDark, but still respects an
+  // explicit `false` (the user deliberately switched to light).
   try {
     var iqvSchema = JSON.parse(localStorage.getItem("iqv:v1"));
-    var iqvDark = !!(iqvSchema && iqvSchema.globalToggles && iqvSchema.globalToggles.themeDark);
+    var iqvThemeDark = iqvSchema && iqvSchema.globalToggles ? iqvSchema.globalToggles.themeDark : undefined;
+    var iqvDark = iqvThemeDark === undefined ? true : !!iqvThemeDark;
   } catch (e) {
-    var iqvDark = false;
+    var iqvDark = true;
   }
   document.documentElement.dataset.theme = iqvDark ? "dark" : "light";
   document.documentElement.setAttribute("data-bs-theme", iqvDark ? "dark" : "light");
@@ -91,7 +94,7 @@
         </div>
       </div>
 
-      <button id="resetAllBtn" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-trash"></i> Reset All Data</button>
+      <button id="resetAllBtn" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-trash"></i> Reset All</button>
     </div>
   </section>
 

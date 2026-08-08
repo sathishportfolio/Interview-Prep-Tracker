@@ -77,7 +77,7 @@
  * @property {boolean} tempMode
  * @property {boolean} autoExpandChildrenOn default false — opening a Subject/Topic also opens its
  *   first Topic/SubTopic in the same click (see features/autoExpand.js); never cascades to Questions.
- * @property {boolean} themeDark default false — see features/theme.js.
+ * @property {boolean} themeDark default true — see features/theme.js.
  */
 
 /**
@@ -91,6 +91,9 @@
  * @property {string} id
  * @property {string} label   User-facing nickname, e.g. "Overflow bin" — the id itself is the
  *   only thing that matters functionally, this is just so the manager UI is legible.
+ * @property {string} [description]   Optional longer note, e.g. "Archived questions from 2023" —
+ *   most users skip this entirely (see sync/syncConfig.js's Edit Bin dialog); never required to
+ *   create or rename a bin.
  */
 
 /**

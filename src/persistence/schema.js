@@ -23,7 +23,7 @@ export function emptySchema() {
       editModeOn: true,
       tempMode: false,
       autoExpandChildrenOn: false,
-      themeDark: false,
+      themeDark: true,
     },
     activeQuestion: null,
     sync: {
