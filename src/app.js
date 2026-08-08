@@ -59,6 +59,17 @@ function updateSyncUsageBadge(usage) {
   fill.closest(".progress")?.setAttribute("aria-valuenow", String(usage.percent));
   fill.classList.toggle("bg-success", !usage.overCap);
   fill.classList.toggle("bg-danger", usage.overCap);
+
+  // Mirrored onto the collapsed Sync button itself so nearing/over the free-tier cap is visible
+  // without having to open the dropdown first.
+  const badge = $("syncMenuUsageBadge");
+  if (badge) {
+    badge.hidden = false;
+    badge.textContent = `${usage.percent}%`;
+    badge.title = usage.overCap ? "Cloud storage usage is near/at the free-tier limit" : "Cloud storage usage";
+    badge.classList.toggle("usage-over", usage.overCap);
+    badge.classList.toggle("usage-warn", !usage.overCap && usage.percent >= 70);
+  }
 }
 
 /** Recomputes the usage badge from local state alone (no network call) — see bins.computeDefaultBinUsage. */
@@ -258,7 +269,7 @@ function init() {
   floatingToggles.initFloatingToggles();
 
   // --- Bulk selection bar ---
-  $("bulkSelectAllBtn")?.addEventListener("click", () => bulkSelection.selectAllInActiveGroups());
+  $("bulkSelectAllBtn")?.addEventListener("click", () => bulkSelection.toggleSelectAllInActiveGroups());
   $("bulkDeleteSelectedBtn")?.addEventListener("click", () => bulkSelection.bulkDeleteSelected());
   $("bulkClearSelectedBtn")?.addEventListener("click", () => bulkSelection.clearAllSelections());
   $("bulkMoveSelectedBtn")?.addEventListener("click", async () => {

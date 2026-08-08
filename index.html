@@ -51,7 +51,9 @@
 
       <div class="sync-menu-wrap">
         <button id="syncMenuBtn" class="btn btn-outline-secondary btn-sm" title="Cloud Sync" aria-haspopup="true" aria-expanded="false">
-          <i class="fa-solid fa-cloud"></i> Sync <span id="syncMenuStatusDot" class="sync-status-dot" hidden aria-hidden="true"></span>
+          <i class="fa-solid fa-cloud"></i> Sync
+          <span id="syncMenuUsageBadge" class="sync-usage-badge" hidden></span>
+          <span id="syncMenuStatusDot" class="sync-status-dot" hidden aria-hidden="true"></span>
         </button>
         <div id="syncMenuPanel" class="sync-menu-panel" hidden>
           <div id="syncMenuSetupPrompt" class="sync-menu-setup">
@@ -122,7 +124,7 @@
   <section id="bulkSelectionBar" class="select-count-bar" hidden>
     <span id="bulkSelectionCount"></span>
     <span>
-      <button id="bulkSelectAllBtn" class="btn btn-sm btn-outline-secondary" title="Select everything in the currently active group(s)">Select All</button>
+      <button id="bulkSelectAllBtn" class="btn btn-sm btn-outline-secondary" title="Select everything in the currently active group(s); click again to clear it">Select All</button>
       <button id="bulkMoveSelectedBtn" class="btn btn-sm btn-primary">Move Selected</button>
       <button id="bulkDeleteSelectedBtn" class="btn btn-sm btn-danger">Delete Selected</button>
       <button id="bulkClearSelectedBtn" class="btn btn-sm btn-light">Clear</button>

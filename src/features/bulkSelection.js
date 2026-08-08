@@ -94,28 +94,50 @@ export function selectAllChildren(parentLevel, parentScope) {
 }
 
 /**
- * Selects everything within every currently-active select-mode container — Subjects (if the global
- * toggle is on) plus every Subject/Topic/SubTopic whose own child-select-mode is on. This is the
- * floating bar's "Select All" shortcut: scoped to whatever select mode the user has already turned
- * on, rather than blindly selecting the entire tree.
+ * @returns {{groupKeys: string[], questionIds: string[]}} Every key/id that "Select All" would
+ * select — Subjects (if the global toggle is on) plus everything under every Subject/Topic/SubTopic
+ * whose own child-select-mode is currently on. Scoped to whatever select mode the user has already
+ * turned on, rather than blindly the entire tree.
  */
-export function selectAllInActiveGroups() {
+function activeGroupSelectionTargets() {
+  const groupKeys = [];
+  const questionIds = [];
   if (document.body.classList.contains("select-subject-on")) {
-    for (const subject of subjectsInTree()) appState.selectedGroupKeys.add(groupKey("subject", { subject }));
+    for (const subject of subjectsInTree()) groupKeys.push(groupKey("subject", { subject }));
   }
   for (const key of appState.childSelectModeKeys) {
     const { level, scope } = parseGroupKey(key);
     if (level === "subject") {
-      for (const topic of topicsUnder(scope.subject)) appState.selectedGroupKeys.add(groupKey("topic", { subject: scope.subject, topic }));
+      for (const topic of topicsUnder(scope.subject)) groupKeys.push(groupKey("topic", { subject: scope.subject, topic }));
     } else if (level === "topic") {
       for (const subTopic of subTopicsUnder(scope.subject, /** @type {string} */ (scope.topic))) {
-        appState.selectedGroupKeys.add(groupKey("subTopic", { subject: scope.subject, topic: scope.topic, subTopic }));
+        groupKeys.push(groupKey("subTopic", { subject: scope.subject, topic: scope.topic, subTopic }));
       }
     } else {
       for (const q of appState.rawData) {
-        if (q.subject === scope.subject && q.topic === scope.topic && q.subTopic === scope.subTopic) appState.selectedQuestionIds.add(q.id);
+        if (q.subject === scope.subject && q.topic === scope.topic && q.subTopic === scope.subTopic) questionIds.push(q.id);
       }
     }
+  }
+  return { groupKeys, questionIds };
+}
+
+/**
+ * The floating bar's "Select All" button: one click selects everything within every currently-active
+ * select-mode container; if that's already fully selected, the same click clears it back out instead
+ * — a single toggle for both check-all and uncheck-all, rather than needing the separate Clear
+ * button for the common "selected everything, now deselect everything" round trip.
+ */
+export function toggleSelectAllInActiveGroups() {
+  const { groupKeys, questionIds } = activeGroupSelectionTargets();
+  const hasTargets = groupKeys.length > 0 || questionIds.length > 0;
+  const allSelected = hasTargets && groupKeys.every((k) => appState.selectedGroupKeys.has(k)) && questionIds.every((id) => appState.selectedQuestionIds.has(id));
+  if (allSelected) {
+    for (const k of groupKeys) appState.selectedGroupKeys.delete(k);
+    for (const id of questionIds) appState.selectedQuestionIds.delete(id);
+  } else {
+    for (const k of groupKeys) appState.selectedGroupKeys.add(k);
+    for (const id of questionIds) appState.selectedQuestionIds.add(id);
   }
   updateSelectionBar();
 }
@@ -213,14 +235,35 @@ export function formatSelectionSummary(groups, questionIds) {
   return parts.join(", ");
 }
 
+/** @returns {boolean} Whether any select-mode checkbox is currently showing anywhere — Subjects globally, or a Topic/SubTopic/Question container's own scoped toggle. */
+function isSelectModeActive() {
+  return document.body.classList.contains("select-subject-on") || appState.childSelectModeKeys.size > 0;
+}
+
+/**
+ * Keeps the floating bulkSelectionBar in sync. Shown not just once something is actually selected,
+ * but as soon as select mode is turned on anywhere (Subjects globally, or any Topic/SubTopic/
+ * Question container) — so the bar (and its "Select All") is available right away instead of only
+ * appearing after the user has already hand-picked something.
+ */
 export function updateSelectionBar() {
   const bar = document.getElementById("bulkSelectionBar");
   const countEl = document.getElementById("bulkSelectionCount");
   if (!bar || !countEl) return;
   const { groups, questionIds } = getSelection();
-  bar.hidden = groups.length === 0 && questionIds.length === 0;
-  countEl.textContent = bar.hidden ? "" : `${formatSelectionSummary(groups, questionIds)} Selected`;
+  const hasSelection = groups.length > 0 || questionIds.length > 0;
+  const selectModeActive = isSelectModeActive();
+  bar.hidden = !hasSelection && !selectModeActive;
+  countEl.textContent = hasSelection
+    ? `${formatSelectionSummary(groups, questionIds)} Selected`
+    : selectModeActive
+      ? "Select mode on — nothing selected yet"
+      : "";
   document.body.classList.toggle("bulk-bar-visible", !bar.hidden);
+  const moveBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById("bulkMoveSelectedBtn"));
+  const deleteBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById("bulkDeleteSelectedBtn"));
+  if (moveBtn) moveBtn.disabled = !hasSelection;
+  if (deleteBtn) deleteBtn.disabled = !hasSelection;
   repaint();
 }
 

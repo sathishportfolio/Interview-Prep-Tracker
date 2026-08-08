@@ -74,6 +74,11 @@ body {
 
 .sync-menu-wrap { position: relative; }
 .sync-status-dot { display: inline-block; width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--review); margin-left: 0.2rem; vertical-align: middle; }
+/* Cloud storage usage %, shown directly on the collapsed Sync button (not just inside its dropdown)
+   so nearing the free-tier cap is visible without opening the menu. */
+.sync-usage-badge { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 0.05rem 0.32rem; border-radius: 0.7rem; margin-left: 0.25rem; vertical-align: middle; background: #e9ecef; color: #495057; }
+.sync-usage-badge.usage-warn { background: #fff3cd; color: #997404; }
+.sync-usage-badge.usage-over { background: #f8d7da; color: #842029; }
 .sync-menu-panel {
   position: absolute;
   top: calc(100% + 0.35rem);
@@ -166,7 +171,9 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .q-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .no-answer-icon { color: #ccc; font-size: 0.75rem; flex-shrink: 0; }
 .status-icon-row { display: flex; gap: 0.3rem; align-items: center; }
-.status-icon-row .icon-btn { border: none; background: none; padding: 0.1rem 0.25rem; cursor: pointer; color: #bbb; font-size: 0.9rem; }
+/* Not scoped to .status-icon-row — .icon-flag (Active Question) sits as its own sibling in the
+   question header, not inside that row, but must look like the same family of icon buttons. */
+.icon-btn { border: none; background: none; padding: 0.1rem 0.25rem; cursor: pointer; color: #bbb; font-size: 0.9rem; }
 .icon-done.is-active { color: var(--done); }
 .icon-review.is-active { color: var(--review); }
 .icon-duplicate.is-active { color: var(--duplicate); }

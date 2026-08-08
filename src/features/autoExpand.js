@@ -20,27 +20,39 @@ export function toggleAutoExpandChildren() {
 
 /**
  * Called after a Subject/Topic header's own open/close toggle already ran — no-ops unless the
- * toggle is on AND this click just OPENED the node (collapsing never cascades).
+ * toggle is on AND this click just OPENED the node (collapsing never cascades). Returns the deepest
+ * newly-opened key so the caller can scroll it into view — deliberately does NOT scroll here itself:
+ * the caller (treeHandlers.js) must repaint first, since scrolling before the DOM reflects the final
+ * open/collapsed layout targets a stale position that then visibly jumps once repaint() catches up.
  * @param {"subject"|"topic"} level
  * @param {{subject: string, topic?: string}} scope
+ * @returns {string|null}
  */
 export function autoExpandFirstChild(level, scope) {
-  if (!appState.toggles.autoExpandChildrenOn) return;
+  if (!appState.toggles.autoExpandChildrenOn) return null;
   const subjectNode = appState.grouped.subjects.find((s) => s.subject === scope.subject);
-  if (!subjectNode) return;
+  if (!subjectNode) return null;
 
+  let deepestKey = null;
   if (level === "subject") {
-    if (!appState.openNodeKeys.has(`S::${scope.subject}`)) return; // just collapsed, not opened
+    if (!appState.openNodeKeys.has(`S::${scope.subject}`)) return null; // just collapsed, not opened
     const firstTopic = subjectNode.topics[0];
-    if (!firstTopic) return;
-    openNode(`${scope.subject}::T::${firstTopic.topic}`);
+    if (!firstTopic) return null;
+    deepestKey = `${scope.subject}::T::${firstTopic.topic}`;
+    openNode(deepestKey);
     const firstSubTopic = firstTopic.subTopics[0];
-    if (firstSubTopic) openNode(`${scope.subject}::${firstTopic.topic}::ST::${firstSubTopic.subTopic}`);
+    if (firstSubTopic) {
+      deepestKey = `${scope.subject}::${firstTopic.topic}::ST::${firstSubTopic.subTopic}`;
+      openNode(deepestKey);
+    }
   } else {
-    if (!appState.openNodeKeys.has(`${scope.subject}::T::${scope.topic}`)) return; // just collapsed
+    if (!appState.openNodeKeys.has(`${scope.subject}::T::${scope.topic}`)) return null; // just collapsed
     const topicNode = subjectNode.topics.find((t) => t.topic === scope.topic);
     const firstSubTopic = topicNode?.subTopics[0];
-    if (firstSubTopic) openNode(`${scope.subject}::${scope.topic}::ST::${firstSubTopic.subTopic}`);
+    if (firstSubTopic) {
+      deepestKey = `${scope.subject}::${scope.topic}::ST::${firstSubTopic.subTopic}`;
+      openNode(deepestKey);
+    }
   }
-  repaint();
+  return deepestKey;
 }

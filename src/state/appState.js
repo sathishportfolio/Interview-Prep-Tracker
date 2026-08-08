@@ -101,6 +101,41 @@ export function toggleNodeOpen(key) {
   else appState.openNodeKeys.add(key);
 }
 
+/**
+ * @param {string} key
+ * @returns {string[]} Other currently-open keys at the same accordion level ("S::", "subj::T::",
+ *   "subj::topic::ST::") and same parent as `key`. Questions (`Q::`) are never mutually exclusive.
+ */
+function siblingOpenKeysAtSameLevel(key) {
+  if (key.startsWith("Q::")) return [];
+  let prefix;
+  if (key.startsWith("S::")) {
+    prefix = "S::";
+  } else {
+    const parts = key.split("::");
+    if (parts.length === 3 && parts[1] === "T") prefix = `${parts[0]}::T::`;
+    else if (parts.length === 4 && parts[2] === "ST") prefix = `${parts[0]}::${parts[1]}::ST::`;
+    else return [];
+  }
+  return [...appState.openNodeKeys].filter((k) => k.startsWith(prefix) && k !== key);
+}
+
+/**
+ * Opens `key`, first closing any other Subject/Topic/SubTopic open at the same level under the same
+ * parent — keeps only one Subject/Topic/SubTopic accordion active at a time (Questions excluded).
+ * @param {string} key
+ */
+export function openNodeExclusive(key) {
+  for (const sibling of siblingOpenKeysAtSameLevel(key)) appState.openNodeKeys.delete(sibling);
+  appState.openNodeKeys.add(key);
+}
+
+/** Toggles `key` open/closed; opening applies the same single-open exclusivity as openNodeExclusive. @param {string} key */
+export function toggleNodeOpenExclusive(key) {
+  if (appState.openNodeKeys.has(key)) appState.openNodeKeys.delete(key);
+  else openNodeExclusive(key);
+}
+
 /** @param {string} key */
 export function setNodeOpen(key, open) {
   if (open) appState.openNodeKeys.add(key);

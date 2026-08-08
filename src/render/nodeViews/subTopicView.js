@@ -19,7 +19,9 @@ import { groupKey } from "../../data/selectionKeys.js";
  */
 export function createSubTopicNode(st, handlers) {
   const key = `${st.subject}::${st.topic}::ST::${st.subTopic}`;
-  const { item, header, headerControls, body, titleEl } = createAccordionShell(key, "level-subtopic");
+  const { item, header, headerControls, body, titleEl } = createAccordionShell(key, "level-subtopic", () =>
+    handlers.onGroupAutoExpand("subTopic", { subject: st.subject, topic: st.topic, subTopic: st.subTopic })
+  );
   item.dataset.subject = st.subject;
   item.dataset.topic = st.topic;
   item.dataset.subTopic = st.subTopic;

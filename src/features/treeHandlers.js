@@ -18,6 +18,8 @@ import * as bulkSelection from "./bulkSelection.js";
 import * as moveForm from "./moveForm.js";
 import * as groupPanels from "./groupPanels.js";
 import * as autoExpand from "./autoExpand.js";
+import { repaint } from "./refresh.js";
+import { scrollNodeIntoView } from "../render/accordion.js";
 import { appState } from "../state/appState.js";
 
 export function buildTreeHandlers() {
@@ -38,7 +40,19 @@ export function buildTreeHandlers() {
     onQuickAddTopic: (subject) => quickAdd.quickAddTopic(subject),
     onQuickAddSubTopic: (subject, topic) => quickAdd.quickAddSubTopic(subject, topic),
     onToggleChildSelectMode: (parentLevel, parentScope) => bulkSelection.toggleChildSelectMode(parentLevel, parentScope),
-    onGroupAutoExpand: (level, scope) => autoExpand.autoExpandFirstChild(level, scope),
+    // Also the single-open-accordion resync point: opening a Subject/Topic/SubTopic closes its
+    // siblings in appState (see accordion.js's toggleNodeOpenExclusive/openNodeExclusive) but only
+    // this node's own DOM was patched directly — repaint() re-syncs every sibling's classes too.
+    // Scrolling happens AFTER repaint(), not before: scrolling earlier targets stale pre-collapse
+    // layout (the just-closed sibling's old height still counted), which then visibly jumps once
+    // repaint() actually collapses it — this was the "lands in an unexpected spot" bug.
+    onGroupAutoExpand: (level, scope) => {
+      const clickedKey =
+        level === "subject" ? `S::${scope.subject}` : level === "topic" ? `${scope.subject}::T::${scope.topic}` : `${scope.subject}::${scope.topic}::ST::${scope.subTopic}`;
+      const deepestKey = level === "subject" || level === "topic" ? autoExpand.autoExpandFirstChild(level, scope) : null;
+      repaint();
+      if (appState.openNodeKeys.has(clickedKey)) scrollNodeIntoView(deepestKey || clickedKey);
+    },
     onToggleGroupSelect: (level, scope) => bulkSelection.toggleGroupSelect(level, scope),
     onMountGroupPanels: (level, scope, mountEl) => groupPanels.mountGroupPanels(level, scope, mountEl),
     onMountMoveSelectedButton: (mountEl) => {
