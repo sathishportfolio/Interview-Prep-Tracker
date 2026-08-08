@@ -1,8 +1,8 @@
 // @ts-check
 /**
  * features/dragDrop.js — Drag & Drop Reordering + cross-hierarchy moves. Owns every
- * `Sortable.create()` call (Topic/SubTopic/Question lists — Subjects are never draggable, only
- * valid drop targets). Same-list drags (reorder) are handled entirely by Sortable's own onEnd/
+ * `Sortable.create()` call (Subject/Topic/SubTopic/Question lists). Same-list drags (reorder) are
+ * handled entirely by Sortable's own onEnd/
  * onUpdate; a Question dropped into an EXPANDED SubTopic's own list is handled by Sortable's onAdd.
  *
  * Everything else goes through one shared document-level dragover/drop hit-test
@@ -40,7 +40,8 @@ const initializedContainers = new WeakSet();
  * @type {null
  *   | {kind: "question", ids: string[], source: {subject: string, topic: string, subTopic: string}, el: HTMLElement}
  *   | {kind: "subTopic", source: {subject: string, topic: string, subTopic: string}, el: HTMLElement}
- *   | {kind: "topic", source: {subject: string, topic: string}, el: HTMLElement}}
+ *   | {kind: "topic", source: {subject: string, topic: string}, el: HTMLElement}
+ *   | {kind: "subject", source: {subject: string}, el: HTMLElement}}
  */
 let dragState = null;
 
@@ -51,6 +52,7 @@ export function refreshSortables() {
 
   const root = document.getElementById("treeRoot");
   if (root) {
+    initGroupSortable(root, Sortable, "subject");
     root.querySelectorAll(".topic-list").forEach((el) => initGroupSortable(el, Sortable, "topic"));
     root.querySelectorAll(".subtopic-list").forEach((el) => initGroupSortable(el, Sortable, "subTopic"));
     root.querySelectorAll(".question-list").forEach((el) => initQuestionSortable(el, Sortable));
@@ -74,7 +76,7 @@ export function refreshSortables() {
  * cross-hierarchy drop candidate on OTHER lists' headers — see module doc comment.
  * @param {Element} el
  * @param {any} Sortable
- * @param {"topic"|"subTopic"} level
+ * @param {"subject"|"topic"|"subTopic"} level
  */
 function initGroupSortable(el, Sortable, level) {
   if (initializedContainers.has(el)) return;
@@ -86,10 +88,13 @@ function initGroupSortable(el, Sortable, level) {
       const item = /** @type {HTMLElement} */ (evt.item);
       const key = /** @type {string} */ (item.dataset.key);
       const parts = key.split("::");
-      dragState =
-        level === "topic"
-          ? { kind: "topic", source: { subject: parts[0], topic: parts[2] }, el: item } // "Subject::T::Topic"
-          : { kind: "subTopic", source: { subject: parts[0], topic: parts[1], subTopic: parts[3] }, el: item }; // "Subject::Topic::ST::SubTopic"
+      if (level === "subject") {
+        dragState = { kind: "subject", source: { subject: key.slice(3) }, el: item }; // "S::Subject"
+      } else if (level === "topic") {
+        dragState = { kind: "topic", source: { subject: parts[0], topic: parts[2] }, el: item }; // "Subject::T::Topic"
+      } else {
+        dragState = { kind: "subTopic", source: { subject: parts[0], topic: parts[1], subTopic: parts[3] }, el: item }; // "Subject::Topic::ST::SubTopic"
+      }
     },
     onEnd: () => {
       const orderedKeys = Array.from(el.children).map((c) => /** @type {string} */ (/** @type {HTMLElement} */ (c).dataset.key));
@@ -101,20 +106,21 @@ function initGroupSortable(el, Sortable, level) {
 }
 
 /**
- * @param {"topic"|"subTopic"} level
+ * @param {"subject"|"topic"|"subTopic"} level
  * @param {string[]} orderedKeys
  */
 function reorderGroups(level, orderedKeys) {
   // Renumber the relevant *Order field on rawData to match the new DOM order, reading full
   // unfiltered rawData (never a filtered view) — mirrors data/order.js's contract.
-  const field = level === "topic" ? "topicOrder" : "subTopicOrder";
+  const field = level === "subject" ? "subjectOrder" : level === "topic" ? "topicOrder" : "subTopicOrder";
   const names = orderedKeys.map((k) => {
+    if (level === "subject") return k.slice(3); // "S::Subject"
     const parts = k.split("::");
     return level === "topic" ? parts[2] : parts[3]; // "Subj::T::Topic" or "Subj::Topic::ST::Sub"
   });
   const orderByName = new Map(names.map((n, i) => [n, i]));
   const rawData = appState.rawData.map((q) => {
-    const key = level === "topic" ? q.topic : q.subTopic;
+    const key = level === "subject" ? q.subject : level === "topic" ? q.topic : q.subTopic;
     if (orderByName.has(key)) {
       return { ...q, [field]: orderByName.get(key) };
     }
@@ -239,10 +245,15 @@ function dropTargetFor(state, header) {
     return null;
   }
 
-  // state.kind === "topic"
-  if (item.classList.contains("level-subject")) {
-    return { kind: "topic", destination: { subject: item.dataset.subject } };
+  if (state.kind === "topic") {
+    if (item.classList.contains("level-subject")) {
+      return { kind: "topic", destination: { subject: item.dataset.subject } };
+    }
+    return null;
   }
+
+  // state.kind === "subject" — top-level, no valid cross-hierarchy drop target; same-list
+  // reordering only, handled entirely by Sortable's onEnd on #treeRoot.
   return null;
 }
 
