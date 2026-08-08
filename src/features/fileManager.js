@@ -108,6 +108,20 @@ export function switchToFile(fileId) {
   if (onFilesChanged) onFilesChanged();
 }
 
+/**
+ * Clears the active file back to an empty working copy — used when the current bin has no files
+ * at all to show (see app.js's renderFileSwitcher), so the tree correctly falls back to the
+ * "no data" state instead of continuing to display whatever file was active before the bin switch.
+ */
+export function clearActiveFile() {
+  syncActiveFileBackIntoRecord();
+  appState.activeFileId = null;
+  appState.rawData = [];
+  appState.emptyGroups = [];
+  appState.filterState = emptyFilterState();
+  persistFiles();
+}
+
 /** Writes appState's working copy back into the FileRecord before switching/persisting. */
 export function syncActiveFileBackIntoRecord() {
   const file = appState.files.find((f) => f.id === appState.activeFileId);

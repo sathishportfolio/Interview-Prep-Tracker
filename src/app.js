@@ -52,7 +52,7 @@ function updateSyncStatusLabel() {
   if (label) label.textContent = text;
 }
 
-/** Shows the default bin's size against the JSONBin free-tier cap as a single Bootstrap progress bar in the Sync menu. */
+/** Shows the current bin's size against the JSONBin free-tier cap as a single Bootstrap progress bar in the Sync menu. */
 function updateSyncUsageBadge(usage) {
   const fill = $("syncUsageFill");
   if (!usage || !fill) return;
@@ -75,10 +75,10 @@ function updateSyncUsageBadge(usage) {
   }
 }
 
-/** Recomputes the usage badge from local state alone (no network call) — see bins.computeDefaultBinUsage. */
+/** Recomputes the usage badge from local state alone (no network call) — see bins.computeCurrentBinUsage. */
 function refreshSyncUsageBadge() {
   if (!syncConfig.isSyncConfigured()) return;
-  bins.computeDefaultBinUsage().then(updateSyncUsageBadge);
+  bins.computeCurrentBinUsage().then(updateSyncUsageBadge);
 }
 
 /** Toggles the setup-prompt vs. connected views inside the Sync menu panel to match current config. */
@@ -357,6 +357,13 @@ function init() {
   }
 }
 
+/**
+ * Everything syncs through exactly one "current" bin at a time (see sync/bins.js's module doc
+ * comment) — so the File Switcher only ever lists files that resolve to it (bins.resolveBinId),
+ * never files parked in some other bin the user isn't currently working from. Switching bins (via
+ * the Cross-Device Sync modal's "Set as current bin") pulls that bin's files in and this then shows
+ * them; files elsewhere aren't lost, just out of view until you switch back.
+ */
 function renderFileSwitcher() {
   const select = /** @type {HTMLSelectElement} */ ($("fileSwitcher"));
   // First-time users have nothing to sample-load from yet, so "Load Sample" is the obvious next
@@ -364,17 +371,37 @@ function renderFileSwitcher() {
   const loadSampleBtn = $("loadSampleBtn");
   if (loadSampleBtn) loadSampleBtn.hidden = appState.files.length > 0;
   if (!select) return;
+
+  const currentBinId = appState.sync.currentBinId;
+  const filesHere = appState.files.filter((f) => bins.resolveBinId(f) === currentBinId);
+
+  // The active file can end up outside the current bin right after switching bins (nothing else
+  // auto-corrects appState.activeFileId) — snap to one of this bin's own files instead of leaving
+  // the tree showing data for a file the switcher itself no longer lists. switchToFile's own
+  // onFilesChanged re-runs this function with the corrected state, so just bail out here.
+  if (filesHere.length > 0 && !filesHere.some((f) => f.id === appState.activeFileId)) {
+    fileManager.switchToFile(filesHere[0].id);
+    return;
+  }
+
   // A switcher only means something once there's something to switch between.
-  select.hidden = appState.files.length <= 1;
+  select.hidden = filesHere.length <= 1;
   select.textContent = "";
-  if (appState.files.length === 0) {
+  if (filesHere.length === 0) {
+    // The active file (if any) belongs to some OTHER bin now — clear the working copy so the tree
+    // falls back to the "no data" state instead of continuing to show that file's stale content
+    // (appState.rawData is never touched by the bin switch itself, only appState.files).
+    if (appState.activeFileId !== null) {
+      fileManager.clearActiveFile();
+      refreshView();
+    }
     const opt = document.createElement("option");
-    opt.textContent = "No files loaded";
+    opt.textContent = appState.files.length === 0 ? "No files loaded" : "No files in this bin";
     opt.value = "";
     select.appendChild(opt);
     return;
   }
-  for (const f of appState.files) {
+  for (const f of filesHere) {
     const opt = document.createElement("option");
     opt.value = f.id;
     opt.textContent = f.fileName;

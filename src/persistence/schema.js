@@ -28,7 +28,7 @@ export function emptySchema() {
     activeQuestion: null,
     sync: {
       masterKey: null,
-      defaultBinId: null,
+      currentBinId: null,
       knownBins: [],
       lastPushAt: null,
       lastPullAt: null,
@@ -63,8 +63,10 @@ export function coerceSchema(raw) {
 }
 
 /**
- * Sync-specific coercion: also migrates the pre-multi-bin shape (a single `binId` field) into
- * `defaultBinId`, so older persisted/pulled schemas keep working unchanged.
+ * Sync-specific coercion: also migrates older shapes into `currentBinId` — the pre-multi-bin
+ * single `binId` field, then the later `defaultBinId` field (renamed once "default bin" became
+ * "current bin" everywhere, since only one bin is ever synced at a time) — so older
+ * persisted/pulled schemas keep working unchanged.
  * @param {any} rawSync
  */
 function coerceSync(rawSync) {
@@ -73,7 +75,7 @@ function coerceSync(rawSync) {
   return {
     ...base,
     ...rawSync,
-    defaultBinId: rawSync.defaultBinId ?? rawSync.binId ?? base.defaultBinId,
+    currentBinId: rawSync.currentBinId ?? rawSync.defaultBinId ?? rawSync.binId ?? base.currentBinId,
     knownBins: Array.isArray(rawSync.knownBins) ? rawSync.knownBins : base.knownBins,
   };
 }

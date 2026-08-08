@@ -40,7 +40,7 @@ export function isDirty() {
 
 /**
  * @param {(usage: {percent: number, overCap: boolean}) => void} callback Fires after each auto-push
- *   attempt with the default bin's usage against the free-tier cap.
+ *   attempt with the current bin's usage against the free-tier cap.
  * @param {() => void} [pushedCallback] Called after each successful auto-push (e.g. to refresh a
  *   "last synced" label).
  * @param {(dirty: boolean) => void} [dirtyChangeCallback] Called whenever the unsynced-changes flag
@@ -52,7 +52,7 @@ export function initAutoPush(callback, pushedCallback, dirtyChangeCallback) {
   onDirtyChange = dirtyChangeCallback || null;
   document.addEventListener("iqv:persisted", () => {
     if (pushing) return; // this write is doPush()'s own bookkeeping, not a new local edit
-    if (!appState.sync || !appState.sync.masterKey || !appState.sync.defaultBinId) return;
+    if (!appState.sync || !appState.sync.masterKey || !appState.sync.currentBinId) return;
     if (appState.toggles.tempMode) return; // temp mode never syncs
     setDirty(true);
     if (debounceHandle) clearTimeout(debounceHandle);
@@ -77,11 +77,11 @@ export function markSynced() {
 async function doPush() {
   debounceHandle = null;
   pushing = true;
-  const pushed = await bins.pushAllLocalBins();
+  const pushed = await bins.pushCurrentBin();
   pushing = false;
   if (pushed) setDirty(false);
 
-  const usage = await bins.computeDefaultBinUsage();
+  const usage = await bins.computeCurrentBinUsage();
   if (onUsageUpdate) onUsageUpdate(usage);
 
   if (pushed && onPushed) onPushed();

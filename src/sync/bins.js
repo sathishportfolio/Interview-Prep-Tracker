@@ -1,13 +1,16 @@
 // @ts-check
 /**
- * sync/bins.js — per-bin sync engine. JSONBin's free tier caps a single bin's size, and the
- * default behavior (everything in one shared bin, switched via the File Switcher) is what most
- * users want — but a file can be moved or copied to a bin of its own when the default bin is
- * getting full, or just because the user prefers isolating it. This module is the only place that
- * knows how to read/write a *bin's* contents (a small subset schema: just the files that live
- * there, plus the app-level singletons — globalToggles/activeQuestion/timer — carried only by the
- * default bin); manualPush.js/manualPull.js/autoPush.js/syncConfig.js all go through it rather than
- * talking to jsonbin.js directly.
+ * sync/bins.js — per-bin sync engine. Everything syncs through exactly one "current" bin at a
+ * time (`appState.sync.currentBinId`) — the File Switcher only ever shows files that resolve to it
+ * (see resolveBinId), and Push/Pull/usage-% all target it exclusively (see manualPush.js,
+ * manualPull.js, autoPush.js). JSONBin's free tier caps a single bin's size, so a file can still be
+ * moved or copied to a bin of its own when the current bin is getting full, or the user just wants
+ * to isolate it — switching which bin is current (setCurrentBin) is how you then bring that file's
+ * bin back into view. This module is the only place that knows how to read/write a *bin's* contents
+ * (a small subset schema: just the files that live there, plus the app-level singletons —
+ * globalToggles/activeQuestion/timer — carried only by the current bin); manualPush.js/
+ * manualPull.js/autoPush.js/syncConfig.js all go through it rather than talking to jsonbin.js
+ * directly.
  *
  * Every write here is pull-merge-push, never a blind overwrite: a bin may hold files from other
  * devices this device hasn't loaded locally, and PUT replaces a bin's entire content, so clobbering
@@ -23,26 +26,26 @@ import { pushToBin, pullFromBin, createBin as createBinRemote, usageAgainstFreeT
 
 /** @param {FileRecord} file @returns {string|null} The bin this file actually lives in. */
 export function resolveBinId(file) {
-  return file.binId || appState.sync.defaultBinId || null;
+  return file.binId || appState.sync.currentBinId || null;
 }
 
 /**
- * @returns {Array<{id: string, label: string, description: string, isDefault: boolean}>} Every bin
- * the app knows about. The default bin's label prefers a real name from knownBins (the user may
- * have named it via "+ New Bin" or "+ Register Bin") over the generic "Default bin" fallback, so a
- * named bin shows its actual name instead of being masked by isDefault.
+ * @returns {Array<{id: string, label: string, description: string, isCurrent: boolean}>} Every bin
+ * the app knows about. The current bin's label prefers a real name from knownBins (the user may
+ * have named it via "+ New Bin" or "+ Register Bin") over the generic "Current bin" fallback, so a
+ * named bin shows its actual name instead of being masked by isCurrent.
  */
 export function listBins() {
-  const defaultBinId = appState.sync.defaultBinId;
-  /** @type {Array<{id: string, label: string, description: string, isDefault: boolean}>} */
+  const currentBinId = appState.sync.currentBinId;
+  /** @type {Array<{id: string, label: string, description: string, isCurrent: boolean}>} */
   const bins = [];
-  if (defaultBinId) {
-    const known = (appState.sync.knownBins || []).find((b) => b.id === defaultBinId);
-    bins.push({ id: defaultBinId, label: (known && known.label) || "Default bin", description: (known && known.description) || "", isDefault: true });
+  if (currentBinId) {
+    const known = (appState.sync.knownBins || []).find((b) => b.id === currentBinId);
+    bins.push({ id: currentBinId, label: (known && known.label) || "Current bin", description: (known && known.description) || "", isCurrent: true });
   }
   for (const b of appState.sync.knownBins || []) {
-    if (b.id === defaultBinId) continue;
-    bins.push({ id: b.id, label: b.label || b.id, description: b.description || "", isDefault: false });
+    if (b.id === currentBinId) continue;
+    bins.push({ id: b.id, label: b.label || b.id, description: b.description || "", isCurrent: false });
   }
   return bins;
 }
@@ -62,7 +65,7 @@ export function groupLocalFilesByBin() {
 
 /**
  * @param {FileRecord[]} files
- * @param {boolean} includeAppMeta Only the default bin carries these app-level singletons.
+ * @param {boolean} includeAppMeta Only the current bin carries these app-level singletons.
  */
 function serializeBinPayload(files, includeAppMeta) {
   const payload = { schemaVersion: 1, files };
@@ -77,15 +80,15 @@ function serializeBinPayload(files, includeAppMeta) {
 }
 
 /**
- * Gzipped size of the default bin's local files against the free-tier cap, computed from local
+ * Gzipped size of the current bin's local files against the free-tier cap, computed from local
  * state alone (no network call) — matches what a push would actually send (see serializeBinPayload)
  * so the usage badge reflects reality even before anything's been pushed this session.
  * @returns {Promise<{percent: number, overCap: boolean}>}
  */
-export async function computeDefaultBinUsage() {
-  const defaultBinId = appState.sync.defaultBinId;
-  if (!defaultBinId) return { percent: 0, overCap: false };
-  const files = groupLocalFilesByBin().get(defaultBinId) || [];
+export async function computeCurrentBinUsage() {
+  const currentBinId = appState.sync.currentBinId;
+  if (!currentBinId) return { percent: 0, overCap: false };
+  const files = groupLocalFilesByBin().get(currentBinId) || [];
   const compressed = await gzipToBase64(serializeBinPayload(files, true));
   return usageAgainstFreeTierCap(compressed.length);
 }
@@ -141,7 +144,7 @@ export async function pushBin(binId, options = {}) {
   const localFilesHere = groupLocalFilesByBin().get(binId) || [];
   for (const f of localFilesHere) merged.set(f.id, f);
 
-  const includeAppMeta = binId === appState.sync.defaultBinId;
+  const includeAppMeta = binId === appState.sync.currentBinId;
   const json = serializeBinPayload([...merged.values()], includeAppMeta);
   const compressed = await gzipToBase64(json);
   const result = await pushToBin({ masterKey, binId, payload: compressed });
@@ -153,22 +156,20 @@ export async function pushBin(binId, options = {}) {
 }
 
 /**
- * Pushes every bin that currently has at least one locally-loaded file (the autosave path).
- * @returns {Promise<boolean>} true if at least one bin pushed successfully
+ * Pushes the current bin only — the sole bin regular Push (manualPush.js) and auto-push
+ * (autoPush.js) ever target, matching Pull's already-current-bin-only scope.
+ * @returns {Promise<boolean>} true if it pushed successfully
  */
-export async function pushAllLocalBins() {
-  const targetBins = [...groupLocalFilesByBin().keys()];
-  let anyOk = false;
-  for (const binId of targetBins) {
-    const result = await pushBin(binId);
-    if (result.ok) anyOk = true;
-  }
-  return anyOk;
+export async function pushCurrentBin() {
+  const currentBinId = appState.sync.currentBinId;
+  if (!currentBinId) return false;
+  const result = await pushBin(currentBinId);
+  return result.ok;
 }
 
 /**
  * Applies an already-fetched bin payload (from pullBinRaw) to local state: files from this bin
- * upserted by id, app-level meta applied only if this is the default bin. Split out from
+ * upserted by id, app-level meta applied only if this is the current bin. Split out from
  * pullBinIntoLocalState as its own step so callers that already have a fetched payload (e.g.
  * fetchAllBins) can apply it without a redundant re-fetch.
  * @param {string} binId
@@ -179,7 +180,7 @@ export function applyBinToLocalState(binId, remote) {
   for (const f of remote.files) byId.set(f.id, { ...f, binId: f.binId ?? null });
   appState.files = [...byId.values()];
 
-  if (binId === appState.sync.defaultBinId) {
+  if (binId === appState.sync.currentBinId) {
     if (remote.globalToggles) appState.toggles = remote.globalToggles;
     if (remote.activeQuestion !== undefined) appState.activeQuestion = remote.activeQuestion;
     if (remote.timer) appState.timer = remote.timer;
@@ -194,7 +195,7 @@ export function applyBinToLocalState(binId, remote) {
 }
 
 /**
- * Pulls one bin and applies it to local state. Used by the Manual Pull button (default bin only)
+ * Pulls one bin and applies it to local state. Used by the Manual Pull button (current bin only)
  * and fetchAllBins.
  * @param {string} binId
  * @returns {Promise<{ok: boolean, changed: boolean, error?: string}>}
@@ -206,7 +207,7 @@ export async function pullBinIntoLocalState(binId) {
   return { ok: true, changed: true };
 }
 
-/** Pulls every known bin (default + registry) and merges them all into local state. */
+/** Pulls every known bin (current + registry) and merges them all into local state. */
 export async function fetchAllBins() {
   const bins = listBins();
   if (bins.length === 0) return { ok: false, error: "No bins configured yet." };
@@ -246,8 +247,8 @@ export function registerKnownBin(binId, label, description) {
 
 /**
  * Renames a bin's local label and/or description (never touches anything on JSONBin itself) —
- * works for the default bin too, upserting it into knownBins if it isn't already there (the
- * default bin otherwise has no knownBins entry at all, see listBins). Description is optional and
+ * works for the current bin too, upserting it into knownBins if it isn't already there (the
+ * current bin otherwise has no knownBins entry at all, see listBins). Description is optional and
  * left untouched when omitted — most users only ever set a name, never a description.
  * @param {string} binId
  * @param {string} label
@@ -269,18 +270,21 @@ export function renameKnownBin(binId, label, description) {
 
 /**
  * Removes a bin from this device's local registry only — never deletes anything on JSONBin itself.
- * Refuses to remove the default bin (every file needs somewhere to resolve to). Any local file
- * explicitly assigned to the removed bin falls back to the default bin (binId: null) instead of
- * being left pointing at a bin this device no longer lists anywhere.
+ * Deleting the CURRENT bin promotes another known bin to current (just repoints `currentBinId`, no
+ * auto-pull — Pull afterward to fetch its latest data); if there's no other known bin, `currentBinId`
+ * goes back to null and the Sync modal falls back to the setup wizard's Bin step, with the Master
+ * Key already filled in (never forgotten, only the bin choice). Any local file explicitly assigned
+ * to the removed bin falls back to floating with whatever bin ends up current (binId: null) instead
+ * of being left pointing at a bin this device no longer lists anywhere.
  * @param {string} binId
- * @returns {{ok: boolean, error?: string}}
+ * @returns {{ok: boolean}}
  */
 export function deleteKnownBin(binId) {
-  if (binId === appState.sync.defaultBinId) {
-    return { ok: false, error: "Can't remove the default bin — it's where every unassigned file lives." };
-  }
+  const wasCurrent = binId === appState.sync.currentBinId;
   const knownBins = (appState.sync.knownBins || []).filter((b) => b.id !== binId);
-  appState.sync = { ...appState.sync, knownBins };
+  const currentBinId = wasCurrent ? (knownBins.length > 0 ? knownBins[0].id : null) : appState.sync.currentBinId;
+
+  appState.sync = { ...appState.sync, knownBins, currentBinId };
   store.writeSync(appState.sync);
 
   const reassigned = appState.files.some((f) => f.binId === binId);
@@ -292,27 +296,42 @@ export function deleteKnownBin(binId) {
 }
 
 /**
- * Switches which bin is the "default" — the one every unassigned local file resolves to (see
- * resolveBinId) and the only one that carries app-level globalToggles/Active Question/timer on
- * push (see serializeBinPayload/applyBinToLocalState). Immediately pulls the new default bin's
- * files into local state, so switching + loading is one action instead of two. The bin that WAS
- * default gets registered into knownBins under its current label first (it otherwise has no
- * knownBins entry at all while it's still the default — see listBins), so it doesn't disappear
- * from the bin list once it's no longer the default.
+ * Switches which bin is "current" — the one the File Switcher scopes to (see resolveBinId), that
+ * every unassigned local file resolves to, and the only one that carries app-level
+ * globalToggles/Active Question/timer on push (see serializeBinPayload/applyBinToLocalState).
+ * Immediately pulls the new current bin's files into local state, so switching + loading is one
+ * action instead of two. The bin that WAS current gets registered into knownBins under its current
+ * label first (it otherwise has no knownBins entry at all while it's still current — see
+ * listBins), so it doesn't disappear from the bin list once it's no longer current.
+ *
+ * Every currently-unpinned local file (binId: null) gets explicitly pinned to the outgoing bin
+ * FIRST, before the switch: a null binId means "floats with whichever bin is current" (resolveBinId),
+ * so without this those files would silently follow the switch into the new bin's view even though
+ * they were never pushed there — an empty bin would still show the old bin's questions locally.
+ * applyBinToLocalState only ever upserts remote files into appState.files, never removes ones that
+ * aren't present remotely, so this pinning step is what actually keeps the two bins' files separate.
  * @param {string} binId
  * @returns {Promise<{ok: boolean, error?: string}>}
  */
-export async function setDefaultBin(binId) {
+export async function setCurrentBin(binId) {
   const masterKey = appState.sync.masterKey;
   if (!masterKey) return { ok: false, error: "No Master Key configured." };
-  if (binId === appState.sync.defaultBinId) return { ok: true };
+  if (binId === appState.sync.currentBinId) return { ok: true };
 
-  const oldDefaultId = appState.sync.defaultBinId;
-  const oldDefaultLabel = listBins().find((b) => b.id === oldDefaultId)?.label;
+  const oldCurrentId = appState.sync.currentBinId;
+  const oldCurrentLabel = listBins().find((b) => b.id === oldCurrentId)?.label;
 
-  appState.sync = { ...appState.sync, defaultBinId: binId };
+  if (oldCurrentId) {
+    const hadUnpinned = appState.files.some((f) => f.binId === null);
+    if (hadUnpinned) {
+      appState.files = appState.files.map((f) => (f.binId === null ? { ...f, binId: oldCurrentId } : f));
+      store.writeFiles(appState.files);
+    }
+  }
+
+  appState.sync = { ...appState.sync, currentBinId: binId };
   store.writeSync(appState.sync);
-  if (oldDefaultId) registerKnownBin(oldDefaultId, oldDefaultLabel || oldDefaultId);
+  if (oldCurrentId) registerKnownBin(oldCurrentId, oldCurrentLabel || oldCurrentId);
 
   const result = await pullBinIntoLocalState(binId);
   if (!result.ok) return { ok: false, error: result.error };
@@ -333,7 +352,7 @@ export async function moveFileToBin(fileId, targetBinId) {
   const sourceBinId = resolveBinId(file);
   if (sourceBinId === targetBinId) return { ok: true };
 
-  file.binId = targetBinId === appState.sync.defaultBinId ? null : targetBinId;
+  file.binId = targetBinId === appState.sync.currentBinId ? null : targetBinId;
   store.writeFiles(appState.files);
 
   const pushResult = await pushBin(targetBinId);
@@ -360,7 +379,7 @@ export async function copyFileToBin(fileId, targetBinId) {
   const merged = new Map((remote.files || []).map((f) => [f.id, f]));
   merged.set(file.id, file);
 
-  const includeAppMeta = targetBinId === appState.sync.defaultBinId;
+  const includeAppMeta = targetBinId === appState.sync.currentBinId;
   const json = serializeBinPayload([...merged.values()], includeAppMeta);
   const compressed = await gzipToBase64(json);
   return pushToBin({ masterKey, binId: targetBinId, payload: compressed });

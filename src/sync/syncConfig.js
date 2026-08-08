@@ -25,9 +25,9 @@ export function initSyncConfig(callbacks) {
   onSyncedDataChanged = callbacks.onSyncedDataChanged;
 }
 
-/** @returns {boolean} true if masterKey + defaultBinId are both configured */
+/** @returns {boolean} true if masterKey + currentBinId are both configured */
 export function isSyncConfigured() {
-  return !!(appState.sync && appState.sync.masterKey && appState.sync.defaultBinId);
+  return !!(appState.sync && appState.sync.masterKey && appState.sync.currentBinId);
 }
 
 /**
@@ -60,7 +60,7 @@ export function loadSyncConfig(schemaSync) {
 }
 
 export function clearSyncConfig() {
-  appState.sync = { masterKey: null, defaultBinId: null, knownBins: [], lastPushAt: null, lastPullAt: null, lastKnownRemoteUpdatedAt: null };
+  appState.sync = { masterKey: null, currentBinId: null, knownBins: [], lastPushAt: null, lastPullAt: null, lastKnownRemoteUpdatedAt: null };
   store.writeSync(appState.sync);
 }
 
@@ -89,7 +89,7 @@ function renderInto(wrap, closeModal) {
 
 /**
  * Two-step setup wizard: Master Key first, then a Bin step that defaults to creating a brand-new
- * (named) bin — which becomes the default bin every current/future local file resolves to (see
+ * (named) bin — which becomes the current bin every local file resolves to (see
  * bins.resolveBinId) — or, behind a toggle, connecting an existing Bin ID with a mandatory name,
  * pulling in whatever questions already live there. Either way, a successful connect closes the
  * modal straight back to the app instead of dropping into the full bin management view — that's
@@ -186,7 +186,7 @@ function buildSetupForm(wrap, closeModal) {
           showToast(result.error || "Could not create bin.", "error");
           return;
         }
-        appState.sync = { ...appState.sync, masterKey: masterKeyValue, defaultBinId: result.binId };
+        appState.sync = { ...appState.sync, masterKey: masterKeyValue, currentBinId: result.binId };
         store.writeSync(appState.sync);
         showToast("Sync configured.", "success");
         if (onSyncedDataChanged) onSyncedDataChanged();
@@ -220,7 +220,7 @@ function buildSetupForm(wrap, closeModal) {
         }
         connectBtn.disabled = true;
         connectBtn.textContent = "Connecting…";
-        appState.sync = { ...appState.sync, masterKey: masterKeyValue, defaultBinId: id };
+        appState.sync = { ...appState.sync, masterKey: masterKeyValue, currentBinId: id };
         store.writeSync(appState.sync);
         bins.registerKnownBin(id, name);
         // Load whatever's already in this bin (a returning user reconnecting, or a bin shared from
@@ -382,7 +382,7 @@ function buildConfiguredView(wrap) {
 /**
  * @param {HTMLElement} wrap
  * @param {import('../types.js').FileRecord} file
- * @param {Array<{id: string, label: string, isDefault: boolean}>} availableBins
+ * @param {Array<{id: string, label: string, isCurrent: boolean}>} availableBins
  */
 function buildFileRow(wrap, file, availableBins) {
   const row = document.createElement("div");
@@ -399,7 +399,7 @@ function buildFileRow(wrap, file, availableBins) {
   for (const b of availableBins) {
     const opt = document.createElement("option");
     opt.value = b.id;
-    opt.textContent = `${b.label}${b.isDefault ? " (default)" : ""}`;
+    opt.textContent = `${b.label}${b.isCurrent ? " (current)" : ""}`;
     opt.selected = b.id === currentBin;
     select.appendChild(opt);
   }
@@ -464,10 +464,10 @@ function buildBinsTable(wrap) {
 
     const nameCell = document.createElement("td");
     nameCell.textContent = b.label;
-    if (b.isDefault) {
+    if (b.isCurrent) {
       const badge = document.createElement("span");
       badge.className = "badge text-bg-secondary";
-      badge.textContent = "default";
+      badge.textContent = "current";
       badge.style.marginLeft = "0.4rem";
       nameCell.appendChild(badge);
     }
@@ -503,44 +503,48 @@ function buildBinsTable(wrap) {
     });
     actionsCell.appendChild(editBtn);
 
-    if (!b.isDefault) {
-      const setDefaultBtn = document.createElement("button");
-      setDefaultBtn.type = "button";
-      setDefaultBtn.className = "btn btn-sm btn-light";
-      setDefaultBtn.title = "Set as default bin (pulls its files into this device now)";
-      setDefaultBtn.innerHTML = '<i class="fa-solid fa-star"></i>';
-      setDefaultBtn.addEventListener("click", async () => {
-        if (!confirmAction(`Set "${b.label}" as the default bin? This pulls its files into this device now (matching local files are overwritten with the cloud version), and it becomes where new/unassigned files sync to from now on.`)) return;
-        setDefaultBtn.disabled = true;
-        const result = await bins.setDefaultBin(b.id);
-        setDefaultBtn.disabled = false;
+    if (!b.isCurrent) {
+      const setCurrentBtn = document.createElement("button");
+      setCurrentBtn.type = "button";
+      setCurrentBtn.className = "btn btn-sm btn-light";
+      setCurrentBtn.title = "Set as current bin (pulls its files into this device now)";
+      setCurrentBtn.innerHTML = '<i class="fa-solid fa-star"></i>';
+      setCurrentBtn.addEventListener("click", async () => {
+        if (!confirmAction(`Set "${b.label}" as the current bin? This pulls its files into this device now (matching local files are overwritten with the cloud version), and it becomes where the File Switcher/Push/Pull all point from now on.`)) return;
+        setCurrentBtn.disabled = true;
+        const result = await bins.setCurrentBin(b.id);
+        setCurrentBtn.disabled = false;
         if (!result.ok) {
-          showToast(result.error || "Could not switch default bin.", "error");
+          showToast(result.error || "Could not switch the current bin.", "error");
           return;
         }
-        showToast(`"${b.label}" is now the default bin.`, "success");
+        showToast(`"${b.label}" is now the current bin.`, "success");
         if (onSyncedDataChanged) onSyncedDataChanged();
         renderInto(wrap);
       });
-      actionsCell.appendChild(setDefaultBtn);
-
-      const deleteBtn = document.createElement("button");
-      deleteBtn.type = "button";
-      deleteBtn.className = "btn btn-sm btn-light";
-      deleteBtn.title = "Remove this bin from this device (does not delete its data on JSONBin)";
-      deleteBtn.innerHTML = '<i class="fa-solid fa-trash icon-duplicate"></i>';
-      deleteBtn.addEventListener("click", () => {
-        if (!confirmAction(`Remove bin "${b.label}" from this device? Its data on JSONBin is untouched — any local file assigned to it falls back to the default bin.`)) return;
-        const result = bins.deleteKnownBin(b.id);
-        if (!result.ok) {
-          showToast(result.error || "Could not remove bin.", "error");
-          return;
-        }
-        if (onSyncedDataChanged) onSyncedDataChanged();
-        renderInto(wrap);
-      });
-      actionsCell.appendChild(deleteBtn);
+      actionsCell.appendChild(setCurrentBtn);
     }
+
+    // Deleting is allowed for every bin, including the current one — bins.deleteKnownBin promotes
+    // another known bin to current (or clears currentBinId back to unconfigured if none remain).
+    const otherBinsExist = bins.listBins().length > 1;
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "btn btn-sm btn-light";
+    deleteBtn.title = b.isCurrent
+      ? "Delete this bin (does not delete its data on JSONBin) — another bin becomes current"
+      : "Remove this bin from this device (does not delete its data on JSONBin)";
+    deleteBtn.innerHTML = '<i class="fa-solid fa-trash icon-duplicate"></i>';
+    deleteBtn.addEventListener("click", () => {
+      const confirmMsg = b.isCurrent
+        ? `Delete the current bin "${b.label}"? Its data on JSONBin is untouched. ${otherBinsExist ? "Another known bin will become current — Pull afterward to fetch its latest data." : "Cross-Device Sync will need a bin chosen again (your Master Key stays saved)."}`
+        : `Remove bin "${b.label}" from this device? Its data on JSONBin is untouched — any local file assigned to it falls back to the current bin.`;
+      if (!confirmAction(confirmMsg)) return;
+      bins.deleteKnownBin(b.id);
+      if (onSyncedDataChanged) onSyncedDataChanged();
+      renderInto(wrap);
+    });
+    actionsCell.appendChild(deleteBtn);
 
     row.append(nameCell, idCell, descCell, filesCell, actionsCell);
     tbody.appendChild(row);
