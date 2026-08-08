@@ -77,6 +77,7 @@
  * @property {boolean} tempMode
  * @property {boolean} autoExpandChildrenOn default false — opening a Subject/Topic also opens its
  *   first Topic/SubTopic in the same click (see features/autoExpand.js); never cascades to Questions.
+ * @property {boolean} themeDark default false — see features/theme.js.
  */
 
 /**

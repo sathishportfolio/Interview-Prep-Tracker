@@ -16,6 +16,7 @@ import * as activeQuestionFeature from "./features/activeQuestion.js";
 import * as filters from "./features/filters.js";
 import * as editMode from "./features/editMode.js";
 import * as flattenView from "./features/flattenView.js";
+import * as theme from "./features/theme.js";
 import * as dragDropToggle from "./features/dragDropToggle.js";
 import * as autoExpand from "./features/autoExpand.js";
 import * as dragDrop from "./features/dragDrop.js";
@@ -161,6 +162,7 @@ function refreshAfterExternalDataChange() {
 function init() {
   // --- Bootstrap state from storage ---
   fileManager.bootstrapFromStorage();
+  theme.applyTheme(); // before first paint, so there's no light-theme flash for returning dark-theme users
 
   // First-time-mobile-visitor default: Flatten View ON.
   if (flattenView.isMobile() && !localStorage.getItem("iqv:v1")) {
@@ -266,7 +268,8 @@ function init() {
   // --- Review keyboard shortcuts (Up/Down navigate, d = Done, r = Review Later) ---
   reviewShortcuts.initReviewShortcuts();
 
-  // --- Edit Mode / Drag-Drop / Close All / Undo / Redo / Floating toggles ---
+  // --- Theme / Edit Mode / Drag-Drop / Close All / Undo / Redo / Floating toggles ---
+  $("themeToggleBtn")?.addEventListener("click", () => theme.toggleTheme());
   $("editModeToggleBtn")?.addEventListener("click", () => editMode.toggleEditMode());
   $("closeAllBtn")?.addEventListener("click", () => closeAll.closeAllAccordions());
   $("undoBtn")?.addEventListener("click", () => undoRedo.undo());

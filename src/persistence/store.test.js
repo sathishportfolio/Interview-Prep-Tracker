@@ -31,7 +31,7 @@ test("every write emits iqv:persisted", () => {
   writeActiveFileId("f1");
   assert.equal(eventCount, 3);
 
-  writeGlobalToggles({ flatGroupView: true, dragDropOn: true, editModeOn: true, tempMode: false, autoExpandChildrenOn: false });
+  writeGlobalToggles({ flatGroupView: true, dragDropOn: true, editModeOn: true, tempMode: false, autoExpandChildrenOn: false, themeDark: false });
   assert.equal(eventCount, 4);
 
   clearAll();

@@ -57,16 +57,5 @@ export function buildTreeHandlers() {
     },
     onToggleGroupSelect: (level, scope) => bulkSelection.toggleGroupSelect(level, scope),
     onMountGroupPanels: (level, scope, mountEl) => groupPanels.mountGroupPanels(level, scope, mountEl),
-    onMountMoveSelectedButton: (mountEl) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "btn btn-sm btn-outline-primary move-selected-btn edit-gated";
-      btn.textContent = "Move Selected";
-      btn.addEventListener("click", () => {
-        if (appState.selectedQuestionIds.size === 0) return;
-        moveForm.openMoveForm([...appState.selectedQuestionIds]);
-      });
-      mountEl.appendChild(btn);
-    },
   };
 }

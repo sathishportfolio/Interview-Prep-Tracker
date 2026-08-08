@@ -46,13 +46,24 @@ let dragState = null;
 
 /** Call after every repaint to attach Sortable to any not-yet-initialized list container. */
 export function refreshSortables() {
-  const root = document.getElementById("treeRoot");
-  if (!root || typeof /** @type {any} */ (window).Sortable === "undefined") return;
+  if (typeof /** @type {any} */ (window).Sortable === "undefined") return;
   const Sortable = /** @type {any} */ (window).Sortable;
 
-  root.querySelectorAll(".topic-list").forEach((el) => initGroupSortable(el, Sortable, "topic"));
-  root.querySelectorAll(".subtopic-list").forEach((el) => initGroupSortable(el, Sortable, "subTopic"));
-  root.querySelectorAll(".question-list").forEach((el) => initQuestionSortable(el, Sortable));
+  const root = document.getElementById("treeRoot");
+  if (root) {
+    root.querySelectorAll(".topic-list").forEach((el) => initGroupSortable(el, Sortable, "topic"));
+    root.querySelectorAll(".subtopic-list").forEach((el) => initGroupSortable(el, Sortable, "subTopic"));
+    root.querySelectorAll(".question-list").forEach((el) => initQuestionSortable(el, Sortable));
+  }
+
+  // Flatten View: every group's question list shares the same Sortable `group` name as the tree's
+  // question lists (see initQuestionSortable), so a Question can be dragged directly from one
+  // Subject/Topic/SubTopic's flat group into any other's — same onAdd cross-hierarchy-move path,
+  // just with the destination read off the .flat-group ancestor instead of .level-subtopic.
+  const flatRoot = document.getElementById("flatRoot");
+  if (flatRoot) {
+    flatRoot.querySelectorAll(".flat-question-list").forEach((el) => initQuestionSortable(el, Sortable));
+  }
 
   attachDocumentDragTracking();
 }
@@ -113,6 +124,33 @@ function reorderGroups(level, orderedKeys) {
 }
 
 /**
+ * Resolves which Subject/Topic/SubTopic a question-list container belongs to — either a tree
+ * SubTopic accordion body or a Flatten View group, whichever ancestor is present. A Flatten View
+ * group can be missing its Topic and/or SubTopic (see render/flatRenderer.js's doc comment — a
+ * Subject with no Topics, or a Topic with no SubTopics, still gets a heading there as a drop
+ * target); dropping a question into one creates that missing level named "Unnamed" rather than
+ * writing an incomplete destination.
+ * @param {Element} el
+ * @returns {{subject: string, topic: string, subTopic: string}}
+ */
+function questionListScope(el) {
+  const flatGroupEl = /** @type {HTMLElement|null} */ (el.closest(".flat-group"));
+  if (flatGroupEl) {
+    return {
+      subject: /** @type {string} */ (flatGroupEl.dataset.subject),
+      topic: flatGroupEl.dataset.topic || "Unnamed",
+      subTopic: flatGroupEl.dataset.subTopic || "Unnamed",
+    };
+  }
+  const scopeEl = /** @type {HTMLElement|null} */ (el.closest(".level-subtopic"));
+  return {
+    subject: /** @type {string} */ (scopeEl?.dataset.subject),
+    topic: /** @type {string} */ (scopeEl?.dataset.topic),
+    subTopic: /** @type {string} */ (scopeEl?.dataset.subTopic),
+  };
+}
+
+/**
  * @param {Element} el
  * @param {any} Sortable
  */
@@ -120,10 +158,7 @@ function initQuestionSortable(el, Sortable) {
   if (initializedContainers.has(el)) return;
   initializedContainers.add(el);
 
-  const subTopicItem = el.closest(".level-subtopic");
-  const subject = /** @type {string} */ (/** @type {HTMLElement} */ (subTopicItem)?.dataset.subject);
-  const topic = /** @type {string} */ (/** @type {HTMLElement} */ (subTopicItem)?.dataset.topic);
-  const subTopic = /** @type {string} */ (/** @type {HTMLElement} */ (subTopicItem)?.dataset.subTopic);
+  const { subject, topic, subTopic } = questionListScope(el);
 
   Sortable.create(el, {
     handle: ".drag-handle",
@@ -146,8 +181,9 @@ function initQuestionSortable(el, Sortable) {
       applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
     },
     onAdd: (evt) => {
-      // Cross-list drop onto a rendered (expanded) SubTopic's question list — exact target, no
-      // creation/merge ambiguity since the destination SubTopic already exists and is on-screen.
+      // Cross-list drop onto a rendered (expanded) SubTopic's question list, or onto any Flatten
+      // View group's question list — exact target, no creation/merge ambiguity since the
+      // destination SubTopic already exists and is on-screen.
       const draggedId = /** @type {string} */ (/** @type {HTMLElement} */ (evt.item).dataset.qid);
       const ids = appState.selectedQuestionIds.has(draggedId) ? [...appState.selectedQuestionIds] : [draggedId];
       evt.item.remove(); // let the keyed re-render own placement, not Sortable's raw DOM insert

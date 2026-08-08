@@ -38,6 +38,18 @@ export function setActiveQuestion(questionId) {
   revealActiveQuestion({ openAnswer: false });
 }
 
+/**
+ * Sets the Active Question pointer without revealing/scrolling — used when marking a question
+ * Starred while an Active Question is already set (see features/statusFlags.js), so the
+ * newest-starred question becomes the resume point on next load (scroll-restore-on-load reads
+ * appState.activeQuestion) without yanking the user's current scroll position to it mid-review.
+ * @param {string} questionId
+ */
+export function setActiveQuestionQuiet(questionId) {
+  appState.activeQuestion = { fileId: /** @type {string} */ (appState.activeFileId), questionId };
+  store.writeActiveQuestion(appState.activeQuestion);
+}
+
 /** Jumps to (expands + scrolls + flashes) the current Active Question, from anywhere in the app. */
 export function jumpToActiveQuestion() {
   revealActiveQuestion({ openAnswer: true });

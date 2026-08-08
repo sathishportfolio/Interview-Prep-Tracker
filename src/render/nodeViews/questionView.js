@@ -37,7 +37,7 @@ function toggleOpenAndApply(header, body, key) {
  */
 
 const STATUS_ICONS = [
-  { flag: "done", icon: "fa-check", title: "Done" },
+  { flag: "done", icon: "fa-square-check", title: "Done" },
   { flag: "reviewLater", icon: "fa-clock", title: "Review Later" },
   { flag: "duplicate", icon: "fa-clone", title: "Duplicate" },
   { flag: "lessImportant", icon: "fa-arrow-down", title: "Less Important" },
@@ -72,9 +72,6 @@ export function createQuestionNode(q, handlers) {
 
   const qText = document.createElement("span");
   qText.className = "q-text";
-  const noAnswerIcon = document.createElement("i");
-  noAnswerIcon.className = "fa-regular fa-file no-answer-icon";
-  noAnswerIcon.title = "No answer yet";
   // qText specifically toggles collapse; clicking elsewhere in the header (empty space) sets the
   // Active Question instead (feature.md "Active Question (Pin/Flag)"). stopPropagation here keeps
   // the two behaviors from firing together.
@@ -114,7 +111,6 @@ export function createQuestionNode(q, handlers) {
   header.appendChild(dragHandle);
   header.appendChild(selectBox);
   header.appendChild(qText);
-  header.appendChild(noAnswerIcon);
   header.appendChild(statusRow);
   header.appendChild(flagBtn);
 
@@ -250,6 +246,4 @@ export function patchQuestionNode(el, q, handlers) {
   if (editBtn) editBtn.textContent = q.answer ? "Edit Answer" : "Add Answer";
 
   el.classList.toggle("no-answer", !q.answer);
-  const noAnswerIcon = header.querySelector(".no-answer-icon");
-  if (noAnswerIcon) noAnswerIcon.classList.toggle("d-none", !!q.answer);
 }

@@ -8,6 +8,18 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link rel="stylesheet" href="css/style.css">
+<script>
+  // Applied synchronously, before first paint, so returning dark-theme users don't see a flash of
+  // the light theme while app.js's module script (theme.js) loads and runs — see features/theme.js.
+  try {
+    var iqvSchema = JSON.parse(localStorage.getItem("iqv:v1"));
+    var iqvDark = !!(iqvSchema && iqvSchema.globalToggles && iqvSchema.globalToggles.themeDark);
+  } catch (e) {
+    var iqvDark = false;
+  }
+  document.documentElement.dataset.theme = iqvDark ? "dark" : "light";
+  document.documentElement.setAttribute("data-bs-theme", iqvDark ? "dark" : "light");
+</script>
 </head>
 <body>
 <header id="appHeader" class="app-header">
@@ -15,6 +27,7 @@
     <h1 class="app-title"><i class="fa-solid fa-layer-group"></i> Interview Prep Tracker</h1>
     <div id="headerBreadcrumb" class="header-breadcrumb"></div>
     <div class="header-timer">
+      <button id="themeToggleBtn" type="button" class="btn btn-sm btn-outline-secondary" title="Toggle Dark/Light Theme"><i class="fa-solid fa-moon"></i></button>
       <span id="timerDisplay" class="timer-display">00:00:00</span>
       <button id="timerStartBtn" class="btn btn-sm btn-success" title="Start"><i class="fa-solid fa-play"></i></button>
       <button id="timerPauseBtn" class="btn btn-sm btn-warning" title="Pause"><i class="fa-solid fa-pause"></i></button>

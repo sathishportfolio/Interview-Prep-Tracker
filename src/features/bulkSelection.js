@@ -68,27 +68,46 @@ function clearChildSelections(parentLevel, parentScope) {
 }
 
 /**
- * Turns on ONE container's own child-select-mode (if not already on) AND selects every one of its
- * direct children in the same action — the accordion-level "Select All" button.
+ * Every direct child key/id of one container — the set the accordion-level "Select All" button
+ * (see selectAllChildren) selects or deselects.
+ * @param {GroupLevel} parentLevel
+ * @param {GroupScope} parentScope
+ * @returns {{groupKeys: string[], questionIds: string[]}}
+ */
+function directChildren(parentLevel, parentScope) {
+  if (parentLevel === "subject") {
+    return { groupKeys: topicsUnder(parentScope.subject).map((topic) => groupKey("topic", { subject: parentScope.subject, topic })), questionIds: [] };
+  }
+  if (parentLevel === "topic") {
+    const subTopics = subTopicsUnder(parentScope.subject, /** @type {string} */ (parentScope.topic));
+    return { groupKeys: subTopics.map((subTopic) => groupKey("subTopic", { subject: parentScope.subject, topic: parentScope.topic, subTopic })), questionIds: [] };
+  }
+  const questionIds = appState.rawData
+    .filter((q) => q.subject === parentScope.subject && q.topic === parentScope.topic && q.subTopic === parentScope.subTopic)
+    .map((q) => q.id);
+  return { groupKeys: [], questionIds };
+}
+
+/**
+ * Turns on ONE container's own child-select-mode (if not already on) and toggles every one of its
+ * direct children's selection together — the accordion-level "Select All" button. A single click
+ * selects everything under this container; if everything under it is already selected, the same
+ * click clears just this container's children back out (mirrors the floating bar's
+ * toggleSelectAllInActiveGroups, scoped to one container instead of every active group).
  * @param {GroupLevel} parentLevel
  * @param {GroupScope} parentScope
  */
 export function selectAllChildren(parentLevel, parentScope) {
   appState.childSelectModeKeys.add(groupKey(parentLevel, parentScope));
-  if (parentLevel === "subject") {
-    for (const topic of topicsUnder(parentScope.subject)) {
-      appState.selectedGroupKeys.add(groupKey("topic", { subject: parentScope.subject, topic }));
-    }
-  } else if (parentLevel === "topic") {
-    for (const subTopic of subTopicsUnder(parentScope.subject, /** @type {string} */ (parentScope.topic))) {
-      appState.selectedGroupKeys.add(groupKey("subTopic", { subject: parentScope.subject, topic: parentScope.topic, subTopic }));
-    }
+  const { groupKeys, questionIds } = directChildren(parentLevel, parentScope);
+  const hasChildren = groupKeys.length > 0 || questionIds.length > 0;
+  const allSelected = hasChildren && groupKeys.every((k) => appState.selectedGroupKeys.has(k)) && questionIds.every((id) => appState.selectedQuestionIds.has(id));
+  if (allSelected) {
+    for (const k of groupKeys) appState.selectedGroupKeys.delete(k);
+    for (const id of questionIds) appState.selectedQuestionIds.delete(id);
   } else {
-    for (const q of appState.rawData) {
-      if (q.subject === parentScope.subject && q.topic === parentScope.topic && q.subTopic === parentScope.subTopic) {
-        appState.selectedQuestionIds.add(q.id);
-      }
-    }
+    for (const k of groupKeys) appState.selectedGroupKeys.add(k);
+    for (const id of questionIds) appState.selectedQuestionIds.add(id);
   }
   updateSelectionBar();
 }

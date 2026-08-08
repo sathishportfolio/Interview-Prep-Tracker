@@ -45,6 +45,7 @@ export const appState = {
     editModeOn: true,
     tempMode: false,
     autoExpandChildrenOn: false,
+    themeDark: false,
   },
 
   /** @type {TimerState} */

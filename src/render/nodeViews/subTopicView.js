@@ -123,12 +123,6 @@ export function patchSubTopicNode(el, st, handlers) {
   if (bulkAddMount && handlers.onMountGroupPanels) {
     handlers.onMountGroupPanels("subTopic", { subject: st.subject, topic: st.topic, subTopic: st.subTopic }, bulkAddMount);
   }
-  // Move Selected is mounted into the same row as the Bulk Add/Update/Copy buttons (rather than
-  // its own separate mount) so all of a SubTopic's action buttons stay on one line; guarded by its
-  // own class rather than bulkAddMount's childElementCount since that's already non-empty above.
-  if (bulkAddMount && !bulkAddMount.querySelector(".move-selected-btn") && handlers.onMountMoveSelectedButton) {
-    handlers.onMountMoveSelectedButton(/** @type {HTMLElement} */ (bulkAddMount));
-  }
 
   const list = el.querySelector(".question-list");
   if (list) {
