@@ -23,8 +23,15 @@ export function renderBreadcrumb({ chainText, activeQuestionChainText, activeQue
   if (!containerEl) return;
   containerEl.textContent = "";
 
+  // Mode classes let CSS key off which content is showing (see style.css's mobile media query,
+  // which hides the whole breadcrumb unless an Active Question link is present, and even then
+  // hides the chain-text prefix — mobile only ever shows the flag link).
+  containerEl.classList.toggle("bc-mode-active", !!activeQuestionChainText);
+  containerEl.classList.toggle("bc-mode-chain", !activeQuestionChainText && !!chainText);
+
   if (activeQuestionChainText) {
     const span = document.createElement("span");
+    span.className = "bc-chain-text";
     span.textContent = activeQuestionChainText;
     containerEl.appendChild(span);
 
@@ -40,7 +47,10 @@ export function renderBreadcrumb({ chainText, activeQuestionChainText, activeQue
     return;
   }
 
-  containerEl.textContent = chainText || "";
+  const span = document.createElement("span");
+  span.className = "bc-chain-text";
+  span.textContent = chainText || "";
+  containerEl.appendChild(span);
 }
 
 /** @param {string} s */

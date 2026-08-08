@@ -285,5 +285,9 @@ body.bulk-bar-visible { padding-bottom: 3.5rem; }
      screen it hides most of the question text — wrap it so a quick review pass doesn't require
      opening every row just to see what's being asked. */
   .q-text { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+  /* The full Subject/Topic/SubTopic chain crowds the narrow header — mobile only shows the Active
+     Question flag link (when one is set), never the plain "currently open group" chain text. */
+  .header-breadcrumb.bc-mode-chain { display: none; }
+  .header-breadcrumb.bc-mode-active .bc-chain-text { display: none; }
   .question-header { align-items: flex-start; }
 }

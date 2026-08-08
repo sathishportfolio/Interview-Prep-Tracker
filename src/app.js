@@ -341,6 +341,13 @@ function init() {
   // --- Initial paint ---
   refreshView();
   filters.syncControlsFromState();
+
+  // A persisted Active Question should be immediately visible on load/refresh, not just after the
+  // user manually clicks the breadcrumb flag link — same expand+scroll+flash jumpToActiveQuestion
+  // already does for that click, just triggered once up front instead.
+  if (appState.activeQuestion) {
+    activeQuestionFeature.jumpToActiveQuestion();
+  }
 }
 
 function renderFileSwitcher() {
