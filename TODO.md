@@ -4,7 +4,8 @@ Personal scratch notes / backlog. Not read by Claude automatically — paste an 
 prompt when you want it picked up.
 
 ## Now
-- change dark/light theme icon
+
+
 
 ## Later
 
