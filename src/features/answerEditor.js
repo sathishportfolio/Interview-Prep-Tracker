@@ -16,6 +16,11 @@ export function openAnswerEditor(questionId) {
   if (!q) return;
 
   const wrap = document.createElement("div");
+  const questionText = document.createElement("div");
+  questionText.className = "modal-question-text";
+  questionText.textContent = q.question;
+  wrap.appendChild(questionText);
+
   const label = document.createElement("label");
   label.className = "form-label small text-muted";
   label.textContent = "Answer (HTML supported)";

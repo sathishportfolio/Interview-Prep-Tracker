@@ -105,10 +105,12 @@ export function toggleNodeOpen(key) {
 /**
  * @param {string} key
  * @returns {string[]} Other currently-open keys at the same accordion level ("S::", "subj::T::",
- *   "subj::topic::ST::") and same parent as `key`. Questions (`Q::`) are never mutually exclusive.
+ *   "subj::topic::ST::") and same parent as `key`. Questions (`Q::`) are exclusive globally (across
+ *   the whole app, flat view included) rather than scoped to a parent SubTopic, since flat view lists
+ *   questions without any Subject/Topic/SubTopic grouping to scope by.
  */
 function siblingOpenKeysAtSameLevel(key) {
-  if (key.startsWith("Q::")) return [];
+  if (key.startsWith("Q::")) return [...appState.openNodeKeys].filter((k) => k.startsWith("Q::") && k !== key);
   let prefix;
   if (key.startsWith("S::")) {
     prefix = "S::";
@@ -123,7 +125,9 @@ function siblingOpenKeysAtSameLevel(key) {
 
 /**
  * Opens `key`, first closing any other Subject/Topic/SubTopic open at the same level under the same
- * parent — keeps only one Subject/Topic/SubTopic accordion active at a time (Questions excluded).
+ * parent — keeps only one Subject/Topic/SubTopic accordion active at a time. For Question keys
+ * (`Q::`), closes every other open question globally instead — only one question's answer body can
+ * be expanded at once, in both tree and flat view.
  * @param {string} key
  */
 export function openNodeExclusive(key) {

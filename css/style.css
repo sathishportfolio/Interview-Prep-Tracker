@@ -400,6 +400,10 @@ body.bulk-bar-visible { padding-bottom: 3.5rem; }
 .modal-host .modal-backdrop-custom { position: fixed; inset: 0; background: var(--overlay-backdrop); display: flex; align-items: center; justify-content: center; z-index: 90; }
 .modal-host .modal-box { background: var(--bg-surface); color: var(--text); border-radius: 0.5rem; padding: 1rem; max-width: 480px; width: 92%; max-height: 85vh; overflow: auto; }
 
+/* Answer editor: shows which question is being answered, above the answer textarea (see
+   features/answerEditor.js) so it's never ambiguous when several questions look similar. */
+.modal-question-text { font-weight: 600; margin-bottom: 0.6rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-soft); }
+
 @media (max-width: 640px) {
   .app-title { font-size: 0.95rem; }
   .filter-row { flex-direction: column; align-items: stretch; }

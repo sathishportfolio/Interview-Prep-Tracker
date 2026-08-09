@@ -5,18 +5,8 @@
  * never DOM logic owned by features. This file never imports anything from features/*.
  * @typedef {import('../../types.js').Question} Question
  */
-import { appState, toggleNodeOpen } from "../../state/appState.js";
+import { appState } from "../../state/appState.js";
 import { applyOpenState } from "../accordion.js";
-
-/**
- * @param {HTMLElement} header
- * @param {HTMLElement} body
- * @param {string} key
- */
-function toggleOpenAndApply(header, body, key) {
-  toggleNodeOpen(key);
-  applyOpenState(header, body, key);
-}
 
 /**
  * @typedef {Object} TreeHandlers
@@ -30,6 +20,7 @@ function toggleOpenAndApply(header, body, key) {
  * @property {(qid: string) => void} onGoogleSearch
  * @property {(qid: string, dir: "up"|"down"|"top"|"bottom") => void} onMoveQuestionOrder
  * @property {(qid: string) => void} onToggleActiveQuestion
+ * @property {(qid: string) => void} onToggleQuestionOpen
  * @property {(qid: string) => void} onToggleSelectQuestion
  * @property {(subject: string, topic: string, subTopic: string, level: "subject"|"topic"|"subTopic", name: string) => void} onCopyMenu
  * @property {(level: "subject"|"topic"|"subTopic", scope: any) => void} onRenameGroup
@@ -77,8 +68,7 @@ export function createQuestionNode(q, handlers) {
   // the two behaviors from firing together.
   qText.addEventListener("click", (e) => {
     e.stopPropagation();
-    const body2 = /** @type {HTMLElement} */ (header.nextElementSibling);
-    toggleOpenAndApply(header, body2, `Q::${q.id}`);
+    handlers.onToggleQuestionOpen(q.id);
   });
 
   const statusRow = document.createElement("div");

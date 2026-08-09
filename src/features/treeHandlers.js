@@ -21,7 +21,7 @@ import * as groupPanels from "./groupPanels.js";
 import * as autoExpand from "./autoExpand.js";
 import { repaint } from "./refresh.js";
 import { scrollNodeIntoView } from "../render/accordion.js";
-import { appState } from "../state/appState.js";
+import { appState, toggleNodeOpenExclusive } from "../state/appState.js";
 
 export function buildTreeHandlers() {
   return {
@@ -35,6 +35,14 @@ export function buildTreeHandlers() {
     onGoogleSearch: (qid) => copySingle.googleSearchQuestion(qid),
     onMoveQuestionOrder: (qid, dir) => moveButtons.moveQuestion(qid, dir),
     onToggleActiveQuestion: (qid) => activeQuestion.toggleActiveQuestion(qid),
+    // Single-open-accordion for question answer bodies, mirroring the Subject/Topic/SubTopic
+    // exclusivity below but scoped globally (see appState.js's siblingOpenKeysAtSameLevel) since flat
+    // view has no parent grouping to scope by. repaint() re-syncs whichever OTHER question row was
+    // previously open — toggleNodeOpenExclusive only updated appState, not that row's own DOM.
+    onToggleQuestionOpen: (qid) => {
+      toggleNodeOpenExclusive(`Q::${qid}`);
+      repaint();
+    },
     onToggleSelectQuestion: (qid) => bulkSelection.toggleSelectQuestion(qid),
     onOpenCopyMenu: (level, scope, anchorEl) => copyMenus.openCopyMenu(level, scope, anchorEl),
     onRenameGroup: (level, scope) => rename.renameGroupPrompt(level, scope),
