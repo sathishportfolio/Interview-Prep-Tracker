@@ -208,6 +208,7 @@ function init() {
       onStatusBadgeClick: (status) => filters.toggleStatusFilter(status),
     },
     actions: {
+      onToggleEditMode: () => editMode.toggleEditMode(),
       onToggleFlatten: () => flattenView.toggleFlatten(),
       onToggleDragDrop: () => dragDropToggle.toggleDragDrop(),
       onToggleAutoExpand: () => autoExpand.toggleAutoExpandChildren(),

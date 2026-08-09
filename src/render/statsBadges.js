@@ -1,7 +1,8 @@
 // @ts-check
 /**
  * render/statsBadges.js — Global stats badges row (Total/Filtered/Review/Done/Starred) plus the
- * global actions group (Flatten toggle, Drag-and-drop toggle, Auto-Expand toggle, Copy Visible).
+ * global actions group (Edit Mode toggle, Flatten toggle, Drag-and-drop toggle, Auto-Expand
+ * toggle, Copy Visible).
  * Render-only; every click calls a handler. Deliberately NOT edit-gated (unlike per-node controls in
  * render/nodeViews/*) — these are view/read toggles and a non-destructive copy action, not edits, so
  * they stay usable whether or not Edit Mode is on.
@@ -108,12 +109,21 @@ function renderStatsProgress(stats) {
 }
 
 /**
- * @param {{flatGroupView: boolean, dragDropOn: boolean, autoExpandChildrenOn?: boolean}} toggles
+ * @param {{editModeOn?: boolean, flatGroupView: boolean, dragDropOn: boolean, autoExpandChildrenOn?: boolean}} toggles
  * @param {Record<string, any>} handlers
  */
 export function renderGlobalActions(toggles, handlers) {
   if (!actionsEl) return;
   actionsEl.textContent = "";
+
+  const editModeBtn = document.createElement("button");
+  editModeBtn.type = "button";
+  editModeBtn.className = "btn btn-sm btn-outline-secondary";
+  editModeBtn.title = "Toggle Edit Mode";
+  editModeBtn.innerHTML = '<i class="fa-solid fa-pencil"></i>';
+  editModeBtn.classList.toggle("active", toggles.editModeOn);
+  editModeBtn.addEventListener("click", () => handlers.onToggleEditMode());
+  actionsEl.appendChild(editModeBtn);
 
   const flatBtn = document.createElement("button");
   flatBtn.type = "button";

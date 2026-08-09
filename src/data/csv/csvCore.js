@@ -1,16 +1,39 @@
 // @ts-check
 /**
- * csvCore.js — minimal, dependency-free RFC4180-ish CSV parse/serialize (comma-separated,
- * double-quote escaping, embedded commas/quotes/newlines supported). Zero DOM. Used by both
- * mainCsv.js and bulkCsv.js so the whole data layer stays independent of any CDN library, and is
- * runnable/testable directly under `node --test`.
+ * csvCore.js — minimal, dependency-free RFC4180-ish CSV parse/serialize (comma- or tab-delimited,
+ * auto-detected per input; double-quote escaping, embedded commas/quotes/newlines supported).
+ * Zero DOM. Used by both mainCsv.js and bulkCsv.js so the whole data layer stays independent of
+ * any CDN library, and is runnable/testable directly under `node --test`.
  */
 
 /**
+ * Sniffs whether pasted text is tab- or comma-delimited by comparing counts on its first line.
+ * Excel/Sheets "copy cells → paste" produces tab-separated text with no header quoting, which the
+ * comma-only parser used to misread as a single column, so every downstream required-column check
+ * failed with "Missing required column(s)". Tabs win ties since a comma is far more likely to
+ * appear inside a pasted answer/question cell than a literal tab is.
  * @param {string} text
+ * @returns {"," | "\t"}
+ */
+function detectDelimiter(text) {
+  const firstLine = text.split(/\r\n|\n/, 1)[0] || "";
+  const tabs = (firstLine.match(/\t/g) || []).length;
+  const commas = (firstLine.match(/,/g) || []).length;
+  return tabs >= commas && tabs > 0 ? "\t" : ",";
+}
+
+/**
+ * @param {string} text
+ * @param {"," | "\t"} [delimiter] defaults to auto-detecting comma vs. tab from the first line
  * @returns {string[][]} rows of raw string cells (first row is the header row, if present)
  */
-export function parseCsvRows(text) {
+export function parseCsvRows(text, delimiter = detectDelimiter(text)) {
+  // Excel/Sheets "copy cells → paste" (tab-delimited) never escapes quote characters inside a
+  // cell — a literal " in a question/answer is pasted as-is, not doubled or field-wrapped. Only
+  // real comma-delimited CSV (our own export format) uses RFC4180 quoting, so honoring quotes for
+  // tab-delimited input made a plain " in pasted text (e.g. `the "protected" modifier`) desync
+  // field boundaries and silently corrupt/drop cells.
+  const honorQuotes = delimiter === ",";
   const rows = [];
   let row = [];
   let field = "";
@@ -45,12 +68,12 @@ export function parseCsvRows(text) {
       i += 1;
       continue;
     }
-    if (ch === '"') {
+    if (honorQuotes && ch === '"') {
       inQuotes = true;
       i += 1;
       continue;
     }
-    if (ch === ",") {
+    if (ch === delimiter) {
       pushField();
       i += 1;
       continue;
