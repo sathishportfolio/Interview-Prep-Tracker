@@ -11,7 +11,8 @@ import { initFlatRenderer } from "./render/flatRenderer.js";
 import { initStatsBadges } from "./render/statsBadges.js";
 import { initBreadcrumb } from "./render/breadcrumb.js";
 import { buildTreeHandlers } from "./features/treeHandlers.js";
-import { configureRefresh, refreshView, repaint, setAfterRepaintHook } from "./features/refresh.js";
+import { configureRefresh, refreshView, repaint, setAfterRepaintHook, applyDataChange } from "./features/refresh.js";
+import { resetProgress } from "./data/mutations.js";
 import * as activeQuestionFeature from "./features/activeQuestion.js";
 import * as filters from "./features/filters.js";
 import * as editMode from "./features/editMode.js";
@@ -193,7 +194,11 @@ function init() {
   const handlers = buildTreeHandlers();
   initTreeRenderer(/** @type {HTMLElement} */ ($("treeRoot")), handlers);
   initFlatRenderer(/** @type {HTMLElement} */ ($("flatRoot")), handlers);
-  initStatsBadges(/** @type {HTMLElement} */ ($("globalStatsBadges")), /** @type {HTMLElement} */ ($("globalActionsGroup")));
+  initStatsBadges(
+    /** @type {HTMLElement} */ ($("globalStatsBadges")),
+    /** @type {HTMLElement} */ ($("globalActionsGroup")),
+    /** @type {HTMLElement} */ ($("statsProgressBar"))
+  );
   initBreadcrumb(/** @type {HTMLElement} */ ($("headerBreadcrumb")), () => activeQuestionFeature.jumpToActiveQuestion());
 
   configureRefresh({
@@ -258,6 +263,12 @@ function init() {
   $("copyProgressCsvBtn")?.addEventListener("click", () => {
     exportMenu.close();
     fileManager.copyProgressCsvToClipboard();
+  });
+
+  $("resetProgressBtn")?.addEventListener("click", () => {
+    if (!confirmAction("Reset progress for every question in this file? This clears Done, Review Later, and spaced-repetition scheduling (Due) on ALL questions, regardless of any filter — Starred/LessImportant/Duplicate flags and the question structure itself are untouched. This cannot be undone here, but Undo will still work.")) return;
+    applyDataChange({ rawData: resetProgress(appState.rawData), emptyGroups: appState.emptyGroups });
+    showToast("Progress reset for all questions.", "success");
   });
 
   $("resetAllBtn")?.addEventListener("click", () => {

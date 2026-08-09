@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   addQuestion, deleteQuestion, deleteGroup, deleteGroupCascade, renameGroup, moveQuestions, moveGroup,
-  bulkAddRows, bulkUpdateRows, questionExists, scheduleReview,
+  bulkAddRows, bulkUpdateRows, questionExists, scheduleReview, resetProgress,
 } from "./mutations.js";
 
 function emptyData() {
@@ -202,4 +202,20 @@ test("scheduleReview 'reset' clears the streak and brings srsDue back to tomorro
   const q = rawData.find((x) => x.id === data.question.id);
   assert.equal(q.srsStreak, 0);
   assert.equal(q.srsDue, "2026-08-09");
+});
+
+test("resetProgress clears done/reviewLater/srsDue/srsStreak for every question but leaves starred and structure untouched", () => {
+  let data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1", done: true, reviewLater: true, starred: true });
+  const ref = new Date("2026-08-08T00:00:00Z");
+  let rawData = scheduleReview(data.rawData, data.question.id, "advance", ref);
+
+  rawData = resetProgress(rawData);
+  const q = rawData.find((x) => x.id === data.question.id);
+  assert.equal(q.done, false);
+  assert.equal(q.reviewLater, false);
+  assert.equal(q.srsDue, null);
+  assert.equal(q.srsStreak, 0);
+  assert.equal(q.starred, true);
+  assert.equal(q.subject, "S1");
+  assert.equal(q.question, "Q1");
 });

@@ -58,6 +58,9 @@ function clearChildSelections(parentLevel, parentScope) {
     const prefix = `subTopic::${parentScope.subject}::${parentScope.topic}::`;
     appState.selectedGroupKeys = new Set([...appState.selectedGroupKeys].filter((k) => !k.startsWith(prefix)));
   } else {
+    // Full rawData here (not the filtered tree) is deliberate — clearing should drop every
+    // selection under this parent, including any question a filter change since selecting it may
+    // have hidden, not just whatever's currently visible.
     const idsHere = new Set(
       appState.rawData
         .filter((q) => q.subject === parentScope.subject && q.topic === parentScope.topic && q.subTopic === parentScope.subTopic)
@@ -69,7 +72,9 @@ function clearChildSelections(parentLevel, parentScope) {
 
 /**
  * Every direct child key/id of one container — the set the accordion-level "Select All" button
- * (see selectAllChildren) selects or deselects.
+ * (see selectAllChildren) selects or deselects. Scoped to the currently FILTERED tree (appState.
+ * grouped), not the full unfiltered dataset — with no filters active the two are identical, but
+ * with a filter on, only what's actually visible on screen gets selected.
  * @param {GroupLevel} parentLevel
  * @param {GroupScope} parentScope
  * @returns {{groupKeys: string[], questionIds: string[]}}
@@ -82,9 +87,7 @@ function directChildren(parentLevel, parentScope) {
     const subTopics = subTopicsUnder(parentScope.subject, /** @type {string} */ (parentScope.topic));
     return { groupKeys: subTopics.map((subTopic) => groupKey("subTopic", { subject: parentScope.subject, topic: parentScope.topic, subTopic })), questionIds: [] };
   }
-  const questionIds = appState.rawData
-    .filter((q) => q.subject === parentScope.subject && q.topic === parentScope.topic && q.subTopic === parentScope.subTopic)
-    .map((q) => q.id);
+  const questionIds = questionIdsUnder(parentScope.subject, /** @type {string} */ (parentScope.topic), /** @type {string} */ (parentScope.subTopic));
   return { groupKeys: [], questionIds };
 }
 
@@ -133,9 +136,7 @@ function activeGroupSelectionTargets() {
         groupKeys.push(groupKey("subTopic", { subject: scope.subject, topic: scope.topic, subTopic }));
       }
     } else {
-      for (const q of appState.rawData) {
-        if (q.subject === scope.subject && q.topic === scope.topic && q.subTopic === scope.subTopic) questionIds.push(q.id);
-      }
+      questionIds.push(...questionIdsUnder(scope.subject, /** @type {string} */ (scope.topic), /** @type {string} */ (scope.subTopic)));
     }
   }
   return { groupKeys, questionIds };
@@ -186,25 +187,35 @@ export function enableSelectModeEverywhere(revealLevel) {
   updateSelectionBar();
 }
 
-/** @returns {string[]} Every distinct Subject, including empty-group-only placeholders. */
+/**
+ * @returns {string[]} Every distinct Subject in the currently FILTERED tree (appState.grouped),
+ * including empty-group-only placeholders that survive the filter. Select All/Select-mode-everywhere
+ * scope to this — not the full unfiltered rawData/emptyGroups — so with a filter active only what's
+ * actually visible gets selected; with no filters active this is identical to the full tree.
+ */
 function subjectsInTree() {
-  return [...new Set([...appState.rawData.map((q) => q.subject), ...appState.emptyGroups.map((eg) => eg.subject)])];
+  return appState.grouped.subjects.map((s) => s.subject);
 }
 
-/** @param {string} subject @returns {string[]} Every distinct Topic under this Subject, including empty-group-only placeholders. */
+/** @param {string} subject @returns {string[]} Every distinct Topic under this Subject in the filtered tree. */
 function topicsUnder(subject) {
-  const fromRows = appState.rawData.filter((q) => q.subject === subject).map((q) => q.topic);
-  const fromEmpty = appState.emptyGroups.filter((eg) => eg.subject === subject && eg.topic != null).map((eg) => /** @type {string} */ (eg.topic));
-  return [...new Set([...fromRows, ...fromEmpty])];
+  const s = appState.grouped.subjects.find((s) => s.subject === subject);
+  return s ? s.topics.map((t) => t.topic) : [];
 }
 
-/** @param {string} subject @param {string} topic @returns {string[]} Every distinct SubTopic under this Topic, including empty-group-only placeholders. */
+/** @param {string} subject @param {string} topic @returns {string[]} Every distinct SubTopic under this Topic in the filtered tree. */
 function subTopicsUnder(subject, topic) {
-  const fromRows = appState.rawData.filter((q) => q.subject === subject && q.topic === topic).map((q) => q.subTopic);
-  const fromEmpty = appState.emptyGroups
-    .filter((eg) => eg.subject === subject && eg.topic === topic && eg.subTopic != null)
-    .map((eg) => /** @type {string} */ (eg.subTopic));
-  return [...new Set([...fromRows, ...fromEmpty])];
+  const t = appState.grouped.subjects.find((s) => s.subject === subject)?.topics.find((t) => t.topic === topic);
+  return t ? t.subTopics.map((st) => st.subTopic) : [];
+}
+
+/** @param {string} subject @param {string} topic @param {string} subTopic @returns {string[]} Every question id in this SubTopic in the filtered tree. */
+function questionIdsUnder(subject, topic, subTopic) {
+  const st = appState.grouped.subjects
+    .find((s) => s.subject === subject)
+    ?.topics.find((t) => t.topic === topic)
+    ?.subTopics.find((st) => st.subTopic === subTopic);
+  return st ? st.questions.map((q) => q.id) : [];
 }
 
 /** @param {GroupLevel} level @param {GroupScope} scope */

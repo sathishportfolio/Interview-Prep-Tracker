@@ -3,7 +3,9 @@
  * features/statusFlags.js — Status Flags (Done/ReviewLater/Duplicate/LessImportant/Starred). Thin:
  * calls data/mutations.js.toggleStatusFlag then the shared refresh pipeline. Marking Done also
  * advances the question's spaced-repetition schedule (and unmarking it, or marking Review Later,
- * resets it back to "due soon") — see data/mutations.js scheduleReview.
+ * resets it back to "due soon") — see data/mutations.js scheduleReview. Done and Review Later are
+ * mutually exclusive: checking one automatically unchecks the other (a question shouldn't be both
+ * "I know this" and "I need to review this" at once).
  */
 import { toggleStatusFlag, scheduleReview } from "../data/mutations.js";
 import { applyDataChange } from "./refresh.js";
@@ -20,9 +22,18 @@ export function toggleStatus(questionId, flag) {
   const prev = appState.rawData.find((q) => q.id === questionId);
   let rawData = toggleStatusFlag(appState.rawData, questionId, flag);
   if (prev && flag === "done") {
-    rawData = scheduleReview(rawData, questionId, prev.done ? "reset" : "advance");
+    const nowDone = !prev.done;
+    rawData = scheduleReview(rawData, questionId, nowDone ? "advance" : "reset");
+    // Mutual exclusion: checking Done clears Review Later.
+    if (nowDone && prev.reviewLater) {
+      rawData = rawData.map((q) => (q.id === questionId ? { ...q, reviewLater: false } : q));
+    }
   } else if (prev && flag === "reviewLater" && !prev.reviewLater) {
     rawData = scheduleReview(rawData, questionId, "reset");
+    // Mutual exclusion: checking Review Later clears Done.
+    if (prev.done) {
+      rawData = rawData.map((q) => (q.id === questionId ? { ...q, done: false } : q));
+    }
   }
   // Starring while an Active Question is already set moves the resume pointer to the question just
   // BEFORE this one in its SubTopic — see setActiveQuestionQuiet's doc comment: on reload this

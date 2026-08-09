@@ -139,6 +139,19 @@ export function scheduleReview(rawData, questionId, outcome, referenceDate = new
 }
 
 /**
+ * Resets every question's progress tracking — Done, Review Later, and spaced-repetition scheduling
+ * (srsDue/srsStreak) — back to their fresh-question defaults, across the ENTIRE dataset regardless
+ * of any active filter. Leaves Starred/LessImportant/Duplicate (organizational flags, not progress)
+ * and every Subject/Topic/SubTopic/Question structure untouched — this only clears tracking, it
+ * never deletes or moves anything.
+ * @param {Question[]} rawData
+ * @returns {Question[]}
+ */
+export function resetProgress(rawData) {
+  return rawData.map((q) => ({ ...q, done: false, reviewLater: false, srsDue: null, srsStreak: 0 }));
+}
+
+/**
  * Deletes a single question, marking its SubTopic empty if it was the last question there.
  * @param {DataPair} data
  * @param {string} questionId

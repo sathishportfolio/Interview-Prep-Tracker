@@ -43,7 +43,7 @@ export function createTopicNode(t, handlers) {
   headerControls.appendChild(iconBtn("fa-plus", "Quick Add SubTopic", (e) => {
     e.stopPropagation();
     handlers.onQuickAddSubTopic(t.subject, t.topic);
-  }));
+  }, true));
   headerControls.appendChild(iconBtn("fa-pen", "Rename", (e) => {
     e.stopPropagation();
     handlers.onRenameGroup("topic", { subject: t.subject, topic: t.topic });
