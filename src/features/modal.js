@@ -67,8 +67,14 @@ export function openModal(config) {
   host.appendChild(backdrop);
 
   function close() {
+    document.removeEventListener("keydown", handleKeydown);
     backdrop.remove();
   }
+  /** @param {KeyboardEvent} e */
+  function handleKeydown(e) {
+    if (e.key === "Escape") close();
+  }
+  document.addEventListener("keydown", handleKeydown);
   closeBtn.addEventListener("click", close);
   backdrop.addEventListener("click", (e) => {
     if (e.target === backdrop) close();
