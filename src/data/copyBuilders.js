@@ -123,3 +123,13 @@ export function buildVisibleCopyText(tree, format) {
   });
   return parts.filter((p) => p.length > 0).join("\n");
 }
+
+/**
+ * Flattens an entire GroupedTree (already filtered, e.g. appState.grouped) into its questions —
+ * used by features/duplicateFinder.js to scan "the current filtered view" as one flat list.
+ * @param {GroupedTree} tree
+ * @returns {Question[]}
+ */
+export function flattenGroupedTree(tree) {
+  return tree.subjects.flatMap((s) => collectQuestions(toWalkNode(s)));
+}

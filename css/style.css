@@ -173,6 +173,9 @@ body {
    pattern as the Move form's 3-column picker below. */
 .modal-host .modal-box:has(.sync-bin-table) { max-width: 960px; }
 
+/* Duplicate Finder needs room for long question text, answer previews, and the append picker. */
+.modal-host .modal-box:has(.dup-finder) { max-width: 960px; }
+
 .sync-bin-table { width: 100%; table-layout: fixed; font-size: 0.82rem; margin-bottom: 0.5rem; border-collapse: collapse; }
 .sync-bin-table th { text-align: left; font-weight: 600; color: var(--text-muted); padding: 0.3rem 0.5rem 0.3rem 0; border-bottom: 1px solid var(--border-soft); }
 .sync-bin-table td { padding: 0.4rem 0.5rem 0.4rem 0; border-bottom: 1px solid var(--border-soft); vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -320,6 +323,28 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .duplicate-hints .dup-item { padding: 0.15rem 0; color: var(--text-muted); }
 .duplicate-hints .dup-item-link { display: block; text-decoration: none; cursor: pointer; }
 .duplicate-hints .dup-item-link:hover { color: var(--accent); text-decoration: underline; }
+
+.dup-finder-summary { margin-bottom: 0.5rem; font-size: 0.82rem; }
+.dup-finder .dup-cluster { margin-bottom: 0.6rem; }
+.dup-finder .dup-cluster:last-child { margin-bottom: 0; }
+.dup-finder .dup-cluster-title-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; cursor: default; }
+.dup-finder .dup-skip-btn { flex: 0 0 auto; font-weight: 400; }
+.dup-finder .dup-item-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; }
+.dup-finder .dup-item-row .dup-item-checkbox { flex: 0 0 auto; margin: 0; }
+.dup-finder .dup-item-row .dup-item-link { display: block; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dup-finder .dup-has-answer-badge { flex: 0 0 auto; }
+.dup-finder .dup-item-row .btn { flex: 0 0 auto; }
+
+.dup-finder .dup-answer-panel { margin: 0 0 0.4rem 1.9rem; padding: 0.5rem 0.6rem; font-size: 0.85rem; background: var(--bg-surface-alt-2); border: 1px solid var(--border-soft); border-radius: 0.3rem; }
+.dup-finder .dup-append-panel { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 0.4rem 1.9rem; padding: 0.4rem 0.6rem; background: var(--bg-surface-alt-2); border: 1px solid var(--border-soft); border-radius: 0.3rem; flex-wrap: wrap; }
+.dup-finder .dup-append-label { font-size: 0.8rem; color: var(--text-muted); flex: 0 0 auto; }
+.dup-finder .dup-append-select { flex: 1 1 auto; min-width: 160px; max-width: 360px; }
+
+/* Results scroll in their own bounded area so the delete-selected footer below them stays visible
+   without needing sticky-positioning tricks against the modal's own outer scroll container. */
+.dup-finder-results { max-height: 45vh; overflow-y: auto; }
+.dup-finder-footer { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid var(--border-soft); }
+.dup-finder-selected-count { font-size: 0.82rem; color: var(--text-muted); }
 
 .move-form { border: 1px solid var(--border-input); border-radius: 0.4rem; padding: 0.5rem; margin-top: 0.4rem; background: var(--bg-surface-alt-2); }
 .move-form-row { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.4rem; align-items: center; }

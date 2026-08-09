@@ -2,7 +2,7 @@
 /**
  * render/statsBadges.js — Global stats badges row (Total/Filtered/Review/Done/Starred) plus the
  * global actions group (Edit Mode toggle, Flatten toggle, Drag-and-drop toggle, Auto-Expand
- * toggle, Copy Visible).
+ * toggle, Find Duplicates, Copy Visible).
  * Render-only; every click calls a handler. Deliberately NOT edit-gated (unlike per-node controls in
  * render/nodeViews/*) — these are view/read toggles and a non-destructive copy action, not edits, so
  * they stay usable whether or not Edit Mode is on.
@@ -151,6 +151,14 @@ export function renderGlobalActions(toggles, handlers) {
   autoExpandBtn.classList.toggle("active", !!toggles.autoExpandChildrenOn);
   autoExpandBtn.addEventListener("click", () => handlers.onToggleAutoExpand());
   actionsEl.appendChild(autoExpandBtn);
+
+  const findDupesBtn = document.createElement("button");
+  findDupesBtn.type = "button";
+  findDupesBtn.className = "btn btn-sm btn-outline-secondary";
+  findDupesBtn.title = "Find Duplicates in the current filtered view";
+  findDupesBtn.innerHTML = '<i class="fa-solid fa-clone"></i>';
+  findDupesBtn.addEventListener("click", () => handlers.onFindDuplicates());
+  actionsEl.appendChild(findDupesBtn);
 
   const copyBtn = document.createElement("div");
   copyBtn.className = "btn-group";

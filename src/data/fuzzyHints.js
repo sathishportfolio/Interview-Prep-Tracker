@@ -1,8 +1,11 @@
 // @ts-check
 /**
- * fuzzyHints.js — duplicate-detection fuzzy matching for a draft (in-progress) question, used by
- * Quick Add / Bulk Add's "you may already have this" hints AND "Copy and search for duplicates".
- * Zero DOM.
+ * fuzzyHints.js — duplicate-detection fuzzy matching. findDuplicateHints matches a draft
+ * (in-progress) question against the full dataset, used by Quick Add / Bulk Add's "you may
+ * already have this" hints AND the per-question "Copy and search for duplicates".
+ * findDuplicateClusters instead finds mutually-similar groups *within* a given list (e.g.
+ * features/duplicateFinder.js's filtered-view scan) — no single "draft" text, just pairwise
+ * clustering. Zero DOM.
  * @typedef {import('../types.js').Question} Question
  */
 
@@ -114,4 +117,75 @@ export function findDuplicateHints(rawData, draftText, options = {}) {
   return [...groups.values()]
     .map((g) => ({ ...g, items: g.items.sort(byRelevance) }))
     .sort((a, b) => Number(b.autoExpand) - Number(a.autoExpand) || b.items.length - a.items.length);
+}
+
+/**
+ * @typedef {Object} DuplicateCluster
+ * @property {Question[]} questions 2+ mutually similar/duplicate questions
+ * @property {boolean} hasExactMatch
+ */
+
+/**
+ * Finds clusters of duplicate/near-duplicate questions *within* a given list — e.g. the current
+ * filtered view — unlike findDuplicateHints above, which matches one in-progress draft against the
+ * full dataset. Pairwise comparison + union-find merge (so a chain like A~B, B~C collapses into
+ * one cluster instead of two overlapping pairs). O(n^2); fine for a one-shot "check for dupes"
+ * button, not something run per keystroke.
+ * @param {Question[]} questions
+ * @param {{ignoreCommonWords?: boolean}} [options]
+ * @returns {DuplicateCluster[]}
+ */
+export function findDuplicateClusters(questions, options = {}) {
+  const ignoreCommonWords = options.ignoreCommonWords !== false;
+  const n = questions.length;
+  const parent = Array.from({ length: n }, (_, i) => i);
+  function find(i) {
+    while (parent[i] !== i) {
+      parent[i] = parent[parent[i]];
+      i = parent[i];
+    }
+    return i;
+  }
+  function union(i, j) {
+    const ri = find(i);
+    const rj = find(j);
+    if (ri !== rj) parent[ri] = rj;
+  }
+
+  const norm = questions.map((q) => normalize(q.question));
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const isExact = norm[i] !== "" && norm[i] === norm[j];
+      const score = isExact ? 1 : similarity(questions[i].question, questions[j].question, ignoreCommonWords);
+      if (isExact || score >= SIMILARITY_THRESHOLD) union(i, j);
+    }
+  }
+
+  /** @type {Map<number, number[]>} */
+  const byRoot = new Map();
+  for (let i = 0; i < n; i++) {
+    const r = find(i);
+    if (!byRoot.has(r)) byRoot.set(r, []);
+    /** @type {number[]} */ (byRoot.get(r)).push(i);
+  }
+
+  /** @type {DuplicateCluster[]} */
+  const clusters = [];
+  for (const idxs of byRoot.values()) {
+    if (idxs.length < 2) continue;
+    let hasExactMatch = false;
+    outer: for (let a = 0; a < idxs.length; a++) {
+      for (let b = a + 1; b < idxs.length; b++) {
+        if (norm[idxs[a]] !== "" && norm[idxs[a]] === norm[idxs[b]]) {
+          hasExactMatch = true;
+          break outer;
+        }
+      }
+    }
+    clusters.push({ questions: idxs.map((i) => questions[i]), hasExactMatch });
+  }
+
+  return clusters.sort(
+    (a, b) => Number(b.hasExactMatch) - Number(a.hasExactMatch) || b.questions.length - a.questions.length
+  );
 }

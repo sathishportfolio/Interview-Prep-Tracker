@@ -22,6 +22,7 @@ import * as dragDropToggle from "./features/dragDropToggle.js";
 import * as autoExpand from "./features/autoExpand.js";
 import * as dragDrop from "./features/dragDrop.js";
 import * as copyVisible from "./features/copyVisible.js";
+import * as duplicateFinder from "./features/duplicateFinder.js";
 import * as undoRedo from "./features/undoRedo.js";
 import * as closeAll from "./features/closeAll.js";
 import * as floatingToggles from "./features/floatingToggles.js";
@@ -212,6 +213,7 @@ function init() {
       onToggleFlatten: () => flattenView.toggleFlatten(),
       onToggleDragDrop: () => dragDropToggle.toggleDragDrop(),
       onToggleAutoExpand: () => autoExpand.toggleAutoExpandChildren(),
+      onFindDuplicates: () => duplicateFinder.openDuplicateFinder(),
       onCopyVisible: (format) => copyVisible.copyVisible(format),
     },
     breadcrumb: () => activeQuestionFeature.computeBreadcrumbData(),
