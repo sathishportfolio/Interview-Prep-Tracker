@@ -266,7 +266,8 @@ function init() {
   });
 
   $("resetProgressBtn")?.addEventListener("click", () => {
-    if (!confirmAction("Reset progress for every question in this file? This clears Done, Review Later, and spaced-repetition scheduling (Due) on ALL questions, regardless of any filter — Starred/LessImportant/Duplicate flags and the question structure itself are untouched. This cannot be undone here, but Undo will still work.")) return;
+    if (!confirmAction("Reset progress for every question in this file? This clears Done, Review Later, spaced-repetition scheduling (Due), and the Active Question flag — Starred/LessImportant/Duplicate flags and the question structure itself are untouched. This cannot be undone here, but Undo will still work.")) return;
+    activeQuestionFeature.clearActiveQuestion();
     applyDataChange({ rawData: resetProgress(appState.rawData), emptyGroups: appState.emptyGroups });
     showToast("Progress reset for all questions.", "success");
   });
@@ -400,10 +401,12 @@ function init() {
   filters.syncControlsFromState();
 
   // A persisted Active Question should be immediately visible on load/refresh, not just after the
-  // user manually clicks the breadcrumb flag link — same expand+scroll+flash jumpToActiveQuestion
-  // already does for that click, just triggered once up front instead. Skipped while Edit Mode is
-  // on: that's when someone is mid-editing/reorganizing data, and an unrequested jump+scroll would
-  // yank them away from whatever they were about to work on.
+  // user manually clicks the breadcrumb flag link — same reveal jumpToActiveQuestion already does
+  // for that click, just triggered once up front instead. Both scroll+flash the question's header
+  // (opening only its ancestor Subject/Topic/SubTopic to give it a visible position) WITHOUT ever
+  // auto-expanding the question's own answer body. Skipped while Edit Mode is on: that's when
+  // someone is mid-editing/reorganizing data, and an unrequested jump+scroll would yank them away
+  // from whatever they were about to work on.
   if (appState.activeQuestion && !appState.toggles.editModeOn) {
     activeQuestionFeature.jumpToActiveQuestion();
   }
