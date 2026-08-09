@@ -6,7 +6,7 @@
  * beyond the static controls app.js wires to it.
  * @typedef {import('../types.js').FileRecord} FileRecord
  */
-import { parseMainCsv, serializeMainCsv } from "../data/csv/mainCsv.js";
+import { parseMainCsv, serializeMainCsv, REQUIRED_COLUMNS } from "../data/csv/mainCsv.js";
 import { nextExportFileName } from "../data/filename.js";
 import { emptyFilterState } from "../data/filter.js";
 import { newFileId } from "../data/id.js";
@@ -97,6 +97,25 @@ export function loadCsvAsNewFile(fileName, csvText) {
   return { ok: true };
 }
 
+/** Creates a brand-new file with 0 questions, ready for bulk-add or a CSV load. */
+export function createEmptyFile(fileName) {
+  return loadCsvAsNewFile(fileName, REQUIRED_COLUMNS.join(","));
+}
+
+/**
+ * Ensures there's an active file to write into before a root-level bulk add/update proceeds —
+ * without this, pasted rows land in appState.rawData with nothing in appState.files to persist
+ * them into, and are silently lost on reload (see bulkAdd.js/bulkUpdate.js callers).
+ * @returns {boolean} false if the user cancelled/left the prompt blank
+ */
+export function ensureActiveFileFromPrompt() {
+  if (appState.activeFileId !== null) return true;
+  const name = (window.prompt("Name this file before adding questions:", "Untitled") || "").trim();
+  if (!name) return false;
+  const result = createEmptyFile(name);
+  return result.ok;
+}
+
 /** Loads the sample dataset (prefers window.csvString if present). */
 export function loadSampleData() {
   const csvText = /** @type {any} */ (window).csvString || FALLBACK_SAMPLE_CSV;
@@ -178,6 +197,57 @@ export function downloadProgressCsv() {
   a.remove();
   URL.revokeObjectURL(url);
   showToast(`Exported ${payload.fileName}`, "success");
+}
+
+/**
+ * Downloads any file record (active or not) as CSV — used by the Cross-Device Sync manager's
+ * per-file Download button (sync/syncConfig.js's buildFileRow), so a file doesn't need to be
+ * switched to first just to grab a copy. Unlike downloadProgressCsv, doesn't touch export-version
+ * tracking (lastExportDate/lastExportVersion) — that's specific to the main "Export Progress"
+ * workflow on the active file, not an ad-hoc grab from the bin manager.
+ * @param {string} fileId
+ */
+export function downloadFile(fileId) {
+  if (fileId === appState.activeFileId) syncActiveFileBackIntoRecord();
+  const file = appState.files.find((f) => f.id === fileId);
+  if (!file) return;
+  const csvText = serializeMainCsv(file.rawData, file.emptyGroups);
+  const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${file.fileName}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showToast(`Exported ${file.fileName}.csv`, "success");
+}
+
+/**
+ * Deletes a file from local storage entirely — the local-storage half of a full delete (see
+ * sync/bins.js's removeFileFromBin for the remote half; sync/syncConfig.js's buildFileRow calls
+ * both, in that order, so a failed remote removal never leaves the file gone locally but still
+ * lingering in the cloud). If the deleted file was active, falls back to another loaded file if one
+ * exists, or clears the working copy to the empty state otherwise (mirrors clearActiveFile).
+ * @param {string} fileId
+ */
+export function deleteFile(fileId) {
+  const wasActive = fileId === appState.activeFileId;
+  appState.files = appState.files.filter((f) => f.id !== fileId);
+  if (wasActive) {
+    const next = appState.files[0];
+    if (next) {
+      loadFileIntoState(next);
+    } else {
+      appState.activeFileId = null;
+      appState.rawData = [];
+      appState.emptyGroups = [];
+      appState.filterState = emptyFilterState();
+    }
+  }
+  persistFiles();
+  if (onFilesChanged) onFilesChanged();
 }
 
 export async function copyProgressCsvToClipboard() {

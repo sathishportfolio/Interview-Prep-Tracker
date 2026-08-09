@@ -8,6 +8,7 @@ import { bulkAddRows } from "../data/mutations.js";
 import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import { buildBulkPanel } from "./bulkPanelUI.js";
+import * as fileManager from "./fileManager.js";
 
 /**
  * @param {{fixedSubject?: string|null, fixedTopic?: string|null, fixedSubTopic?: string|null}} scope
@@ -18,6 +19,7 @@ export function createBulkAddPanel(scope = {}) {
     label: "Add",
     toggleLabel: "+ Bulk Add (CSV)",
     onSubmit: (text) => {
+      if (!fileManager.ensureActiveFileFromPrompt()) return { summaryText: "Cancelled — a file name is required." };
       const parsed = parseBulkCsv(text, scope);
       if (!parsed.ok) return { summaryText: `Error: ${parsed.error}` };
       const result = bulkAddRows({ rawData: appState.rawData, emptyGroups: appState.emptyGroups }, parsed.rows);

@@ -91,6 +91,9 @@ function renderSyncMenuState() {
   if (configured) {
     updateSyncStatusLabel();
     refreshSyncUsageBadge();
+    updateSyncStatusIndicator();
+    const toggle = /** @type {HTMLInputElement|null} */ ($("syncEnabledToggle"));
+    if (toggle) toggle.checked = !!appState.sync.enabled;
   }
 }
 
@@ -100,6 +103,19 @@ function updateSyncDot(dirty) {
   if (!dot) return;
   dot.hidden = !dirty;
   dot.title = dirty ? "You have local changes not yet pushed to the cloud" : "";
+}
+
+/** Reflects on/paused state on the collapsed Sync button, distinct from the dirty dot and usage badge. */
+function updateSyncStatusIndicator() {
+  const indicator = $("syncMenuStatusIndicator");
+  if (!indicator) return;
+  const configured = syncConfig.isSyncConfigured();
+  indicator.hidden = !configured;
+  if (!configured) return;
+  const on = !!appState.sync.enabled;
+  indicator.classList.toggle("sync-indicator-on", on);
+  indicator.classList.toggle("sync-indicator-paused", !on);
+  indicator.title = on ? "Cloud sync is ON" : "Cloud sync is OFF (paused) — Push/Pull still available";
 }
 
 /** Every dropdown menu's close() registered via initDropdownMenu, so opening one can close the rest. */
@@ -165,6 +181,7 @@ function refreshAfterExternalDataChange() {
 function init() {
   // --- Bootstrap state from storage ---
   fileManager.bootstrapFromStorage();
+  tempModeFeature.initTempModeFromStorage(); // re-enters Temp/Test Mode if it was still on at last close
   theme.applyTheme(); // before first paint, so there's no light-theme flash for returning dark-theme users
 
   // First-time-mobile-visitor default: Flatten View ON.
@@ -257,7 +274,19 @@ function init() {
     if (id) fileManager.switchToFile(id);
   });
 
-  $("tempModeToggle")?.addEventListener("change", (e) => {
+  // Soft delete: local-only, never touches any cloud bin — full local+remote removal lives in the
+  // Cross-Device Sync manager's "Manage Files" section instead (sync/syncConfig.js's buildFileRow).
+  $("deleteCurrentFileBtn")?.addEventListener("click", () => {
+    const file = appState.files.find((f) => f.id === appState.activeFileId);
+    if (!file) return;
+    if (!confirmAction(`Remove "${file.fileName}" from this device only? This does NOT delete it from any cloud bin — to remove it everywhere, use Sync → Manage cloud sync → Manage Files. This cannot be undone on this device.`)) return;
+    fileManager.deleteFile(file.id);
+    showToast(`Removed "${file.fileName}" from this device.`, "info");
+  });
+
+  const tempModeToggleEl = /** @type {HTMLInputElement|null} */ ($("tempModeToggle"));
+  if (tempModeToggleEl) tempModeToggleEl.checked = appState.toggles.tempMode;
+  tempModeToggleEl?.addEventListener("change", (e) => {
     const on = /** @type {HTMLInputElement} */ (e.target).checked;
     tempModeFeature.setTempModeOn(on);
     showToast(on ? "Temp/Test Mode ON — nothing will be saved." : "Temp/Test Mode OFF.", "info");
@@ -345,6 +374,15 @@ function init() {
       updateSyncStatusLabel();
     }
   });
+  // Auto-sync toggle: pauses/resumes the 60s auto-push backstop only (see sync/autoPush.js) — Manual
+  // Push/Pull above are unaffected either way, so a paused user can still sync on demand.
+  $("syncEnabledToggle")?.addEventListener("change", (e) => {
+    const on = /** @type {HTMLInputElement} */ (e.target).checked;
+    syncConfig.setEnabled(on);
+    updateSyncStatusIndicator();
+    showToast(on ? "Cloud sync resumed." : "Cloud sync paused — Push/Pull still work.", "info");
+  });
+  updateSyncStatusIndicator();
 
   // --- Initial paint ---
   refreshView();
@@ -367,12 +405,20 @@ function init() {
  * the Cross-Device Sync modal's "Set as current bin") pulls that bin's files in and this then shows
  * them; files elsewhere aren't lost, just out of view until you switch back.
  */
+function updateDeleteFileBtn() {
+  const deleteBtn = $("deleteCurrentFileBtn");
+  if (deleteBtn) deleteBtn.hidden = appState.activeFileId === null;
+}
+
 function renderFileSwitcher() {
   const select = /** @type {HTMLSelectElement} */ ($("fileSwitcher"));
   // First-time users have nothing to sample-load from yet, so "Load Sample" is the obvious next
   // step; once real data exists it's just clutter next to Upload CSV.
   const loadSampleBtn = $("loadSampleBtn");
   if (loadSampleBtn) loadSampleBtn.hidden = appState.files.length > 0;
+  // Visible whenever there's an active file, independent of the switcher select itself (which hides
+  // once there's only one file to switch between — deleting the sole file is still valid).
+  updateDeleteFileBtn();
   if (!select) return;
 
   const currentBinId = appState.sync.currentBinId;
@@ -398,6 +444,7 @@ function renderFileSwitcher() {
       fileManager.clearActiveFile();
       refreshView();
     }
+    updateDeleteFileBtn();
     const opt = document.createElement("option");
     opt.textContent = appState.files.length === 0 ? "No files loaded" : "No files in this bin";
     opt.value = "";

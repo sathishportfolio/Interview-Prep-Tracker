@@ -33,6 +33,7 @@ export function emptySchema() {
       lastPushAt: null,
       lastPullAt: null,
       lastKnownRemoteUpdatedAt: null,
+      enabled: false,
     },
     timer: {
       running: false,
@@ -77,5 +78,9 @@ function coerceSync(rawSync) {
     ...rawSync,
     currentBinId: rawSync.currentBinId ?? rawSync.defaultBinId ?? rawSync.binId ?? base.currentBinId,
     knownBins: Array.isArray(rawSync.knownBins) ? rawSync.knownBins : base.knownBins,
+    // Pre-existing configured schemas (from before this field existed) infer `enabled: true` so
+    // upgrading doesn't silently pause a working sync setup; brand-new schemas keep `base`'s false.
+    // An explicit persisted value (either true or false) always wins over the inference.
+    enabled: rawSync.enabled ?? !!(rawSync.masterKey && (rawSync.currentBinId || rawSync.defaultBinId || rawSync.binId)),
   };
 }

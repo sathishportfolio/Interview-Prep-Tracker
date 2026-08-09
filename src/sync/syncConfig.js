@@ -15,6 +15,7 @@ import { appState } from "../state/appState.js";
 import * as store from "../persistence/store.js";
 import { showToast, confirmAction } from "../features/toast.js";
 import { openModal } from "../features/modal.js";
+import * as fileManager from "../features/fileManager.js";
 import * as bins from "./bins.js";
 
 /** @type {(() => void)|null} Called after any action that changes local files/settings (move/copy/fetch/clear). */
@@ -60,7 +61,13 @@ export function loadSyncConfig(schemaSync) {
 }
 
 export function clearSyncConfig() {
-  appState.sync = { masterKey: null, currentBinId: null, knownBins: [], lastPushAt: null, lastPullAt: null, lastKnownRemoteUpdatedAt: null };
+  appState.sync = { masterKey: null, currentBinId: null, knownBins: [], lastPushAt: null, lastPullAt: null, lastKnownRemoteUpdatedAt: null, enabled: false };
+  store.writeSync(appState.sync);
+}
+
+/** Flips the auto-push backstop on/off without touching Master Key/Bin ID — see sync/autoPush.js. */
+export function setEnabled(on) {
+  appState.sync = { ...appState.sync, enabled: on };
   store.writeSync(appState.sync);
 }
 
@@ -84,7 +91,7 @@ function renderInto(wrap, closeModal) {
     wrap.appendChild(buildSetupForm(wrap, /** @type {() => void} */ (closeModal)));
     return;
   }
-  wrap.appendChild(buildConfiguredView(wrap));
+  wrap.appendChild(buildConfiguredView(wrap, closeModal));
 }
 
 /**
@@ -101,7 +108,7 @@ function buildSetupForm(wrap, closeModal) {
   const section = document.createElement("div");
   let step = "key";
   let masterKeyValue = appState.sync?.masterKey || "";
-  let binMode = "create";
+  let binMode = "existing";
 
   function render() {
     section.textContent = "";
@@ -186,8 +193,14 @@ function buildSetupForm(wrap, closeModal) {
           showToast(result.error || "Could not create bin.", "error");
           return;
         }
+        // Sync stays OFF (paused) until the user explicitly flips the Auto-sync toggle themselves —
+        // connecting credentials/a bin is not itself consent to start auto-pushing on every edit.
         appState.sync = { ...appState.sync, masterKey: masterKeyValue, currentBinId: result.binId };
         store.writeSync(appState.sync);
+        // First-sync file creation: a brand-new setup with nothing loaded yet gets an empty file
+        // named to match the bin, ready for bulk-add/CSV, instead of leaving the user with a
+        // configured bin but no local file to actually sync (see fileManager.createEmptyFile).
+        if (appState.files.length === 0) fileManager.createEmptyFile(name);
         showToast("Sync configured.", "success");
         if (onSyncedDataChanged) onSyncedDataChanged();
         closeModal();
@@ -202,9 +215,9 @@ function buildSetupForm(wrap, closeModal) {
 
       box.append(nameLabel, nameInput, createBtn, toggleModeLink);
     } else {
-      const idLabel = mkLabel("Bin ID");
+      const idLabel = mkLabel("Existing Bin ID");
       const idInput = mkInput("");
-      const nameLabel = mkLabel("Bin Name");
+      const nameLabel = mkLabel("Existing Bin Name / Alias");
       const nameInput = mkInput("");
 
       const connectBtn = document.createElement("button");
@@ -215,11 +228,12 @@ function buildSetupForm(wrap, closeModal) {
         const id = idInput.value.trim();
         const name = nameInput.value.trim();
         if (!id || !name) {
-          showToast("Bin ID and Bin Name are both required.", "error");
+          showToast("Existing Bin ID and Existing Bin Name / Alias are both required.", "error");
           return;
         }
         connectBtn.disabled = true;
         connectBtn.textContent = "Connecting…";
+        // Sync stays OFF (paused) until the user explicitly flips the Auto-sync toggle themselves.
         appState.sync = { ...appState.sync, masterKey: masterKeyValue, currentBinId: id };
         store.writeSync(appState.sync);
         bins.registerKnownBin(id, name);
@@ -253,50 +267,39 @@ function buildSetupForm(wrap, closeModal) {
   return section;
 }
 
-/** @param {HTMLElement} wrap */
-function buildConfiguredView(wrap) {
+/**
+ * @param {HTMLElement} wrap
+ * @param {() => void} [closeModal] Only used by the "Set as current bin" action (see buildBinsTable)
+ *   — switching bins is a natural stopping point, so the modal closes back to the app afterward
+ *   instead of leaving the manager open on now-stale bin/file rows.
+ */
+function buildConfiguredView(wrap, closeModal) {
   const section = document.createElement("div");
 
-  // --- Known bins + create new ---
-  const binsHeading = document.createElement("div");
-  binsHeading.style.fontWeight = "600";
-  binsHeading.style.marginBottom = "0.3rem";
-  binsHeading.textContent = "Bins";
-  section.appendChild(binsHeading);
+  // --- 1. Manage Bins: edit/set-current/delete the bins this device already knows about. ---
+  section.appendChild(sectionHeading("Manage Bins"));
+  section.appendChild(buildBinsTable(wrap, closeModal));
 
-  section.appendChild(buildBinsTable(wrap));
+  section.appendChild(sectionDivider());
 
-  const newBinRow = document.createElement("div");
-  newBinRow.className = "sync-inline-row";
-  newBinRow.style.marginTop = "0.5rem";
-  const newBinLabelInput = document.createElement("input");
-  newBinLabelInput.type = "text";
-  newBinLabelInput.className = "form-control form-control-sm";
-  newBinLabelInput.placeholder = "New bin name";
-  const newBinBtn = document.createElement("button");
-  newBinBtn.type = "button";
-  newBinBtn.className = "btn btn-sm btn-outline-primary";
-  newBinBtn.textContent = "+ New Bin";
-  newBinBtn.addEventListener("click", async () => {
-    newBinBtn.disabled = true;
-    const result = await bins.createNewBin(newBinLabelInput.value.trim() || "Untitled bin");
-    newBinBtn.disabled = false;
-    if (!result.ok) {
-      showToast(result.error || "Could not create bin.", "error");
-      return;
-    }
-    showToast(`Created bin ${result.binId}.`, "success");
-    renderInto(wrap);
-  });
-  newBinRow.append(newBinLabelInput, newBinBtn);
-  section.appendChild(newBinRow);
+  // --- 2. Manage Files: move/copy an individual local file to a different known bin. ---
+  section.appendChild(sectionHeading("Manage Files"));
+  const availableBins = bins.listBins();
+  for (const file of appState.files) {
+    section.appendChild(buildFileRow(wrap, file, availableBins));
+  }
 
-  // Registering an existing bin is the less-common path — tucked behind a show/hide toggle so it
-  // doesn't compete with "+ New Bin" for attention.
+  section.appendChild(sectionDivider());
+
+  // --- 3. Register / Add a Bin: connect a bin this device doesn't know about yet, or mint a new
+  // one. Kept last since it's the least-frequent action once a device is already set up — everyday
+  // use is managing bins/files above, not adding more bins. Registering an EXISTING bin is shown by
+  // default (the more common path); "+ New Bin" is tucked behind a show/hide toggle. ---
+  section.appendChild(sectionHeading("Register / Add a Bin"));
+
   const registerBinRow = document.createElement("div");
   registerBinRow.className = "sync-inline-row";
   registerBinRow.style.marginTop = "0.3rem";
-  registerBinRow.hidden = true;
   const registerIdInput = document.createElement("input");
   registerIdInput.type = "text";
   registerIdInput.className = "form-control form-control-sm";
@@ -320,53 +323,53 @@ function buildConfiguredView(wrap) {
     renderInto(wrap);
   });
   registerBinRow.append(registerIdInput, registerLabelInput, registerBtn);
-
-  const toggleRegisterLink = document.createElement("a");
-  toggleRegisterLink.href = "#";
-  toggleRegisterLink.className = "small";
-  toggleRegisterLink.style.display = "block";
-  toggleRegisterLink.style.marginTop = "0.3rem";
-  toggleRegisterLink.textContent = "+ Add existing bin";
-  toggleRegisterLink.addEventListener("click", (e) => {
-    e.preventDefault();
-    registerBinRow.hidden = !registerBinRow.hidden;
-    toggleRegisterLink.textContent = registerBinRow.hidden ? "+ Add existing bin" : "− Hide";
-  });
-  section.appendChild(toggleRegisterLink);
   section.appendChild(registerBinRow);
 
-  const fetchAllBtn = document.createElement("button");
-  fetchAllBtn.type = "button";
-  fetchAllBtn.className = "btn btn-sm btn-outline-secondary";
-  fetchAllBtn.style.marginTop = "0.5rem";
-  fetchAllBtn.textContent = "Fetch All Bins";
-  fetchAllBtn.addEventListener("click", async () => {
-    fetchAllBtn.disabled = true;
-    const result = await bins.fetchAllBins();
-    fetchAllBtn.disabled = false;
-    showToast(result.ok ? "Fetched all bins." : result.error || "Fetch failed.", result.ok ? "success" : "error");
-    if (onSyncedDataChanged) onSyncedDataChanged();
+  const newBinRow = document.createElement("div");
+  newBinRow.className = "sync-inline-row";
+  newBinRow.style.marginTop = "0.3rem";
+  newBinRow.hidden = true;
+  const newBinLabelInput = document.createElement("input");
+  newBinLabelInput.type = "text";
+  newBinLabelInput.className = "form-control form-control-sm";
+  newBinLabelInput.placeholder = "New bin name";
+  const newBinBtn = document.createElement("button");
+  newBinBtn.type = "button";
+  newBinBtn.className = "btn btn-sm btn-outline-primary";
+  newBinBtn.textContent = "+ New Bin";
+  newBinBtn.addEventListener("click", async () => {
+    newBinBtn.disabled = true;
+    const result = await bins.createNewBin(newBinLabelInput.value.trim() || "Untitled bin");
+    newBinBtn.disabled = false;
+    if (!result.ok) {
+      showToast(result.error || "Could not create bin.", "error");
+      return;
+    }
+    showToast(`Created bin ${result.binId}.`, "success");
     renderInto(wrap);
   });
-  section.appendChild(fetchAllBtn);
+  newBinRow.append(newBinLabelInput, newBinBtn);
 
-  // --- Per-file bin assignment ---
-  const filesHeading = document.createElement("div");
-  filesHeading.style.fontWeight = "600";
-  filesHeading.style.margin = "0.9rem 0 0.3rem";
-  filesHeading.textContent = "Files";
-  section.appendChild(filesHeading);
+  const toggleNewBinLink = document.createElement("a");
+  toggleNewBinLink.href = "#";
+  toggleNewBinLink.className = "small";
+  toggleNewBinLink.style.display = "block";
+  toggleNewBinLink.style.marginTop = "0.3rem";
+  toggleNewBinLink.textContent = "+ New Bin instead";
+  toggleNewBinLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    newBinRow.hidden = !newBinRow.hidden;
+    toggleNewBinLink.textContent = newBinRow.hidden ? "+ New Bin instead" : "− Hide";
+  });
+  section.appendChild(toggleNewBinLink);
+  section.appendChild(newBinRow);
 
-  const availableBins = bins.listBins();
-  for (const file of appState.files) {
-    section.appendChild(buildFileRow(wrap, file, availableBins));
-  }
+  section.appendChild(sectionDivider());
 
   // --- Danger zone ---
   const clearBtn = document.createElement("button");
   clearBtn.type = "button";
   clearBtn.className = "btn btn-sm btn-outline-danger";
-  clearBtn.style.marginTop = "0.8rem";
   clearBtn.textContent = "Disconnect this device";
   clearBtn.addEventListener("click", () => {
     if (!confirmAction("Disconnect this device from cloud sync? Your Master Key and Bin ID will be forgotten here only — your data in the cloud is untouched, and you can reconnect any time with the same Master Key and Bin ID.")) return;
@@ -438,6 +441,35 @@ function buildFileRow(wrap, file, availableBins) {
   });
   row.appendChild(copyBtn);
 
+  const downloadBtn = document.createElement("button");
+  downloadBtn.type = "button";
+  downloadBtn.className = "btn btn-sm btn-outline-secondary";
+  downloadBtn.textContent = "Download";
+  downloadBtn.title = "Download this file as CSV";
+  downloadBtn.addEventListener("click", () => fileManager.downloadFile(file.id));
+  row.appendChild(downloadBtn);
+
+  const deleteBtn = document.createElement("button");
+  deleteBtn.type = "button";
+  deleteBtn.className = "btn btn-sm btn-outline-danger";
+  deleteBtn.textContent = "Delete";
+  deleteBtn.title = "Delete this file from its bin and from this device — cannot be undone";
+  deleteBtn.addEventListener("click", async () => {
+    if (!confirmAction(`Delete "${file.fileName}"? This removes it from the cloud bin AND from this device's local storage. This cannot be undone.`)) return;
+    deleteBtn.disabled = true;
+    const result = await bins.removeFileFromBin(file.id);
+    if (!result.ok) {
+      deleteBtn.disabled = false;
+      showToast(result.error || "Could not remove the file from its bin.", "error");
+      return;
+    }
+    fileManager.deleteFile(file.id);
+    showToast(`Deleted "${file.fileName}".`, "success");
+    if (onSyncedDataChanged) onSyncedDataChanged();
+    renderInto(wrap);
+  });
+  row.appendChild(deleteBtn);
+
   return row;
 }
 
@@ -446,10 +478,12 @@ function buildFileRow(wrap, file, availableBins) {
  * CSV list), plus per-row Edit (rename/re-describe the local label — see buildBinEditRow) and
  * Delete (forget it locally, never touches the bin's actual data on JSONBin — see
  * bins.deleteKnownBin) — one row per known bin (see bins.listBins). Also the reference table for
- * what "Fetch All Bins" just pulled, and which file lives where.
+ * which file lives where, refreshed automatically whenever the current bin is switched (see the
+ * "Set as current bin" handler below, which fetches every known bin at that point).
  * @param {HTMLElement} wrap
+ * @param {() => void} [closeModal]
  */
-function buildBinsTable(wrap) {
+function buildBinsTable(wrap, closeModal) {
   const filesByBin = bins.groupLocalFilesByBin();
 
   const table = document.createElement("table");
@@ -513,14 +547,22 @@ function buildBinsTable(wrap) {
         if (!confirmAction(`Set "${b.label}" as the current bin? This pulls its files into this device now (matching local files are overwritten with the cloud version), and it becomes where the File Switcher/Push/Pull all point from now on.`)) return;
         setCurrentBtn.disabled = true;
         const result = await bins.setCurrentBin(b.id);
-        setCurrentBtn.disabled = false;
         if (!result.ok) {
+          setCurrentBtn.disabled = false;
           showToast(result.error || "Could not switch the current bin.", "error");
           return;
         }
+        // Fetching every known bin (not just the new current one) here — rather than requiring a
+        // separate manual "Fetch All Bins" step — keeps the Manage Files section's move/copy picker
+        // populated with every bin's files right after a switch, which is when it's most useful.
+        await bins.fetchAllBins();
+        setCurrentBtn.disabled = false;
         showToast(`"${b.label}" is now the current bin.`, "success");
         if (onSyncedDataChanged) onSyncedDataChanged();
-        renderInto(wrap);
+        // Switching bins is a natural stopping point — close the manager back to the app instead of
+        // leaving it open on now-stale bin/file rows (see buildConfiguredView's closeModal doc).
+        if (closeModal) closeModal();
+        else renderInto(wrap);
       });
       actionsCell.appendChild(setCurrentBtn);
     }
@@ -622,4 +664,25 @@ function mkInput(value) {
   input.style.marginBottom = "0.5rem";
   input.value = value;
   return input;
+}
+
+/**
+ * Bold section label for buildConfiguredView's three top-level areas (Manage Bins / Manage Files /
+ * Register or Add a Bin) so each is easy to tell apart at a glance — paired with sectionDivider()
+ * between areas.
+ * @param {string} text
+ */
+function sectionHeading(text) {
+  const heading = document.createElement("div");
+  heading.style.fontWeight = "600";
+  heading.style.marginBottom = "0.3rem";
+  heading.textContent = text;
+  return heading;
+}
+
+/** Visual separator between buildConfiguredView's Manage Bins / Manage Files / Register-Add-Bin areas. */
+function sectionDivider() {
+  const hr = document.createElement("hr");
+  hr.className = "sync-section-divider";
+  return hr;
 }

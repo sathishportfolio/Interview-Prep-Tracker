@@ -5,7 +5,7 @@ import {
   setBackend, setEventTarget, readSchema, writeSchema, writeFiles,
   writeActiveFileId, writeGlobalToggles, clearAll,
 } from "./store.js";
-import { emptySchema } from "./schema.js";
+import { emptySchema, coerceSchema } from "./schema.js";
 
 function makeMemoryBackend() {
   let value = null;
@@ -53,4 +53,22 @@ test("readSchema returns a default schema when nothing is stored", () => {
   const read = readSchema();
   assert.equal(read.files.length, 0);
   assert.equal(read.activeFileId, null);
+});
+
+test("coerceSchema infers sync.enabled true for a pre-existing configured schema with no enabled field", () => {
+  const schema = coerceSchema({ sync: { masterKey: "k", currentBinId: "b1" } });
+  assert.equal(schema.sync.enabled, true);
+});
+
+test("coerceSchema keeps an explicit persisted sync.enabled: false even when configured", () => {
+  const schema = coerceSchema({ sync: { masterKey: "k", currentBinId: "b1", enabled: false } });
+  assert.equal(schema.sync.enabled, false);
+});
+
+test("emptySchema defaults sync.enabled to false", () => {
+  assert.equal(emptySchema().sync.enabled, false);
+});
+
+test("coerceSchema defaults sync.enabled to false when there's no sync object at all", () => {
+  assert.equal(coerceSchema({}).sync.enabled, false);
 });

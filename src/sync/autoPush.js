@@ -4,7 +4,9 @@
  * NOT pushed immediately (JSONBin's free tier has tight request-rate/size limits, so pushing per
  * edit was removed — see manualPush.js) but leaving a change sitting unpushed indefinitely risks
  * losing it if the tab closes, so: (1) after DEBOUNCE_MS of no further local changes, auto-push
- * once, and (2) block tab close while a change is known to be unpushed.
+ * once, and (2) block tab close while a change is known to be unpushed. `appState.sync.enabled`
+ * (the Sync menu's Auto-sync toggle) gates this entirely — while off, edits never mark dirty and
+ * this backstop never fires, conserving API usage; Manual Push/Pull are unaffected either way.
  *
  * "Dirty" is tracked from the "iqv:persisted" DOM event (persistence/store.js's explicit hook), but
  * that event also fires for writes that a pull/sync action itself makes (applying remote data
@@ -52,7 +54,7 @@ export function initAutoPush(callback, pushedCallback, dirtyChangeCallback) {
   onDirtyChange = dirtyChangeCallback || null;
   document.addEventListener("iqv:persisted", () => {
     if (pushing) return; // this write is doPush()'s own bookkeeping, not a new local edit
-    if (!appState.sync || !appState.sync.masterKey || !appState.sync.currentBinId) return;
+    if (!appState.sync || !appState.sync.masterKey || !appState.sync.currentBinId || !appState.sync.enabled) return;
     if (appState.toggles.tempMode) return; // temp mode never syncs
     setDirty(true);
     if (debounceHandle) clearTimeout(debounceHandle);

@@ -92,6 +92,8 @@ body {
 
 .card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.75rem; margin-bottom: 0.75rem; }
 .toolbar-row { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
+.toolbar-row-secondary { justify-content: flex-start; margin-top: 0.2rem; }
+.toolbar-card { padding-bottom: 0.25rem; }
 .file-switcher { max-width: 220px; }
 .temp-mode-wrap { display: flex; align-items: center; }
 .export-btn-wrap { position: relative; display: flex; gap: 0.4rem; }
@@ -150,8 +152,17 @@ body {
   box-shadow: 0 0.5rem 1.25rem var(--shadow);
   padding: 0.75rem;
 }
+/* Distinct from .sync-status-dot (unpushed-changes) and .sync-usage-badge (storage %) — reflects
+   whether the Auto-sync toggle is on (green) or paused (muted), only shown once configured. */
+.sync-status-indicator { display: inline-block; width: 0.45rem; height: 0.45rem; border-radius: 50%; margin-left: 0.2rem; vertical-align: middle; }
+.sync-status-indicator.sync-indicator-on { background: var(--done); }
+.sync-status-indicator.sync-indicator-paused { background: var(--text-faint); }
+
 .sync-menu-blurb { font-size: 0.82rem; color: var(--text-muted); margin: 0 0 0.6rem; }
-.sync-menu-status { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+.sync-menu-status { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+.sync-toggle-label { display: flex; align-items: center; gap: 0.3rem; cursor: pointer; white-space: nowrap; }
+.sync-toggle-input { margin: 0; }
+.sync-toggle-text { font-size: 0.78rem; }
 .sync-menu-actions { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; }
 .sync-menu-actions .btn { flex: 1; }
 .sync-menu-usage-row { margin-bottom: 0.5rem; }
@@ -182,10 +193,13 @@ body {
 .sync-inline-row { display: flex; gap: 0.5rem; align-items: center; }
 .sync-inline-row input { flex: 1; min-width: 0; margin-bottom: 0; }
 .sync-inline-row button { flex-shrink: 0; white-space: nowrap; }
-.sync-file-row { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(200px, 280px) auto auto; gap: 0.5rem; align-items: center; padding: 0.4rem 0; border-top: 1px solid var(--border-soft); }
+.sync-file-row { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(180px, 240px) auto auto auto auto; gap: 0.5rem; align-items: center; padding: 0.4rem 0; border-top: 1px solid var(--border-soft); }
 .sync-file-row:first-of-type { border-top: none; }
 .sync-file-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; }
 .sync-file-row select { width: 100%; }
+/* Separates the Cross-Device Sync manager's Manage Bins / Manage Files / Register-or-Add-a-Bin
+   sections so each is easy to tell apart at a glance (see sync/syncConfig.js's sectionDivider). */
+.sync-section-divider { border: none; border-top: 1px solid var(--border-soft); margin: 0.9rem 0; }
 
 .bulk-add-root-wrap,
 .bulk-add-mount { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }

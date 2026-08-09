@@ -50,12 +50,7 @@
       <button id="loadSampleBtn" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-flask"></i> Load Sample</button>
 
       <select id="fileSwitcher" class="form-select form-select-sm file-switcher"></select>
-
-      <div class="temp-mode-wrap" title="Temp/Test Mode">
-        <label class="form-check form-switch mb-0">
-          <input class="form-check-input" type="checkbox" id="tempModeToggle" aria-label="Temp/Test Mode">
-        </label>
-      </div>
+      <button id="deleteCurrentFileBtn" type="button" class="btn btn-outline-danger btn-sm" title="Remove the current file from this device only (does not delete it from any cloud bin — use Sync → Manage cloud sync for that)" hidden><i class="fa-solid fa-trash"></i></button>
 
       <div class="export-btn-wrap">
         <button id="exportMenuBtn" class="btn btn-outline-success btn-sm" aria-haspopup="true" aria-expanded="false"><i class="fa-solid fa-file-export"></i> Export</button>
@@ -70,6 +65,7 @@
           <i class="fa-solid fa-cloud"></i> Sync
           <span id="syncMenuUsageBadge" class="sync-usage-badge" hidden></span>
           <span id="syncMenuStatusDot" class="sync-status-dot" hidden aria-hidden="true"></span>
+          <span id="syncMenuStatusIndicator" class="sync-status-indicator" hidden aria-hidden="true"></span>
         </button>
         <div id="syncMenuPanel" class="sync-menu-panel" hidden>
           <div id="syncMenuSetupPrompt" class="sync-menu-setup">
@@ -79,6 +75,10 @@
           <div id="syncMenuConnected" class="sync-menu-connected" hidden>
             <div class="sync-menu-status">
               <span id="lastSyncedLabel" class="last-synced-label"></span>
+              <label class="sync-toggle-label" title="Pause/resume the 60s auto-push backstop. Manual Push/Pull always work.">
+                <input type="checkbox" id="syncEnabledToggle" class="sync-toggle-input" />
+                <span class="sync-toggle-text">Auto-sync</span>
+              </label>
             </div>
             <div class="sync-menu-actions">
               <button id="manualPushBtn" type="button" class="btn btn-sm btn-outline-primary" title="Send your local changes to the cloud"><i class="fa-solid fa-cloud-arrow-up"></i> Push</button>
@@ -95,6 +95,13 @@
       </div>
 
       <button id="resetAllBtn" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-trash"></i> Reset All</button>
+    </div>
+    <div class="toolbar-row toolbar-row-secondary">
+      <div class="temp-mode-wrap" title="Temp/Test Mode">
+        <label class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" id="tempModeToggle" aria-label="Temp/Test Mode">
+        </label>
+      </div>
     </div>
   </section>
 

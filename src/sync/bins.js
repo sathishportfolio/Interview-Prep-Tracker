@@ -363,6 +363,24 @@ export async function moveFileToBin(fileId, targetBinId) {
 }
 
 /**
+ * Removes a file from whichever bin it currently resolves to — the remote-only half of a full file
+ * delete (see features/fileManager.js's deleteFile for the local-storage half; sync/syncConfig.js's
+ * buildFileRow calls both). No-ops successfully if sync isn't configured or the file isn't resolved
+ * to any bin, since there's nothing remote to clean up in that case.
+ * @param {string} fileId
+ * @returns {Promise<{ok: boolean, error?: string}>}
+ */
+export async function removeFileFromBin(fileId) {
+  const masterKey = appState.sync.masterKey;
+  if (!masterKey) return { ok: true };
+  const file = appState.files.find((f) => f.id === fileId);
+  if (!file) return { ok: true };
+  const binId = resolveBinId(file);
+  if (!binId) return { ok: true };
+  return pushBin(binId, { removeFileIds: [fileId] });
+}
+
+/**
  * Copies a file's current snapshot into another bin as a one-off duplicate — the file's "home"
  * bin (where future autosaves keep pushing it) is unchanged.
  * @param {string} fileId

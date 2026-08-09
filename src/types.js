@@ -112,6 +112,9 @@
  * @property {number|null} lastPushAt
  * @property {number|null} lastPullAt
  * @property {number|null} lastKnownRemoteUpdatedAt
+ * @property {boolean} enabled false = auto-push backstop paused (conserves JSONBin API usage);
+ *   Manual Push/Pull remain available regardless. Defaults false on fresh installs, true for
+ *   pre-existing configured installs (see persistence/schema.js's coerceSync).
  */
 
 /**
