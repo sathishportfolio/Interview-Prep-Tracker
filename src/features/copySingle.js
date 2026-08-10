@@ -38,7 +38,7 @@ export async function copyAndSearch(questionId) {
 export function googleSearchQuestion(questionId) {
   const q = appState.rawData.find((x) => x.id === questionId);
   if (!q) return;
-  const query = `How can I give an impressive answer to ${q.question} in a Senior Angular and Java Spring Boot Full-Stack Developer interview? Please also provide a one-line summary for the interview`;
+  const query = `Could you suggest a punchy, single-sentence answer to this Java interview question ${q.question} ?`;
   const url = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
   window.open(url, "_blank", "noopener,noreferrer");
 }
