@@ -5,7 +5,7 @@
  * full rich-text WYSIWYG, since feature.md only requires "HTML supported", not a specific editor).
  */
 import { updateQuestion } from "../data/mutations.js";
-import { wrapAnswerAsList } from "../data/answerFormat.js";
+import { wrapAnswerAsList, minifyHtml } from "../data/answerFormat.js";
 import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import { openModal } from "./modal.js";
@@ -58,7 +58,7 @@ export function openAnswerEditor(questionId) {
     bodyEl: wrap,
     saveLabel: "Save",
     onSave: () => {
-      const answer = wrapAnswerAsList(textarea.value);
+      const answer = minifyHtml(wrapAnswerAsList(textarea.value));
       const rawData = updateQuestion(appState.rawData, questionId, { answer });
       applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
     },
