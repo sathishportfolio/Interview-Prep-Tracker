@@ -50,7 +50,28 @@ Introduction,General,Previous Question Bank,Agile process - how feature is trave
 <li>Bug</li>
 <li>Change Request</li>
 </ul>",true,false,false,false,false,7,0,0,0,2026-08-10,1
-Introduction,General,Previous Question Bank,How will you secure your endpoint,"handle CSRF, middlewere, throttle (DDOS - Distribution of Deniel of service attack), authentication & auhtorization, oauth - clientId",false,false,false,false,false,19,0,0,0,,0
+Introduction,General,Previous Question Bank,How will you secure your endpoint,"<ul>
+<li>
+<p data-path-to-node=""5,0"">I secure endpoints using a layered <strong data-path-to-node=""5,0"" data-index-in-node=""36"">defense-in-depth architecture</strong>:</p>
+<ul data-path-to-node=""5,1"">
+<li>
+<p data-path-to-node=""5,1,0,0""><strong data-path-to-node=""5,1,0,0"" data-index-in-node=""0"">Edge &amp; Gateway:</strong> Cloudflare/API Gateway for DDoS mitigation and dynamic rate limiting.</p>
+</li>
+<li>
+<p data-path-to-node=""5,1,1,0""><strong data-path-to-node=""5,1,1,0"" data-index-in-node=""0"">Authentication &amp; OAuth2:</strong> Spring Security enforcing JWT validation with OAuth2 Authorization Code Flow + PKCE for SPAs (protecting Client IDs without embedding secrets).</p>
+</li>
+<li>
+<p data-path-to-node=""5,1,2,0""><strong data-path-to-node=""5,1,2,0"" data-index-in-node=""0"">Authorization:</strong> Fine-grained backend RBAC/ABAC enforced via Spring filters and <code data-path-to-node=""5,1,2,0"" data-index-in-node=""78"">@PreAuthorize</code> annotations.</p>
+</li>
+<li>
+<p data-path-to-node=""5,1,3,0""><strong data-path-to-node=""5,1,3,0"" data-index-in-node=""0"">CSRF &amp; Token Security:</strong> Secure <code data-path-to-node=""5,1,3,0"" data-index-in-node=""30"">HttpOnly</code>, <code data-path-to-node=""5,1,3,0"" data-index-in-node=""40"">SameSite=Strict</code> cookies combined with the Double-Submit Cookie pattern for CSRF mitigation.</p>
+</li>
+<li>
+<p data-path-to-node=""5,1,4,0""><strong data-path-to-node=""5,1,4,0"" data-index-in-node=""0"">Frontend:</strong> Angular route guards for UX and OWASP-aligned input sanitization to prevent XSS</p>
+</li>
+</ul>
+</li>
+</ul>",true,false,false,false,false,19,0,0,0,2026-08-10,1
 Introduction,General,Previous Question Bank,OSI layers,,false,false,false,false,false,12,0,0,0,,0
 Introduction,General,Previous Question Bank,SOLID & GoF Design Patterns in Java,,false,false,false,false,false,18,0,0,0,,0
 Introduction,General,Previous Question Bank,How to implement singleton or prototype design pattern,,false,false,false,false,false,17,0,0,0,,0
@@ -61,189 +82,195 @@ Introduction,General,Previous Question Bank,What is the use of cors & htaccess,"
 Introduction,General,Previous Question Bank,gzip,"<ul>
 <li>Gzip is a <span style=""text-decoration: underline;""><strong>data compression algorithm</strong></span> used to shrink HTTP payload sizes&mdash;such as JSON, HTML, and JavaScript&mdash;significantly reducing network latency and improving page load times for full-stack applications</li>
 </ul>",true,false,false,false,false,10,0,0,0,2026-08-10,1
-OOPS,Inheritance,Previous Question Bank,What is Inheritance & What Relationship it is?,,false,false,false,false,false,1,2,1,0,,0
-OOPS,Inheritance,Previous Question Bank,Diamond problem,"due to multiple inheritence when B,C extends A and again D extends B,C resolved with default interface method",false,false,false,false,false,0,2,1,0,,0
-OOPS,Inheritance,Previous Question Bank,default vs static method,,false,false,false,false,false,2,2,1,0,,0
-OOPS,Pillers,Previous Question Bank,Polymorphism,Static/dynamic Binding or Static / Runtime Polymorphism also called Dynamic Method Dispatch  Example - Method overloading(static) / overriding(dynamic/runtime),false,false,false,false,false,3,2,0,0,,0
-OOPS,Inheritance,Previous Question Bank,Abstraction,,false,false,false,false,false,3,2,1,0,,0
-OOPS,Inheritance,Previous Question Bank,Abstract class vs method,"just declared, cant instanciate, sub class can define or override",false,false,false,false,false,5,2,1,0,,0
-OOPS,Inheritance,Previous Question Bank,Interface,just declared with Default Methods ,false,false,false,false,false,6,2,1,0,,0
-OOPS,Inheritance,Previous Question Bank,Purpose/Difference between abstract class and interface,,false,false,false,false,false,4,2,1,0,,0
-OOPS,Inheritance,Previous Question Bank,interface types & example,"- Marker / Markable interface (Ex: Cloneable, Serializable) & Functional interface - (Ex: Runnable)",false,false,false,false,false,7,2,1,0,,0
-OOPS,Inheritance,Previous Question Bank,Can we declare a class as private,Cant declare top-level class only inner class can (cannot be accessed from an object outside the class),false,false,false,false,false,8,2,1,0,,0
-OOPS,Inheritance,Previous Question Bank,Can we have constructor for abstract,"yes, called with super() but no use in making it public as we cant instanciate abstract class",false,false,false,false,false,9,2,1,0,,0
-OOPS,Inheritance,Previous Question Bank,Can we have constructor for interface,"No, as we dont have a variable/method defined interface also no objects are created but default / static method allowed",false,false,false,false,false,10,2,1,0,,0
-OOPS,Pillers,Previous Question Bank,Encapsulation,we cant access variable/method inside class directly. its possible only with object this is called encapsulation,false,false,false,false,false,2,2,0,0,,0
+OOPS,Core Concepts,Previous Question Bank,What is Inheritance & What Relationship it is?,"<ul><li>Inheritance means, Deriving a class from existing base class</li><li>Derived class reuses properties and methods of an existing class</li><li><strong class=""rQesXe MPyX"" data-sfc-cp="""" data-sfc-root=""ep"" data-complete=""true"" data-copy-service-computed-style=""font-family: &quot;Google Sans&quot;, Arial, sans-serif; font-size: 16px; font-weight: 700; margin: 0px; text-decoration: none; border-bottom: 0px rgb(10, 10, 10);"">""is-a"" relationship</strong> (like a Dog ""is-a"" Animal)</li></ul>",false,false,false,false,false,6,2,0,0,,0
+OOPS,Understanding OOP Pillers,Previous Question Bank,Diamond problem,"due to multiple inheritence when B,C extends A and again D extends B,C resolved with default interface method",false,false,false,false,false,9,2,1,0,,0
+OOPS,Fundamentals,Previous Question Bank,default vs static method,"<ul><li>Default methods are inherited by implementation classes to support backward compatibility, while static methods belong strictly to the interface and cannot be overridden</li><li><strong>Key Differences</strong><ul><li><strong>Instance vs. Class: </strong>Default methods require an object instance to run. Static methods are called directly using the interface name</li><li><strong>Inheritance:</strong> Default methods are inherited by classes and can be overridden. Static methods are not inherited by implementation classes or subclasses</li><li><strong class=""rQesXe MPyX"" data-sfc-cp="""" data-sfc-root=""ep"" data-complete=""true"" data-copy-service-computed-style=""font-family: &quot;Google Sans&quot;, Arial, sans-serif; font-size: 16px; font-weight: 700; margin: 0px; text-decoration: none; border-bottom: 0px rgb(10, 10, 10);"">Multiple Inheritance Conflict:</strong> If a class implements two interfaces with the exact same default method, the class must override and resolve the conflict. This is not an issue for static methods because they are never inherited</li></ul></li></ul>",false,false,false,false,false,11,2,3,0,,0
+OOPS,Core Concepts,Previous Question Bank,Polymorphism,"<ul><li>Polymorphism means ""many forms""</li><li>Static/dynamic Binding or Static / Runtime Polymorphism also called Dynamic Method Dispatch Example - Method overloading(static) / overriding(dynamic/runtime)</li></ul>",false,false,false,false,false,5,2,0,0,,0
+OOPS,Core Concepts,Previous Question Bank,Abstraction,"<ul>
+<li>Abstraction in is the core practice of hiding complex internal code and showing only the essential features to the user.</li>
+</ul>",false,false,false,false,false,3,2,0,0,,0
+OOPS,Understanding OOP Pillers,Previous Question Bank,Abstract class vs method,"<ul><li>Just declared, cant instanciate, sub class can define or override</li></ul>
+<ul><li><strong>Abstract Class</strong><ul><li><strong>Purpose:</strong> Serves as a partial blueprint.</li><li><strong>Capabilities:</strong> Can hold fields (state), concrete methods, and constructors.</li><li><strong>Inheritance:</strong> Subclasses can only extend one abstract class (single inheritance).</li></ul></li><li><strong>Abstract Method</strong><ul><li><strong>Purpose:</strong> Serves as a placeholder for a specific action.</li><li><strong>Capabilities:</strong> Has no body; defines a signature (name, parameters, return type) only.</li><li><strong>Location:</strong> Can only exist inside an abstract class or an interface</li></ul></li><li><p><em><strong>Discuss the ""Open-Closed"" Principle:</strong></em> Explain that abstract classes let you extend software capability (by adding new subclasses) without modifying existing, tested base code</p></li></ul>",false,false,false,false,false,0,2,1,0,,0
+OOPS,Understanding OOP Pillers,Previous Question Bank,Interface & Relationship,just declared with Default Methods ,false,false,false,false,false,4,2,1,0,,0
+OOPS,Understanding OOP Pillers,Previous Question Bank,Purpose/Difference between abstract class and interface,"<ul><li><strong>Abstract class</strong> is what an object is<ul><li>Aharing code and state via tight, single inheritance</li></ul></li><li><strong>Interface</strong> is what an object can do<ul><li>Enforcing decoupled contracts via flexible multiple inheritance</li></ul></li></ul>",false,false,false,false,false,1,2,1,0,2026-08-11,0
+OOPS,Understanding OOP Pillers,Previous Question Bank,interface types & example,"- Marker / Markable interface (Ex: Cloneable, Serializable) & Functional interface - (Ex: Runnable)",false,false,false,false,false,5,2,1,0,,0
+OOPS,Fundamentals,Previous Question Bank,Can we declare a class as private,Cant declare top-level class only inner class can (cannot be accessed from an object outside the class),false,false,false,false,false,9,2,3,0,,0
+OOPS,Understanding OOP Pillers,Previous Question Bank,Can we have constructor for abstract,"yes, called with super() but no use in making it public as we cant instanciate abstract class",false,false,false,false,false,2,2,1,0,,0
+OOPS,Understanding OOP Pillers,Previous Question Bank,Can we have constructor for interface,"No, as we dont have a variable/method defined interface also no objects are created but default / static method allowed",false,false,false,false,false,7,2,1,0,,0
+OOPS,Core Concepts,Previous Question Bank,Encapsulation,<ul><li>We cant access variable/method inside class directly. its possible only with object this is called encapsulation</li></ul>,false,false,false,false,false,4,2,0,0,,0
 OOPS,Relationship,Previous Question Bank,Coupling,dependencies btwn object - (interfaces) loosly / (access modifier) tightly coupled,false,false,false,false,false,23,2,2,0,,0
 OOPS,Relationship,Previous Question Bank,Cohesion,component which performs a single well-defined task - java.io vs java.util,false,false,false,false,false,24,2,2,0,,0
 OOPS,Relationship,Previous Question Bank,Association,"relationship between the objects - 1-1, 1-M, M-M, M-1",false,false,false,false,false,25,2,2,0,,0
 OOPS,Relationship,Previous Question Bank,Aggregation,( HAS-A ) - object contains other objects as a part of its state - weak relationship between objects - inheritence (IS-A),false,false,false,false,false,26,2,2,0,,0
 OOPS,Relationship,Previous Question Bank,Composition,"strong relationship between the containing object - If you delete the parent object, all the child objects will be deleted automatically.",false,false,false,false,false,27,2,2,0,,0
-OOPS,Misc,Previous Question Bank,Does java support multiple inheritence,No but possible with interface,false,false,false,false,false,28,2,3,0,,0
-OOPS,Misc,Previous Question Bank,"final, static - variable, method & class",,false,false,false,false,false,29,2,3,0,,0
-OOPS,Misc,Previous Question Bank,Final vs Finally vs Finalize,"How finalize work, when it will be called -> Garbage collector its called when object is destroyed for cleanup activity ",false,false,false,false,false,30,2,3,0,,0
-OOPS,Misc,Previous Question Bank,this,reference variable to current object ,false,false,false,false,false,31,2,3,0,,0
-OOPS,Misc,Previous Question Bank,Method Overloading vs Overridding,,false,false,false,false,false,32,2,3,0,,0
-OOPS,Misc,Previous Question Bank,Super Keyword,calling constructor of a abstract class ,false,false,false,false,false,33,2,3,0,,0
-OOPS,Misc,Previous Question Bank,java instanceof operator,,false,false,false,false,false,34,2,3,0,,0
-OOPS,Misc,Previous Question Bank,Access Modifiers,,false,false,false,false,false,35,2,3,0,,0
-OOPS,Misc,Previous Question Bank,Call by Value and Call by Reference in Java,"- There is only call by value in java, not call by reference.",false,false,false,false,false,36,2,3,0,,0
-OOPS,Misc,Previous Question Bank,Why no pointers in java,,false,false,false,false,false,37,2,3,0,,0
-OOPS,Misc,Previous Question Bank,Comparable vs Comparator,"Comparable ( implements Comparable<T> & add compareTo() method Ex: Sort ) vs comparator ( implements Comparator<T> & compare() method, seperate file like name comparator, age comparator )",false,false,false,false,false,38,2,3,0,,0
-OOPS,Misc,Previous Question Bank,Indexof vs contains,,false,false,false,false,false,39,2,3,0,,0
-OOPS,Misc,Previous Question Bank,implements Serializable,Classes implement it if they want their instances to be Serialized or Deserialized. Serialization is a mechanism of converting the state of an object into a byte stream,false,false,false,false,false,40,2,3,0,,0
-OOPS,Misc,Previous Question Bank,Transient variable,would not be serialized,false,false,false,false,false,41,2,3,0,,0
-Core Java,Misc,Previous Question Bank,super class of every class in Java,Class implicitly extends Object,false,false,false,false,false,43,3,3,0,,0
-Core Java,Misc,Previous Question Bank,Java Core Best Practices,https://www.codejava.net/coding/10-java-core-best-practices-every-java-programmer-should-know - https://xperti.io/blogs/java-coding-best-practices/,false,false,false,false,false,44,3,3,0,,0
-Core Java,Misc,Previous Question Bank,Describe list of Java Keywords & package lists,,false,false,false,false,false,45,3,3,0,,0
-Core Java,Misc,Previous Question Bank,x Socket,,false,false,false,true,false,46,3,3,0,,0
-Core Java,Misc,Previous Question Bank,x Data type conversion and fundamentals,,false,false,false,true,false,47,3,3,0,,0
-Core Java,Misc,Previous Question Bank,"x XML Processing in Java - SAX parser, dom parser & jaxb",,false,false,false,true,false,48,3,3,0,,0
-Core Java,Misc,Previous Question Bank,how to create custom singleton class,,false,false,false,false,false,49,3,3,0,,0
-Core Java,Misc,Previous Question Bank,constructor chaining,-  within a class two args constructor calling single arg constructor & single arg constructor calling default constructor - throws chained exception,false,false,false,false,false,50,3,3,0,,0
-Core Java,Misc,Previous Question Bank,Atomic Operations,- to handle increment operator thread safe Ex: AtomicInteger,false,false,false,false,false,51,3,3,0,,0
-Core Java,Misc,Previous Question Bank,serialization,- object to bytestream on transfor or store as different format,false,false,false,false,false,52,3,3,0,,0
-Core Java,Misc,Previous Question Bank,implements Serializable,- Different between serialisation and deserialisation,false,false,false,false,false,53,3,3,0,,0
-Core Java,Misc,Previous Question Bank,How to not serialise only particular variable in entity class,- transient int value = 10 ( this will avoid variable when object is serialized ),false,false,false,false,false,54,3,3,0,,0
-Core Java,Misc,Previous Question Bank,initialization blocks / static block,"syntax: only static {} (once on class init, Static block is used to initialize the static data member. It is executed before the main method, at the time of classloading) / static initializer - syntax: only {} (each time on object creation)",false,false,false,false,false,55,3,3,0,,0
-Core Java,Misc,Previous Question Bank,types of constructors,"default constructor, arg constructor, copy constructor, static const (not supported), private constructor (restricting object creation)",false,false,false,false,false,56,3,3,0,,0
-Core Java,Misc,Previous Question Bank,Wrapper class,"int Integer ( used to implement premitive datatypes in synchronization, multithreading )",false,false,false,false,false,57,3,3,0,,0
-Core Java,Misc,Previous Question Bank,stack vs heap memory,,false,false,false,false,false,58,3,3,0,,0
-Core Java,Misc,Previous Question Bank,What is Shadowing,overriding outter scope variable value inside block scope ,false,false,false,false,false,59,3,3,0,,0
-Core Java,Misc,Previous Question Bank,Static methods vs static block,,false,false,false,false,false,60,3,3,0,,0
-Core Java,Misc,Previous Question Bank,JDK,"which has  JRE & tool to convert java into class , JVM - load, verify & execute class file , JRE - supporting libraries to run the code",false,false,false,false,false,61,3,3,0,,0
-Core Java,Misc,Previous Question Bank,JVM internal working,https://medium.com/platform-engineer/understanding-jvm-architecture-22c0ddf09722,false,false,false,false,false,62,3,3,0,,0
-Core Java,Misc,Previous Question Bank,Java memory management,Why no JRE from Java 9 - due to modular development,false,false,false,false,false,63,3,3,0,,0
+OOPS,Fundamentals,Previous Question Bank,Does java support multiple inheritence,No but possible with interface,false,false,false,false,false,2,2,3,0,,0
+Core Java,Keywords & Lifecycle,Previous Question Bank,"final, static - variable, method & class",,false,false,false,false,false,0,2,0,0,,0
+Core Java,Keywords & Lifecycle,Previous Question Bank,Final vs Finally vs Finalize,"How finalize work, when it will be called -> Garbage collector its called when object is destroyed for cleanup activity ",false,false,false,false,false,1,2,0,0,,0
+OOPS,Fundamentals,Previous Question Bank,this,reference variable to current object ,false,false,false,false,false,3,2,3,0,,0
+OOPS,Fundamentals,Previous Question Bank,Method Overloading vs Overridding,"<ul>
+<li>Overloading is about having multiple methods with the same name but different parameters within the same class, whereas overriding is a child class redefining a method from its parent class with the exact same signature</li>
+<li>Overloading is resolved at compile time, while overriding is resolved at runtime based on the actual object type</li>
+</ul>",false,false,false,false,false,0,2,3,0,,0
+OOPS,Fundamentals,Previous Question Bank,Super Keyword,calling constructor of a abstract class ,false,false,false,false,false,4,2,3,0,,0
+OOPS,Fundamentals,Previous Question Bank,java instanceof operator,"<ul><li>The Java instanceof operator is a binary operator used to test whether an object is an instance of a specific class, subclass, or interface</li></ul>",false,false,false,false,false,5,2,3,0,,0
+OOPS,Fundamentals,Previous Question Bank,Access Modifiers,,false,false,false,false,false,6,2,3,0,2026-08-11,0
+Core Java,Keywords & Lifecycle,Previous Question Bank,Call by Value and Call by Reference in Java,"- There is only call by value in java, not call by reference.",false,false,false,false,false,4,2,0,0,,0
+Core Java,Keywords & Lifecycle,Previous Question Bank,Why no pointers in java,,false,false,false,false,false,5,2,0,0,,0
+Core Java,"Object Mechanics, Utilities & Serialization",Previous Question Bank,Comparable vs Comparator,"Comparable ( implements Comparable<T> & add compareTo() method Ex: Sort ) vs comparator ( implements Comparator<T> & compare() method, seperate file like name comparator, age comparator )",false,false,false,false,false,0,2,1,0,,0
+Core Java,"Object Mechanics, Utilities & Serialization",Previous Question Bank,Indexof vs contains,,false,false,false,false,false,1,2,1,0,,0
+Core Java,"Object Mechanics, Utilities & Serialization",Previous Question Bank,implements Serializable,Classes implement it if they want their instances to be Serialized or Deserialized. Serialization is a mechanism of converting the state of an object into a byte stream,false,false,false,false,false,2,2,1,0,,0
+Core Java,"Object Mechanics, Utilities & Serialization",Previous Question Bank,Transient variable,would not be serialized,false,false,false,false,false,3,2,1,0,,0
+Core Java,Misc,Previous Question Bank,super class of every class in Java,Class implicitly extends Object,false,false,false,false,false,43,3,6,0,,0
+Core Java,Misc,Previous Question Bank,Java Core Best Practices,https://www.codejava.net/coding/10-java-core-best-practices-every-java-programmer-should-know - https://xperti.io/blogs/java-coding-best-practices/,false,false,false,false,false,44,3,6,0,,0
+Core Java,Misc,Previous Question Bank,Describe list of Java Keywords & package lists,,false,false,false,false,false,45,3,6,0,,0
+Core Java,Misc,Previous Question Bank,x Socket,,false,false,false,true,false,46,3,6,0,,0
+Core Java,Misc,Previous Question Bank,x Data type conversion and fundamentals,,false,false,false,true,false,47,3,6,0,,0
+Core Java,Misc,Previous Question Bank,"x XML Processing in Java - SAX parser, dom parser & jaxb",,false,false,false,true,false,48,3,6,0,,0
+Core Java,Misc,Previous Question Bank,how to create custom singleton class,,false,false,false,false,false,49,3,6,0,,0
+Core Java,Misc,Previous Question Bank,constructor chaining,-  within a class two args constructor calling single arg constructor & single arg constructor calling default constructor - throws chained exception,false,false,false,false,false,50,3,6,0,,0
+Core Java,Misc,Previous Question Bank,Atomic Operations,- to handle increment operator thread safe Ex: AtomicInteger,false,false,false,false,false,51,3,6,0,,0
+Core Java,Misc,Previous Question Bank,serialization,- object to bytestream on transfor or store as different format,false,false,false,false,false,52,3,6,0,,0
+Core Java,Misc,Previous Question Bank,implements Serializable,- Different between serialisation and deserialisation,false,false,false,false,false,53,3,6,0,,0
+Core Java,Misc,Previous Question Bank,How to not serialise only particular variable in entity class,- transient int value = 10 ( this will avoid variable when object is serialized ),false,false,false,false,false,54,3,6,0,,0
+Core Java,Misc,Previous Question Bank,initialization blocks / static block,"syntax: only static {} (once on class init, Static block is used to initialize the static data member. It is executed before the main method, at the time of classloading) / static initializer - syntax: only {} (each time on object creation)",false,false,false,false,false,55,3,6,0,,0
+Core Java,Misc,Previous Question Bank,types of constructors,"default constructor, arg constructor, copy constructor, static const (not supported), private constructor (restricting object creation)",false,false,false,false,false,56,3,6,0,,0
+Core Java,Misc,Previous Question Bank,Wrapper class,"int Integer ( used to implement premitive datatypes in synchronization, multithreading )",false,false,false,false,false,57,3,6,0,,0
+Core Java,Misc,Previous Question Bank,stack vs heap memory,,false,false,false,false,false,58,3,6,0,,0
+Core Java,Misc,Previous Question Bank,What is Shadowing,overriding outter scope variable value inside block scope ,false,false,false,false,false,59,3,6,0,,0
+Core Java,Misc,Previous Question Bank,Static methods vs static block,,false,false,false,false,false,60,3,6,0,,0
+Core Java,Misc,Previous Question Bank,JDK,"which has  JRE & tool to convert java into class , JVM - load, verify & execute class file , JRE - supporting libraries to run the code",false,false,false,false,false,61,3,6,0,,0
+Core Java,Misc,Previous Question Bank,JVM internal working,https://medium.com/platform-engineer/understanding-jvm-architecture-22c0ddf09722,false,false,false,false,false,62,3,6,0,,0
+Core Java,Misc,Previous Question Bank,Java memory management,Why no JRE from Java 9 - due to modular development,false,false,false,false,false,63,3,6,0,,0
 Core Java,Misc,Previous Question Bank,Is Java Paid after Java 11,"Oracle provides two Java Development Kit releases, an OpenJDK build under the GPL open-source license and a commercial Oracle JDK build under a paid-for license.
-		Enterprise JavaBeans (EJB)?",false,false,false,false,false,64,3,3,0,,0
-Core Java,Misc,Previous Question Bank,Javax to jakarta migration explain with oracle aquired story,,false,false,false,false,false,65,3,3,0,,0
-Core Java,Misc,Previous Question Bank,OpenJDK vs AdoptOpenJDK,https://stackoverflow.com/questions/52431764/difference-between-openjdk-and-adoptium-adoptopenjdk,false,false,false,false,false,66,3,3,0,,0
-Core Java,Misc,Previous Question Bank,HotSpot vs OpenJ9,famous due to cloud native movement - faster than HotSpot,false,false,false,false,false,67,3,3,0,,0
-Core Java,Misc,Previous Question Bank,Enumeration vs iterator vs ListIterator,"- Enumeration (hasmoreelements, nextElement) vs iterator(hasnext, remove) vs ListIterator(hasnext, remove, add, set) like pointing cursers for element access",false,false,false,false,false,68,3,3,0,,0
-Core Java,Misc,Previous Question Bank,Copy of java object ( java8 has new feature? ),"- shallow copying, Deep copying, copy constructor",false,false,false,false,false,69,3,3,0,,0
-Core Java,Misc,Previous Question Bank,System in java - final class inside,"java.lang.* mostly used for i/p , o/p",false,false,false,false,false,70,3,3,0,,0
-Core Java,Misc,Previous Question Bank,What is reflexion api,"- getClassName(), forName(), .class() - cons - breaks encapsulation principle & possible to access privete methods/variables",false,false,false,false,false,71,3,3,0,,0
-Core Java,Misc,Previous Question Bank,What is concurrent modification exception,occurs when an object is tried to be modified concurrently when it is not permissible,false,false,false,false,false,72,3,3,0,,0
-Core Java,Misc,Previous Question Bank,"Date, Time, and Calendar",,false,false,false,false,false,73,3,3,0,,0
-Core Java,Misc,Previous Question Bank,"Is Java ""pass-by-reference"" or ""pass-by-value""?",,false,false,false,false,false,74,3,3,0,,0
-Core Java,Misc,Previous Question Bank,Permgen (why depricated after Java7),special heap space separated from the main memory heap for static & primitive variables vs Metaspace in Java,false,false,false,false,false,75,3,3,0,,0
-Core Java,Misc,Previous Question Bank,understanding-public-static-void-mainstring-args-in-java,public static void main(String args[]) - https://www.geeksforgeeks.org/understanding-public-static-void-mainstring-args-in-java/,false,false,false,false,false,76,3,3,0,,0
-Core Java,Misc,Previous Question Bank,Why main method in java is public static void,,false,false,false,false,false,77,3,3,0,,0
-Core Java,Misc,Previous Question Bank,What is the use of String args[] in main method,,false,false,false,false,false,78,3,3,0,,0
-Core Java,Misc,Previous Question Bank,Can we have multiple main method in java project,not allowed with class as main method is static but allowed in project level,false,false,false,false,false,79,3,3,0,,0
-Core Java,Misc,Previous Question Bank,What happens if we run project with 2class having main method,eclipse will pop which class to run,false,false,false,false,false,80,3,3,0,,0
-Core Java,Misc,Previous Question Bank,Can we override / overload main method in java,can overload by args but cant override as its static method ,false,false,false,false,false,81,3,3,0,,0
-Core Java,Misc,Previous Question Bank,Is main method compulsory in Java? / what if main method not found in the class ?,https://www.geeksforgeeks.org/main-method-compulsory-java/,false,false,false,false,false,82,3,3,0,,0
-Core Java,Misc,Previous Question Bank,Program argument vs VM argument differences,,false,false,false,false,false,83,3,3,0,,0
-Core Java,Collections,Previous Question Bank,synchronized,synchronized keyword ensures that only one thread can enter the method at one time and concurrent collections,false,false,false,false,false,84,3,2,0,,0
-Core Java,Collections,Previous Question Bank,static methods present in the collections class,( Example: Collections.sort() ) - List in link https://www.javatpoint.com/java-collections-class,false,false,false,false,false,85,3,2,0,,0
-Core Java,Collections,Previous Question Bank,streams vs collections,"data storage, modification, functional interface",false,false,false,false,false,86,3,2,0,,0
-Core Java,Collections,Previous Question Bank,Collection Diagram,,false,false,false,false,false,87,3,2,0,,0
-Core Java,Collections,Previous Question Bank,Java collection - new <util> and Java Collections,".sort(), .addAll()",false,false,false,false,false,88,3,2,0,,0
-Core Java,Collections,Previous Question Bank,difference between ArrayList and LinkedList classes,,false,false,false,false,false,89,3,2,0,,0
-Core Java,Collections,Previous Question Bank,Difference between hash map and hash table with internal working,,false,false,false,false,false,90,3,2,0,,0
-Core Java,Collections,Previous Question Bank,Difference between set and list,,false,false,false,false,false,91,3,2,0,,0
-Core Java,Collections,Previous Question Bank,Is hash map is thread safe - no,,false,false,false,false,false,92,3,2,0,,0
-Core Java,Collections,Previous Question Bank,hash map vs hash set,,false,false,false,false,false,93,3,2,0,,0
-Core Java,Collections,Previous Question Bank,Concurrent hashMap,,false,false,false,false,false,94,3,2,0,,0
-Core Java,Collections,Previous Question Bank,hashcode() method vs equal,,false,false,false,false,false,95,3,2,0,,0
-Core Java,Collections,Previous Question Bank,How hashmap internally works - All DSA basic concepts,,false,false,false,false,false,96,3,2,0,,0
-Core Java,Collections,Previous Question Bank,hash Map vs HashTable,,false,false,false,false,false,97,3,2,0,,0
-Core Java,Error vs Exception,Previous Question Bank,How do you handle multiple exception types with same exception,,false,false,false,false,false,98,3,3,0,,0
-Core Java,Error vs Exception,Previous Question Bank,What design pattern is used to implement exception handling,chain of responsibility ,false,false,false,false,false,99,3,3,0,,0
-Core Java,Error vs Exception,Previous Question Bank,Diagram,,false,false,false,false,false,100,3,3,0,,0
-Core Java,Error vs Exception,Previous Question Bank,Checked Exception,,false,false,false,false,false,101,3,3,0,,0
-Core Java,Error vs Exception,Previous Question Bank,Unchecked Exception,,false,false,false,false,false,102,3,3,0,,0
-Core Java,Error vs Exception,Previous Question Bank,Error,,false,false,false,false,false,103,3,3,0,,0
-Core Java,Error vs Exception,Previous Question Bank,throw vs throws,,false,false,false,false,false,104,3,3,0,,0
-Core Java,Error vs Exception,Previous Question Bank,"try, catch, finally",catch Exception e first block &  Checked Exception in second block,false,false,false,false,false,105,3,3,0,,0
-Core Java,Error vs Exception,Previous Question Bank,Java Custom Exception,,false,false,false,false,false,106,3,3,0,,0
-Core Java,Error vs Exception,Previous Question Bank,how to handle Custom exception in spring boot,,false,false,false,false,false,107,3,3,0,,0
-Core Java,Error vs Exception,Previous Question Bank,exception-handling-with-method-overriding,,false,false,false,false,false,108,3,3,0,,0
-Core Java,Multi-threading,Previous Question Bank,What is Multi-threading,https://www.javatpoint.com/java-multithreading-interview-questions,false,false,false,false,false,0,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,what is multithreading & concurrency,,false,false,false,false,false,1,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,volatile keyword,,false,false,false,false,false,2,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,Difference between threads and process?,,false,false,false,false,false,3,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,thread basics,,false,false,false,false,false,4,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,different ways of threads usage,extends thread & implements Runnable,false,false,false,false,false,5,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,Deadlock explain,,false,false,false,false,false,6,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,life cycle,,false,false,false,false,false,7,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,joing thread,,false,false,false,false,false,8,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,naming thread,,false,false,false,false,false,9,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,Daemon thread,,false,false,false,false,false,10,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,thread pool,,false,false,false,false,false,11,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,Synchronized Block,used to lock common thread resources,false,false,false,false,false,12,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,Process-based Multitasking (Multiprocessing),,false,false,false,false,false,14,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,Thread-based Multitasking (Multithreading),,false,false,false,false,false,15,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,What will happen when we call two times Start() in threads,IllegalThreadStateException,false,false,false,false,false,16,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,Thread safe Singleton�& impl,,false,false,false,false,false,17,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,Callable in thread,,false,false,false,false,false,18,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,What is the need for threads in Java?,,false,false,false,false,false,19,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,How do you create a thread?,,false,false,false,false,false,20,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,How do you create a thread by extending thread class?,,false,false,false,false,false,21,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,How do you create a thread by implementing runnable interface?,,false,false,false,false,false,22,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,How do you run a thread in Java?,,false,false,false,false,false,23,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,What are the different states of a thread?,,false,false,false,false,false,24,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,What is priority of a thread? How do you change the priority of a thread?,,false,false,false,false,false,25,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,What is executorservice?,,false,false,false,false,false,26,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,Can you give an example for executorservice?,,false,false,false,false,false,27,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,Explain different ways of creating executor services .,,false,false,false,false,false,28,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,How do you check whether an executionservice task executed successfully?,,false,false,false,false,false,29,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,What is callable? How do you execute a callable from executionservice?,,false,false,false,false,false,30,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,What is synchronization of threads?,,false,false,false,false,false,31,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,Can you give an example of a synchronized block?,,false,false,false,false,false,32,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,Can a static method be synchronized?,"yes, locks for class level rather to object/instance level",false,false,false,false,false,33,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,What is the use of join method in threads?,,false,false,false,false,false,34,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,Describe a few other important methods in threads?,,false,false,false,false,false,35,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,What is a deadlock?,,false,false,false,false,false,36,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,What are the important methods in Java for inter-thread communication?,,false,false,false,false,false,37,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,What is the use of wait method?,,false,false,false,false,false,38,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,What is the use of notify method?,,false,false,false,false,false,39,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,What is the use of notifyall method?,,false,false,false,false,false,40,3,4,0,,0
-Core Java,Multi-threading,Previous Question Bank,Can you write a synchronized program with wait and notify methods?,,false,false,false,false,false,41,3,4,0,,0
-Core Java,Garbage collection,Previous Question Bank,Explain Garbage collection,,false,false,false,false,false,150,3,5,0,,0
-Core Java,Java IO,Previous Question Bank,IO Diagram,,false,false,false,false,false,151,3,6,0,,0
-Core Java,Java IO,Previous Question Bank,"File input stream, output stream, reader, writer",,false,false,false,false,false,152,3,6,0,,0
-Core Java,Java IO,Previous Question Bank,FileOutputStream,,false,false,false,false,false,153,3,6,0,,0
-Core Java,Java IO,Previous Question Bank,FileInputStream,,false,false,false,false,false,154,3,6,0,,0
-Core Java,Java IO,Previous Question Bank,BufferedOutputStream,,false,false,false,false,false,155,3,6,0,,0
-Core Java,Java IO,Previous Question Bank,BufferedInputStream,,false,false,false,false,false,156,3,6,0,,0
-Core Java,Java IO,Previous Question Bank,SequenceInputStream,,false,false,false,false,false,157,3,6,0,,0
-Core Java,Java IO,Previous Question Bank,ByteArrayOutputStream,,false,false,false,false,false,158,3,6,0,,0
-Core Java,Java IO,Previous Question Bank,ByteArrayInputStream,,false,false,false,false,false,159,3,6,0,,0
-Core Java,Java IO,Previous Question Bank,FileReader,,false,false,false,false,false,160,3,6,0,,0
-Core Java,Java IO,Previous Question Bank,FileWriter,,false,false,false,false,false,161,3,6,0,,0
-Core Java,Java Strings,Previous Question Bank,utility methods in String class,".length(), isEmpty(), .equalsIgnoreCase(), startsWithIgnoreCase(), endsWithIgnoreCase(), trimWhitespaces(), containsWhitespace",false,false,false,false,false,10,3,7,0,,0
-Core Java,Java Strings,Previous Question Bank,String vs StringBuffer vs StringBuilder,String (immutable) vs StringBuffer (syncronized & thread safe) vs StringBuilder (no syncronization & not thread safe),false,false,false,false,false,11,3,7,0,,0
-Core Java,Java Strings,Previous Question Bank,Why string is immutable,"- synchronization & thread safe- thread safe & to avoid garbage collector to hold value in string pool for security reasons, synchronization and concurrency, caching, and class loading - https://youtu.be/to9DPVsdByE",false,false,false,false,false,12,3,7,0,,0
-Core Java,Java Strings,Previous Question Bank,String vs new String() vs internal() vs String Literal,"String Literal - """", new String(),",false,false,false,false,false,13,3,7,0,,0
-Core Java,Java Strings,Previous Question Bank,create your own immutable class,"how to declare or get variable from immutable class - final class, private final variable, parametrized constructor for deep copy ",false,false,false,false,false,14,3,7,0,,0
+		Enterprise JavaBeans (EJB)?",false,false,false,false,false,64,3,6,0,,0
+Core Java,Misc,Previous Question Bank,Javax to jakarta migration explain with oracle aquired story,,false,false,false,false,false,65,3,6,0,,0
+Core Java,Misc,Previous Question Bank,OpenJDK vs AdoptOpenJDK,https://stackoverflow.com/questions/52431764/difference-between-openjdk-and-adoptium-adoptopenjdk,false,false,false,false,false,66,3,6,0,,0
+Core Java,Misc,Previous Question Bank,HotSpot vs OpenJ9,famous due to cloud native movement - faster than HotSpot,false,false,false,false,false,67,3,6,0,,0
+Core Java,Misc,Previous Question Bank,Enumeration vs iterator vs ListIterator,"- Enumeration (hasmoreelements, nextElement) vs iterator(hasnext, remove) vs ListIterator(hasnext, remove, add, set) like pointing cursers for element access",false,false,false,false,false,68,3,6,0,,0
+Core Java,Misc,Previous Question Bank,Copy of java object ( java8 has new feature? ),"- shallow copying, Deep copying, copy constructor",false,false,false,false,false,69,3,6,0,,0
+Core Java,Misc,Previous Question Bank,System in java - final class inside,"java.lang.* mostly used for i/p , o/p",false,false,false,false,false,70,3,6,0,,0
+Core Java,Misc,Previous Question Bank,What is reflexion api,"- getClassName(), forName(), .class() - cons - breaks encapsulation principle & possible to access privete methods/variables",false,false,false,false,false,71,3,6,0,,0
+Core Java,Misc,Previous Question Bank,What is concurrent modification exception,occurs when an object is tried to be modified concurrently when it is not permissible,false,false,false,false,false,72,3,6,0,,0
+Core Java,Misc,Previous Question Bank,"Date, Time, and Calendar",,false,false,false,false,false,73,3,6,0,,0
+Core Java,Misc,Previous Question Bank,"Is Java ""pass-by-reference"" or ""pass-by-value""?",,false,false,false,false,false,74,3,6,0,,0
+Core Java,Misc,Previous Question Bank,Permgen (why depricated after Java7),special heap space separated from the main memory heap for static & primitive variables vs Metaspace in Java,false,false,false,false,false,75,3,6,0,,0
+Core Java,Misc,Previous Question Bank,understanding-public-static-void-mainstring-args-in-java,public static void main(String args[]) - https://www.geeksforgeeks.org/understanding-public-static-void-mainstring-args-in-java/,false,false,false,false,false,76,3,6,0,,0
+Core Java,Misc,Previous Question Bank,Why main method in java is public static void,,false,false,false,false,false,77,3,6,0,,0
+Core Java,Misc,Previous Question Bank,What is the use of String args[] in main method,,false,false,false,false,false,78,3,6,0,,0
+Core Java,Misc,Previous Question Bank,Can we have multiple main method in java project,not allowed with class as main method is static but allowed in project level,false,false,false,false,false,79,3,6,0,,0
+Core Java,Misc,Previous Question Bank,What happens if we run project with 2class having main method,eclipse will pop which class to run,false,false,false,false,false,80,3,6,0,,0
+Core Java,Misc,Previous Question Bank,Can we override / overload main method in java,can overload by args but cant override as its static method ,false,false,false,false,false,81,3,6,0,,0
+Core Java,Misc,Previous Question Bank,Is main method compulsory in Java? / what if main method not found in the class ?,https://www.geeksforgeeks.org/main-method-compulsory-java/,false,false,false,false,false,82,3,6,0,,0
+Core Java,Misc,Previous Question Bank,Program argument vs VM argument differences,,false,false,false,false,false,83,3,6,0,,0
+Core Java,Collections,Previous Question Bank,synchronized,synchronized keyword ensures that only one thread can enter the method at one time and concurrent collections,false,false,false,false,false,84,3,4,0,,0
+Core Java,Collections,Previous Question Bank,static methods present in the collections class,( Example: Collections.sort() ) - List in link https://www.javatpoint.com/java-collections-class,false,false,false,false,false,85,3,4,0,,0
+Core Java,Collections,Previous Question Bank,streams vs collections,"data storage, modification, functional interface",false,false,false,false,false,86,3,4,0,,0
+Core Java,Collections,Previous Question Bank,Collection Diagram,,false,false,false,false,false,87,3,4,0,,0
+Core Java,Collections,Previous Question Bank,Java collection - new <util> and Java Collections,".sort(), .addAll()",false,false,false,false,false,88,3,4,0,,0
+Core Java,Collections,Previous Question Bank,difference between ArrayList and LinkedList classes,,false,false,false,false,false,89,3,4,0,,0
+Core Java,Collections,Previous Question Bank,Difference between hash map and hash table with internal working,,false,false,false,false,false,90,3,4,0,,0
+Core Java,Collections,Previous Question Bank,Difference between set and list,,false,false,false,false,false,91,3,4,0,,0
+Core Java,Collections,Previous Question Bank,Is hash map is thread safe - no,,false,false,false,false,false,92,3,4,0,,0
+Core Java,Collections,Previous Question Bank,hash map vs hash set,,false,false,false,false,false,93,3,4,0,,0
+Core Java,Collections,Previous Question Bank,Concurrent hashMap,,false,false,false,false,false,94,3,4,0,,0
+Core Java,Collections,Previous Question Bank,hashcode() method vs equal,,false,false,false,false,false,95,3,4,0,,0
+Core Java,Collections,Previous Question Bank,How hashmap internally works - All DSA basic concepts,,false,false,false,false,false,96,3,4,0,,0
+Core Java,Collections,Previous Question Bank,hash Map vs HashTable,,false,false,false,false,false,97,3,4,0,,0
+Core Java,Error vs Exception,Previous Question Bank,How do you handle multiple exception types with same exception,,false,false,false,false,false,98,3,5,0,,0
+Core Java,Error vs Exception,Previous Question Bank,What design pattern is used to implement exception handling,chain of responsibility ,false,false,false,false,false,99,3,5,0,,0
+Core Java,Error vs Exception,Previous Question Bank,Diagram,,false,false,false,false,false,100,3,5,0,,0
+Core Java,Error vs Exception,Previous Question Bank,Checked Exception,,false,false,false,false,false,101,3,5,0,,0
+Core Java,Error vs Exception,Previous Question Bank,Unchecked Exception,,false,false,false,false,false,102,3,5,0,,0
+Core Java,Error vs Exception,Previous Question Bank,Error,,false,false,false,false,false,103,3,5,0,,0
+Core Java,Error vs Exception,Previous Question Bank,throw vs throws,,false,false,false,false,false,104,3,5,0,,0
+Core Java,Error vs Exception,Previous Question Bank,"try, catch, finally",catch Exception e first block &  Checked Exception in second block,false,false,false,false,false,105,3,5,0,,0
+Core Java,Error vs Exception,Previous Question Bank,Java Custom Exception,,false,false,false,false,false,106,3,5,0,,0
+Core Java,Error vs Exception,Previous Question Bank,how to handle Custom exception in spring boot,,false,false,false,false,false,107,3,5,0,,0
+Core Java,Error vs Exception,Previous Question Bank,exception-handling-with-method-overriding,,false,false,false,false,false,108,3,5,0,,0
+Core Java,Multi-threading,Previous Question Bank,What is Multi-threading,https://www.javatpoint.com/java-multithreading-interview-questions,false,false,false,false,false,0,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,what is multithreading & concurrency,,false,false,false,false,false,1,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,volatile keyword,,false,false,false,false,false,2,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,Difference between threads and process?,,false,false,false,false,false,3,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,thread basics,,false,false,false,false,false,4,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,different ways of threads usage,extends thread & implements Runnable,false,false,false,false,false,5,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,Deadlock explain,,false,false,false,false,false,6,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,life cycle,,false,false,false,false,false,7,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,joing thread,,false,false,false,false,false,8,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,naming thread,,false,false,false,false,false,9,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,Daemon thread,,false,false,false,false,false,10,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,thread pool,,false,false,false,false,false,11,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,Synchronized Block,used to lock common thread resources,false,false,false,false,false,12,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,Process-based Multitasking (Multiprocessing),,false,false,false,false,false,14,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,Thread-based Multitasking (Multithreading),,false,false,false,false,false,15,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,What will happen when we call two times Start() in threads,IllegalThreadStateException,false,false,false,false,false,16,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,Thread safe Singleton�& impl,,false,false,false,false,false,17,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,Callable in thread,,false,false,false,false,false,18,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,What is the need for threads in Java?,,false,false,false,false,false,19,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,How do you create a thread?,,false,false,false,false,false,20,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,How do you create a thread by extending thread class?,,false,false,false,false,false,21,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,How do you create a thread by implementing runnable interface?,,false,false,false,false,false,22,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,How do you run a thread in Java?,,false,false,false,false,false,23,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,What are the different states of a thread?,,false,false,false,false,false,24,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,What is priority of a thread? How do you change the priority of a thread?,,false,false,false,false,false,25,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,What is executorservice?,,false,false,false,false,false,26,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,Can you give an example for executorservice?,,false,false,false,false,false,27,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,Explain different ways of creating executor services .,,false,false,false,false,false,28,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,How do you check whether an executionservice task executed successfully?,,false,false,false,false,false,29,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,What is callable? How do you execute a callable from executionservice?,,false,false,false,false,false,30,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,What is synchronization of threads?,,false,false,false,false,false,31,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,Can you give an example of a synchronized block?,,false,false,false,false,false,32,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,Can a static method be synchronized?,"yes, locks for class level rather to object/instance level",false,false,false,false,false,33,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,What is the use of join method in threads?,,false,false,false,false,false,34,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,Describe a few other important methods in threads?,,false,false,false,false,false,35,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,What is a deadlock?,,false,false,false,false,false,36,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,What are the important methods in Java for inter-thread communication?,,false,false,false,false,false,37,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,What is the use of wait method?,,false,false,false,false,false,38,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,What is the use of notify method?,,false,false,false,false,false,39,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,What is the use of notifyall method?,,false,false,false,false,false,40,3,7,0,,0
+Core Java,Multi-threading,Previous Question Bank,Can you write a synchronized program with wait and notify methods?,,false,false,false,false,false,41,3,7,0,,0
+Core Java,Garbage collection,Previous Question Bank,Explain Garbage collection,,false,false,false,false,false,150,3,8,0,,0
+Core Java,Java IO,Previous Question Bank,IO Diagram,,false,false,false,false,false,151,3,9,0,,0
+Core Java,Java IO,Previous Question Bank,"File input stream, output stream, reader, writer",,false,false,false,false,false,152,3,9,0,,0
+Core Java,Java IO,Previous Question Bank,FileOutputStream,,false,false,false,false,false,153,3,9,0,,0
+Core Java,Java IO,Previous Question Bank,FileInputStream,,false,false,false,false,false,154,3,9,0,,0
+Core Java,Java IO,Previous Question Bank,BufferedOutputStream,,false,false,false,false,false,155,3,9,0,,0
+Core Java,Java IO,Previous Question Bank,BufferedInputStream,,false,false,false,false,false,156,3,9,0,,0
+Core Java,Java IO,Previous Question Bank,SequenceInputStream,,false,false,false,false,false,157,3,9,0,,0
+Core Java,Java IO,Previous Question Bank,ByteArrayOutputStream,,false,false,false,false,false,158,3,9,0,,0
+Core Java,Java IO,Previous Question Bank,ByteArrayInputStream,,false,false,false,false,false,159,3,9,0,,0
+Core Java,Java IO,Previous Question Bank,FileReader,,false,false,false,false,false,160,3,9,0,,0
+Core Java,Java IO,Previous Question Bank,FileWriter,,false,false,false,false,false,161,3,9,0,,0
+Core Java,Java Strings,Previous Question Bank,utility methods in String class,".length(), isEmpty(), .equalsIgnoreCase(), startsWithIgnoreCase(), endsWithIgnoreCase(), trimWhitespaces(), containsWhitespace",false,false,false,false,false,10,3,10,0,,0
+Core Java,Java Strings,Previous Question Bank,String vs StringBuffer vs StringBuilder,String (immutable) vs StringBuffer (syncronized & thread safe) vs StringBuilder (no syncronization & not thread safe),false,false,false,false,false,11,3,10,0,,0
+Core Java,Java Strings,Previous Question Bank,Why string is immutable,"- synchronization & thread safe- thread safe & to avoid garbage collector to hold value in string pool for security reasons, synchronization and concurrency, caching, and class loading - https://youtu.be/to9DPVsdByE",false,false,false,false,false,12,3,10,0,,0
+Core Java,Java Strings,Previous Question Bank,String vs new String() vs internal() vs String Literal,"String Literal - """", new String(),",false,false,false,false,false,13,3,10,0,,0
+Core Java,Java Strings,Previous Question Bank,create your own immutable class,"how to declare or get variable from immutable class - final class, private final variable, parametrized constructor for deep copy ",false,false,false,false,false,14,3,10,0,,0
 Core Java,Java Strings,Previous Question Bank,operations using String & StringBuilder,"- compare(), concat(), equals(), split(), length(), replace(), compareTo(), intern(), substring()
-		- charAt() ,compareTo() ,concat() ,contains() ,endsWith() ,equals()equalsIgnoreCase() ,format() ,getBytes() ,getChars() ,indexOf() ,intern() ,isEmpty() ,join() ,lastIndexOf() ,length() ,replace() ,replaceAll() ,split() ,startsWith() ,substring() ,toCharArray() ,toLowerCase() ,toUpperCase() ,trim()",false,false,false,false,false,15,3,7,0,,0
-Core Java,Java Strings,Previous Question Bank,StringTokenizer,,false,false,false,true,false,18,3,7,0,,0
-Core Java,Java Strings,Previous Question Bank,equals() {things to consider when using} & == & compareTo(),,false,false,false,false,false,16,3,7,0,,0
-Core Java,Java Strings,Previous Question Bank,split vs splice,,false,false,false,true,false,17,3,7,0,,0
-Core Java,Operators,Previous Question Bank,Unary Operator,,false,false,false,false,false,171,3,8,0,,0
-Core Java,Operators,Previous Question Bank,Arithmetic Operator,,false,false,false,false,false,172,3,8,0,,0
-Core Java,Operators,Previous Question Bank,Shift Operator,,false,false,false,false,false,173,3,8,0,,0
-Core Java,Operators,Previous Question Bank,Relational Operator,,false,false,false,false,false,174,3,8,0,,0
-Core Java,Operators,Previous Question Bank,Bitwise Operator,,false,false,false,false,false,175,3,8,0,,0
-Core Java,Operators,Previous Question Bank,Logical Operator,,false,false,false,false,false,176,3,8,0,,0
-Core Java,Operators,Previous Question Bank,Ternary Operator,,false,false,false,false,false,177,3,8,0,,0
-Core Java,Operators,Previous Question Bank,Assignment Operator,,false,false,false,false,false,178,3,8,0,,0
-Core Java,Basic Programs,Previous Question Bank,Fibonacci Series in Java,,false,false,false,false,false,2,3,9,0,,0
-Core Java,Basic Programs,Previous Question Bank,Prime Number Program in Java & nth Prime Number Java,,false,false,false,false,false,3,3,9,0,,0
-Core Java,Basic Programs,Previous Question Bank,Palindrome Program in Java,,false,false,false,false,false,4,3,9,0,,0
-Core Java,Basic Programs,Previous Question Bank,Factorial Program in Java,,false,false,false,false,false,5,3,9,0,,0
-Core Java,Basic Programs,Previous Question Bank,Armstrong Number in Java,,false,false,false,false,false,6,3,9,0,,0
-Core Java,Basic Programs,Previous Question Bank,How to Generate Random Number in Java,,false,false,false,false,false,7,3,9,0,,0
-Core Java,Basic Programs,Previous Question Bank,How to Print Pattern in Java,,false,false,false,false,false,8,3,9,0,,0
-Core Java,Basic Programs,Previous Question Bank,How to Compare Two Objects in Java,,false,false,false,false,false,9,3,9,0,,0
-Core Java,Basic Programs,Previous Question Bank,How to Create Object in Java,,false,false,false,false,false,10,3,9,0,,0
-Core Java,Basic Programs,Previous Question Bank,How to Print ASCII Value in Java,,false,false,false,false,false,11,3,9,0,,0
-Core Java,Basic Programs,Previous Question Bank,Reverse a String / Number,,false,false,false,false,false,12,3,9,0,,0
-Core Java,Basic Programs,Previous Question Bank,second / third largest from array using sort logic of temp variable,,false,false,false,false,false,13,3,9,0,,0
-Core Java,Basic Programs,Previous Question Bank,pattern,,false,false,false,false,false,14,3,9,0,,0
+		- charAt() ,compareTo() ,concat() ,contains() ,endsWith() ,equals()equalsIgnoreCase() ,format() ,getBytes() ,getChars() ,indexOf() ,intern() ,isEmpty() ,join() ,lastIndexOf() ,length() ,replace() ,replaceAll() ,split() ,startsWith() ,substring() ,toCharArray() ,toLowerCase() ,toUpperCase() ,trim()",false,false,false,false,false,15,3,10,0,,0
+Core Java,Java Strings,Previous Question Bank,StringTokenizer,,false,false,false,true,false,18,3,10,0,,0
+Core Java,Java Strings,Previous Question Bank,equals() {things to consider when using} & == & compareTo(),,false,false,false,false,false,16,3,10,0,,0
+Core Java,Java Strings,Previous Question Bank,split vs splice,,false,false,false,true,false,17,3,10,0,,0
+Core Java,Operators,Previous Question Bank,Unary Operator,,false,false,false,false,false,171,3,11,0,,0
+Core Java,Operators,Previous Question Bank,Arithmetic Operator,,false,false,false,false,false,172,3,11,0,,0
+Core Java,Operators,Previous Question Bank,Shift Operator,,false,false,false,false,false,173,3,11,0,,0
+Core Java,Operators,Previous Question Bank,Relational Operator,,false,false,false,false,false,174,3,11,0,,0
+Core Java,Operators,Previous Question Bank,Bitwise Operator,,false,false,false,false,false,175,3,11,0,,0
+Core Java,Operators,Previous Question Bank,Logical Operator,,false,false,false,false,false,176,3,11,0,,0
+Core Java,Operators,Previous Question Bank,Ternary Operator,,false,false,false,false,false,177,3,11,0,,0
+Core Java,Operators,Previous Question Bank,Assignment Operator,,false,false,false,false,false,178,3,11,0,,0
+Core Java,Basic Programs,Previous Question Bank,Fibonacci Series in Java,,false,false,false,false,false,2,3,12,0,,0
+Core Java,Basic Programs,Previous Question Bank,Prime Number Program in Java & nth Prime Number Java,,false,false,false,false,false,3,3,12,0,,0
+Core Java,Basic Programs,Previous Question Bank,Palindrome Program in Java,,false,false,false,false,false,4,3,12,0,,0
+Core Java,Basic Programs,Previous Question Bank,Factorial Program in Java,,false,false,false,false,false,5,3,12,0,,0
+Core Java,Basic Programs,Previous Question Bank,Armstrong Number in Java,,false,false,false,false,false,6,3,12,0,,0
+Core Java,Basic Programs,Previous Question Bank,How to Generate Random Number in Java,,false,false,false,false,false,7,3,12,0,,0
+Core Java,Basic Programs,Previous Question Bank,How to Print Pattern in Java,,false,false,false,false,false,8,3,12,0,,0
+Core Java,Basic Programs,Previous Question Bank,How to Compare Two Objects in Java,,false,false,false,false,false,9,3,12,0,,0
+Core Java,Basic Programs,Previous Question Bank,How to Create Object in Java,,false,false,false,false,false,10,3,12,0,,0
+Core Java,Basic Programs,Previous Question Bank,How to Print ASCII Value in Java,,false,false,false,false,false,11,3,12,0,,0
+Core Java,Basic Programs,Previous Question Bank,Reverse a String / Number,,false,false,false,false,false,12,3,12,0,,0
+Core Java,Basic Programs,Previous Question Bank,second / third largest from array using sort logic of temp variable,,false,false,false,false,false,13,3,12,0,,0
+Core Java,Basic Programs,Previous Question Bank,pattern,,false,false,false,false,false,14,3,12,0,,0
 Core Java,Java features,Previous Question Bank,List Java 8 Features,"Lambda expressions,
 Default methods,
 Static methods in interface,
@@ -258,23 +285,23 @@ Parallel Array Sorting,
 Type and Repating Annotations,
 IO Enhancements,
 Concurrency Enhancements,
-JDBC Enhancements etc.",false,false,false,false,false,192,3,1,0,,0
-Core Java,Java features,Previous Question Bank,Functional interfaces,,false,false,false,false,false,193,3,1,0,,0
-Core Java,Java features,Previous Question Bank,Example Functional interfaces,"Runnable, Comparator, Consumer, Supplier vs Predicate",false,false,false,false,false,194,3,1,0,,0
-Core Java,Java features,Previous Question Bank,Consumer vs Supplier vs Predicate,https://medium.com/swlh/understanding-java-8s-consumer-supplier-predicate-and-function-c1889b9423d,false,false,false,false,false,195,3,1,0,,0
-Core Java,Java features,Previous Question Bank,Functional Programming vs OOPS vs AOP,,false,false,false,false,false,196,3,1,0,,0
-Core Java,Java features,Previous Question Bank,interface method impl in class vers Functional interface method impl using lamda,,false,false,false,false,false,197,3,1,0,,0
-Core Java,Java features,Previous Question Bank,"interface that contains only one abstract method, Java 8 onwards, lambda expressions",,false,false,false,false,false,198,3,1,0,,0
-Core Java,Java features,Previous Question Bank,Vs @Annotation & Changes after java8 Lambda expression,,false,false,false,false,false,199,3,1,0,,0
-Core Java,Java features,Previous Question Bank,What is stream api?,"No storage, functional programming, Possibly unbounded, Laziness-seeking. ",false,false,false,false,false,200,3,1,0,,0
-Core Java,Java features,Previous Question Bank,stream () from Collection interface,map {uses predicate functional interface} & filter {uses function functional interface} from Stream,false,false,false,false,false,201,3,1,0,,0
-Core Java,Java features,Previous Question Bank,"map (), filter, toarray, collect, Collectors",,false,false,false,false,false,202,3,1,0,,0
-Core Java,Java features,Previous Question Bank,Parallel vs Sequential Stream in Java,,false,false,false,false,false,203,3,1,0,,0
-Core Java,Java features,Previous Question Bank,java 8 vs latest stream() enhancement,,false,false,false,false,false,204,3,1,0,,0
-Core Java,Java features,Previous Question Bank,Differentiate stream operations - stream().map/.filter,- stream().map/.filter - to iterate array of list with less memory/processing effort,false,false,false,false,false,205,3,1,0,,0
-Core Java,Java features,Previous Question Bank,Differentiate between map (single array) and flat map vs stream api,"array inside another array to flat [[1,2,3],[4,5,6],[7]] -> [1,2,3,4,5,6,7]",false,false,false,false,false,206,3,1,0,,0
-Core Java,Java features,Previous Question Bank,What is the improvement in hashmap before and after java8,on hashtable collition complexity increases from O(1) to O(n) so replaced balanced trees instead of linked lists,false,false,false,false,false,207,3,1,0,,0
-Core Java,Java features,Previous Question Bank,How to remove duplicate in list in java 8,ARRAY.stream().distinct().collect(Collectors.toList());,false,false,false,false,false,208,3,1,0,,0
+JDBC Enhancements etc.",false,false,false,false,false,192,3,3,0,,0
+Core Java,Java features,Previous Question Bank,Functional interfaces,,false,false,false,false,false,193,3,3,0,,0
+Core Java,Java features,Previous Question Bank,Example Functional interfaces,"Runnable, Comparator, Consumer, Supplier vs Predicate",false,false,false,false,false,194,3,3,0,,0
+Core Java,Java features,Previous Question Bank,Consumer vs Supplier vs Predicate,https://medium.com/swlh/understanding-java-8s-consumer-supplier-predicate-and-function-c1889b9423d,false,false,false,false,false,195,3,3,0,,0
+Core Java,Java features,Previous Question Bank,Functional Programming vs OOPS vs AOP,,false,false,false,false,false,196,3,3,0,,0
+Core Java,Java features,Previous Question Bank,interface method impl in class vers Functional interface method impl using lamda,,false,false,false,false,false,197,3,3,0,,0
+Core Java,Java features,Previous Question Bank,"interface that contains only one abstract method, Java 8 onwards, lambda expressions",,false,false,false,false,false,198,3,3,0,,0
+Core Java,Java features,Previous Question Bank,Vs @Annotation & Changes after java8 Lambda expression,,false,false,false,false,false,199,3,3,0,,0
+Core Java,Java features,Previous Question Bank,What is stream api?,"No storage, functional programming, Possibly unbounded, Laziness-seeking. ",false,false,false,false,false,200,3,3,0,,0
+Core Java,Java features,Previous Question Bank,stream () from Collection interface,map {uses predicate functional interface} & filter {uses function functional interface} from Stream,false,false,false,false,false,201,3,3,0,,0
+Core Java,Java features,Previous Question Bank,"map (), filter, toarray, collect, Collectors",,false,false,false,false,false,202,3,3,0,,0
+Core Java,Java features,Previous Question Bank,Parallel vs Sequential Stream in Java,,false,false,false,false,false,203,3,3,0,,0
+Core Java,Java features,Previous Question Bank,java 8 vs latest stream() enhancement,,false,false,false,false,false,204,3,3,0,,0
+Core Java,Java features,Previous Question Bank,Differentiate stream operations - stream().map/.filter,- stream().map/.filter - to iterate array of list with less memory/processing effort,false,false,false,false,false,205,3,3,0,,0
+Core Java,Java features,Previous Question Bank,Differentiate between map (single array) and flat map vs stream api,"array inside another array to flat [[1,2,3],[4,5,6],[7]] -> [1,2,3,4,5,6,7]",false,false,false,false,false,206,3,3,0,,0
+Core Java,Java features,Previous Question Bank,What is the improvement in hashmap before and after java8,on hashtable collition complexity increases from O(1) to O(n) so replaced balanced trees instead of linked lists,false,false,false,false,false,207,3,3,0,,0
+Core Java,Java features,Previous Question Bank,How to remove duplicate in list in java 8,ARRAY.stream().distinct().collect(Collectors.toList());,false,false,false,false,false,208,3,3,0,,0
 Spring,Spring Core,Previous Question Bank,IOC container,,false,false,false,false,false,6,4,1,0,,0
 Spring,Spring Core,Previous Question Bank,DI - What is dependency injection?,,false,false,false,false,false,7,4,1,0,,0
 Spring,Spring Core,Previous Question Bank,dependency injection vs Ioc - inversion of control,,false,false,false,false,false,9,4,1,0,,0
@@ -467,7 +494,7 @@ Spring,Spring Boot,Previous Question Bank,Where the environment variables are st
 Spring,Spring Security,Previous Question Bank,Spring security(how do you secure ur application? and which library is used?),,false,false,false,false,false,2,4,5,0,,0
 Spring,Hibernate,Previous Question Bank,what is the use of spring-data-jpa depenedency?,,false,false,false,false,false,24,4,2,0,,0
 Spring,Hibernate,Previous Question Bank,What is JPA?,,false,false,false,false,false,25,4,2,0,,0
-Core Java,Multi-threading,Previous Question Bank,what is synchronized methods,,false,false,false,false,false,13,3,4,0,,0
+Core Java,Multi-threading,Previous Question Bank,what is synchronized methods,,false,false,false,false,false,13,3,7,0,,0
 Spring,Hibernate,Previous Question Bank,diff btw native query and normal query,,false,false,false,false,false,26,4,2,0,,0
 Spring,Spring Boot,Previous Question Bank,springboot application & mvc repository - end to end deployment process,,false,false,false,false,false,78,4,3,0,,0
 Spring,Spring Core,Previous Question Bank,"Content-Disposition inline, attachment",,false,false,false,false,false,0,4,1,0,,0
@@ -482,13 +509,13 @@ Spring,Hibernate,Previous Question Bank,what is the difference between hibernate
 Spring,Hibernate,Previous Question Bank,"one to one, many to one mapping",,false,false,false,false,false,31,4,2,0,,0
 Spring,Spring Boot,Previous Question Bank,"Difference between @Qualifier, @Autowired, @Bean",,false,false,false,false,false,80,4,3,0,,0
 Solid - GoF,GoF,Previous Question Bank,how to create singleton class,,false,false,false,false,false,0,1,0,0,,0
-Core Java,Misc,Previous Question Bank,"what is jvm, jit, jre and their heap memory size",,false,false,false,false,false,41,3,3,0,,0
-Core Java,Collections,Previous Question Bank,"default capacity of list (10), map (16 buckets), set (16 as internally it is hashmap)",,false,false,false,false,false,14,3,2,0,,0
-Core Java,Misc,Previous Question Bank,can we have static constructor,,false,false,false,false,false,42,3,3,0,,0
+Core Java,Misc,Previous Question Bank,"what is jvm, jit, jre and their heap memory size",,false,false,false,false,false,41,3,6,0,,0
+Core Java,Collections,Previous Question Bank,"default capacity of list (10), map (16 buckets), set (16 as internally it is hashmap)",,false,false,false,false,false,14,3,4,0,,0
+Core Java,Misc,Previous Question Bank,can we have static constructor,,false,false,false,false,false,42,3,6,0,,0
 Spring,Spring Security,Previous Question Bank,how to know bean class in project, - using actuator,false,false,false,false,false,5,4,5,0,,0
 Spring,Spring Core,Previous Question Bank,@ComponentScan tells Spring in which packages you have annotated classes which should be managed by Spring,,false,false,false,false,false,2,4,1,0,,0
 Spring,Spring Core,Previous Question Bank,how-to-load-configuration-classes-from-separate-jars, - @Import(NameOfTheConfigurationYouWantToImport.class),false,false,false,false,false,3,4,1,0,,0
-Core Java,Multi-threading,Previous Question Bank,Optimistic vs. Pessimistic locking,,false,false,false,false,false,42,3,4,0,,0
+Core Java,Multi-threading,Previous Question Bank,Optimistic vs. Pessimistic locking,,false,false,false,false,false,42,3,7,0,,0
 Spring,Hibernate,Previous Question Bank,Optimistic vs. Pessimistic locking,,false,false,false,false,false,32,4,2,0,,0
 Spring,Spring Cloud,Previous Question Bank,Hystrix vs Resillence4j,,false,false,false,false,false,14,4,4,0,,0
 Spring,Spring Cloud,Previous Question Bank,@LoadBalanced - why,for restTemplate,false,false,false,false,false,15,4,4,0,,0
@@ -511,7 +538,7 @@ Spring,Spring Boot,Previous Question Bank,SLF4J: Class path contains multiple SL
 Spring,Spring Security,Previous Question Bank,https:// for localhost,,false,false,false,false,false,7,4,5,0,,0
 Spring,Ecosystem,Previous Question Bank,maven-update-dependencies-automatically or sequential service maven update,,false,false,false,false,false,0,4,0,0,,0
 Spring,Spring Security,Previous Question Bank,{ciper<text>} in yml / how to encrypt & decrypt config files,,false,false,false,false,false,8,4,5,0,,0
-Core Java,Roadmaps,Youtube Playlists,Core Java Interview Questions 1,https://www.youtube.com/playlist?list=PLqq-6Pq4lTTZRvrqmB_hq4XfkVyOX-39T,false,false,false,false,false,0,3,0,0,,0
+Core Java,Roadmaps,Youtube Playlists,Core Java Interview Questions 1,https://www.youtube.com/playlist?list=PLqq-6Pq4lTTZRvrqmB_hq4XfkVyOX-39T,false,false,false,false,false,0,3,2,0,,0
 Spring,Spring Cloud,Previous Question Bank,spring.config.import=optional:configserver:http://localhost:8888/ - Check using service id instead IP here,,false,false,false,false,false,23,4,4,0,,0
 Spring,Spring Boot,Previous Question Bank,Spring flux,redux way of non-blocking application development,false,false,false,false,false,85,4,3,0,,0
 Introduction,General,Interview Tips,Important links / Ref,"www.onlinetutorialspoint.com
@@ -672,43 +699,43 @@ Angular,CSS,Previous Question Bank,Box Model,,false,false,false,false,false,0,7,
 Angular,Javascript,Previous Question Bank,what is javascript,,false,false,false,false,false,0,7,3,0,,0
 Angular,Typescript,Previous Question Bank,What is Typescript,,false,false,false,false,false,0,7,4,0,,0
 Angular,General Angular,Previous Question Bank,Jasmine test,,false,false,false,false,false,22,7,2,0,,0
-OOPS,Pillers,Previous Question Bank,The pillar of OOPs concept,"includes encapsulation, inheritance, polymorphism, and abstraction.",false,false,false,false,false,0,2,0,0,,0
-OOPS,Pillers,Previous Question Bank,What is Dynamic polymorphism,Dynamic polymorphism allows multiple implementations of the inventory service,false,false,false,false,false,4,2,0,0,,0
-OOPS,Pillers,Previous Question Bank,use of default methods in Java interfaces,Using default methods in Java interfaces for flexible implementation,false,false,false,false,false,7,2,0,0,,0
-OOPS,Inheritance,Previous Question Bank,Accessing parent property and overriding default methods,,false,false,false,false,false,8,2,1,0,,0
-OOPS,Pillers,Previous Question Bank,when finalize method called,The finalize method is not called if the system GC is done,false,false,false,false,false,9,2,0,0,,0
-OOPS,Pillers,Previous Question Bank,Why proper implementation of equals and hashCode methods necessary,Proper implementation of equals and hashCode methods is necessary to avoid duplicates in collections.,false,false,false,false,false,10,2,0,0,,0
-Core Java,Error vs Exception,Previous Question Bank,When Compile time exceptions handled,Compile time exceptions can be handled at compile time,false,false,false,false,false,11,3,3,0,,0
-Core Java,Error vs Exception,Previous Question Bank,FileNotFound exception what type of exception?,FileNotFound exception is a checked exception and not a compile time exception.,false,false,false,false,false,12,3,3,0,,0
-Core Java,Error vs Exception,Previous Question Bank,Delegating exception handling to next method caller,,false,false,false,false,false,13,3,3,0,,0
-Core Java,Error vs Exception,Previous Question Bank,Understanding the order of exception hierarchy is important while handling exceptions in Java.,,false,false,false,false,false,14,3,3,0,,0
-Core Java,Error vs Exception,Previous Question Bank,Can we stop finally block from executing?,finally block can be stopped from executing,false,false,false,false,false,15,3,3,0,,0
-Core Java,Java Strings,Previous Question Bank,String objects can be created using the new keyword or string literal,,false,false,false,false,false,0,3,7,0,,0
-Core Java,Java Strings,Previous Question Bank,String is immutable,,false,false,false,false,false,1,3,7,0,,0
-Core Java,Java Strings,Previous Question Bank,String class is immutable in Java,,false,false,false,false,false,2,3,7,0,,0
-Core Java,Java Strings,Previous Question Bank,String buffer and StringBuilder are mutable - while String is immutable,,false,false,false,false,false,3,3,7,0,,0
-Core Java,Java Strings,Previous Question Bank,Creating an immutable class: Setter method write only getter method,,false,false,false,false,false,4,3,7,0,,0
-Core Java,Java Strings,Previous Question Bank,Handling mutability in Java objects & Creating custom immutable class,,false,false,false,false,false,5,3,7,0,,0
-Core Java,Misc,Previous Question Bank,Using the clone method to create a separate copy of an object,,false,false,false,false,false,43,3,3,0,,0
-Core Java,Misc,Previous Question Bank,Demonstrating how to avoid modifying a Date object in Java,,false,false,false,false,false,44,3,3,0,,0
-Core Java,Java Strings,Previous Question Bank,How to use String for storing passwords,It is recommended to use char array instead of String for storing passwords.,false,false,false,false,false,6,3,7,0,,0
-Core Java,Misc,Previous Question Bank,Writing custom marker interfaces in Java,,false,false,false,false,false,45,3,3,0,,0
-Core Java,Collections,Previous Question Bank,The difference between array list and linked list,,false,false,false,false,false,15,3,2,0,,0
-Core Java,Misc,Previous Question Bank,Using generics with lists helps in avoiding type cast issues.,,false,false,false,false,false,46,3,3,0,,0
-Core Java,Collections,Previous Question Bank,Creating a custom AR list to disallow duplicates,,false,false,false,false,false,16,3,2,0,,0
-Core Java,Collections,Previous Question Bank,Tricky - Set implementation allows duplicate objects if equals and hashCode methods are not overridden for custom objects.,The contract between equals and hashCode methods determines if duplicate objects are allowed,false,false,false,false,false,17,3,2,0,,0
-Core Java,Collections,Previous Question Bank,Sorting objects based on ID and name using Comparable and Comparator,,false,false,false,false,false,18,3,2,0,,0
-Core Java,Collections,Previous Question Bank,Creating Comparators in Java for sorting objects based on different attributes.,,false,false,false,false,false,19,3,2,0,,0
-Core Java,Collections,Previous Question Bank,Explanation of custom sorting using comparator,,false,false,false,false,false,20,3,2,0,,0
-Core Java,Collections,Previous Question Bank,Fail-fast and fail-safe iterators in Java,,false,false,false,false,false,21,3,2,0,,0
+OOPS,Core Concepts,Previous Question Bank,What are Four Pillars of OOP,<ul><li>Encapsulation</li><li>Inheritance</li><li>Polymorphism</li><li>Abstraction</li></ul>,false,false,false,false,false,1,2,0,0,,0
+OOPS,Understanding OOP Pillers,Previous Question Bank,What is Dynamic polymorphism,Dynamic polymorphism allows multiple implementations of the inventory service,false,false,false,false,false,3,2,1,0,,0
+OOPS,Fundamentals,Previous Question Bank,use of default methods in Java interfaces,Using default methods in Java interfaces for flexible implementation,false,false,false,false,false,10,2,3,0,,0
+OOPS,Fundamentals,Previous Question Bank,Accessing parent property and overriding default methods,,false,false,false,false,false,12,2,3,0,,0
+Core Java,Keywords & Lifecycle,Previous Question Bank,when finalize method called,The finalize method is not called if the system GC is done,false,false,false,false,false,2,2,0,0,,0
+Core Java,"Object Mechanics, Utilities & Serialization",Previous Question Bank,Why proper implementation of equals and hashCode methods necessary,Proper implementation of equals and hashCode methods is necessary to avoid duplicates in collections.,false,false,false,false,false,4,2,1,0,,0
+Core Java,Error vs Exception,Previous Question Bank,When Compile time exceptions handled,Compile time exceptions can be handled at compile time,false,false,false,false,false,11,3,5,0,,0
+Core Java,Error vs Exception,Previous Question Bank,FileNotFound exception what type of exception?,FileNotFound exception is a checked exception and not a compile time exception.,false,false,false,false,false,12,3,5,0,,0
+Core Java,Error vs Exception,Previous Question Bank,Delegating exception handling to next method caller,,false,false,false,false,false,13,3,5,0,,0
+Core Java,Error vs Exception,Previous Question Bank,Understanding the order of exception hierarchy is important while handling exceptions in Java.,,false,false,false,false,false,14,3,5,0,,0
+Core Java,Error vs Exception,Previous Question Bank,Can we stop finally block from executing?,finally block can be stopped from executing,false,false,false,false,false,15,3,5,0,,0
+Core Java,Java Strings,Previous Question Bank,String objects can be created using the new keyword or string literal,,false,false,false,false,false,0,3,10,0,,0
+Core Java,Java Strings,Previous Question Bank,String is immutable,,false,false,false,false,false,1,3,10,0,,0
+Core Java,Java Strings,Previous Question Bank,String class is immutable in Java,,false,false,false,false,false,2,3,10,0,,0
+Core Java,Java Strings,Previous Question Bank,String buffer and StringBuilder are mutable - while String is immutable,,false,false,false,false,false,3,3,10,0,,0
+Core Java,Java Strings,Previous Question Bank,Creating an immutable class: Setter method write only getter method,,false,false,false,false,false,4,3,10,0,,0
+Core Java,Java Strings,Previous Question Bank,Handling mutability in Java objects & Creating custom immutable class,,false,false,false,false,false,5,3,10,0,,0
+Core Java,Misc,Previous Question Bank,Using the clone method to create a separate copy of an object,,false,false,false,false,false,43,3,6,0,,0
+Core Java,Misc,Previous Question Bank,Demonstrating how to avoid modifying a Date object in Java,,false,false,false,false,false,44,3,6,0,,0
+Core Java,Java Strings,Previous Question Bank,How to use String for storing passwords,It is recommended to use char array instead of String for storing passwords.,false,false,false,false,false,6,3,10,0,,0
+Core Java,Misc,Previous Question Bank,Writing custom marker interfaces in Java,,false,false,false,false,false,45,3,6,0,,0
+Core Java,Collections,Previous Question Bank,The difference between array list and linked list,,false,false,false,false,false,15,3,4,0,,0
+Core Java,Misc,Previous Question Bank,Using generics with lists helps in avoiding type cast issues.,,false,false,false,false,false,46,3,6,0,,0
+Core Java,Collections,Previous Question Bank,Creating a custom AR list to disallow duplicates,,false,false,false,false,false,16,3,4,0,,0
+Core Java,Collections,Previous Question Bank,Tricky - Set implementation allows duplicate objects if equals and hashCode methods are not overridden for custom objects.,The contract between equals and hashCode methods determines if duplicate objects are allowed,false,false,false,false,false,17,3,4,0,,0
+Core Java,Collections,Previous Question Bank,Sorting objects based on ID and name using Comparable and Comparator,,false,false,false,false,false,18,3,4,0,,0
+Core Java,Collections,Previous Question Bank,Creating Comparators in Java for sorting objects based on different attributes.,,false,false,false,false,false,19,3,4,0,,0
+Core Java,Collections,Previous Question Bank,Explanation of custom sorting using comparator,,false,false,false,false,false,20,3,4,0,,0
+Core Java,Collections,Previous Question Bank,Fail-fast and fail-safe iterators in Java,,false,false,false,false,false,21,3,4,0,,0
 Core Java,Collections,Previous Question Bank,ConcurrentHashMap - when? allow null keys? what type of locking? why prefered over Hashtable ?,"ConcurrentHashMap is used when parallel thread access and modification is required.
 ConcurrentHashMap does not allow adding null keys or values and throws a null pointer exception immediately.
 ConcurrentHashMap uses segment locking or bucket locking
-ConcurrentHashMap is preferred over Hashtable due to its locking mechanism.",false,false,false,false,false,22,3,2,0,,0
-Core Java,Collections,Previous Question Bank,Hing Collision,,false,false,false,false,false,23,3,2,0,,0
-Core Java,Collections,Previous Question Bank,Hash map internal working,Hash map internally uses linked list nodes,false,false,false,false,false,24,3,2,0,,0
-Core Java,Collections,Previous Question Bank,Understanding TreeMap in Java,,false,false,false,false,false,25,3,2,0,,0
-Core Java,Collections,Previous Question Bank,compareTo() method uses,"The compareTo() method compares two objects and returns -1, 0, or 1 based on the comparison result.",false,false,false,false,false,26,3,2,0,,0
+ConcurrentHashMap is preferred over Hashtable due to its locking mechanism.",false,false,false,false,false,22,3,4,0,,0
+Core Java,Collections,Previous Question Bank,Hing Collision,,false,false,false,false,false,23,3,4,0,,0
+Core Java,Collections,Previous Question Bank,Hash map internal working,Hash map internally uses linked list nodes,false,false,false,false,false,24,3,4,0,,0
+Core Java,Collections,Previous Question Bank,Understanding TreeMap in Java,,false,false,false,false,false,25,3,4,0,,0
+Core Java,Collections,Previous Question Bank,compareTo() method uses,"The compareTo() method compares two objects and returns -1, 0, or 1 based on the comparison result.",false,false,false,false,false,26,3,4,0,,0
 Spring,Hibernate,Previous Question Bank,What is eager and lazy loading in pagination and sorting?,,false,false,false,false,false,33,4,2,0,,0
 Spring,Hibernate,Previous Question Bank,How to get records from DB using pagination?,,false,false,false,false,false,34,4,2,0,,0
 Spring,Hibernate,Previous Question Bank,What is primary and secondary indexing?,,false,false,false,false,false,35,4,2,0,,0
@@ -716,27 +743,27 @@ Spring,Hibernate,Previous Question Bank,Which DB is used in our application?,,fa
 Spring,Hibernate,Previous Question Bank,Implementation of hashmap ? can have null keys ? multiple null keys/values?,"hashmap can have null keys ?
 hashmap can have multiple null keys?
 hashmap can have multiple null values?",false,false,false,false,false,37,4,2,0,,0
-Core Java,Basic Programs,Previous Question Bank,Write java code to find missing values from an array?,,false,false,false,false,false,0,3,9,0,,0
-Core Java,Collections,Previous Question Bank,What is collections?,,false,false,false,false,false,27,3,2,0,,0
-Core Java,Collections,Previous Question Bank,Difference between collections and streams?,,false,false,false,false,false,28,3,2,0,,0
-Core Java,Collections,Previous Question Bank,Which one is faster (set or hashmap)? explain,,false,false,false,false,false,29,3,2,0,,0
-Core Java,Error vs Exception,Previous Question Bank,What is checked and unchecked exceptions?,,false,false,false,false,false,16,3,3,0,,0
-Core Java,Collections,Previous Question Bank,How to check if a hashmap has this(any value) value?,,false,false,false,false,false,30,3,2,0,,0
-Core Java,Collections,Previous Question Bank,What is thread safe in hashmap?,,false,false,false,false,false,31,3,2,0,,0
-Core Java,Collections,Previous Question Bank,Difference between hashmap and set?,,false,false,false,false,false,32,3,2,0,,0
-Core Java,Collections,Previous Question Bank,What are all the methods in hashmap?,,false,false,false,false,false,33,3,2,0,,0
-Core Java,Multi-threading,Previous Question Bank,What is synchronization in java?,,false,false,false,false,false,43,3,4,0,,0
-Core Java,Java features,Previous Question Bank,What are all the methods of stream api?,,false,false,false,false,false,17,3,1,0,,0
-Core Java,Java features,Previous Question Bank,What is Reduce method in stream?,,false,false,false,false,false,18,3,1,0,,0
-Core Java,Java features,Previous Question Bank,Difference between stream and parallel stream?,,false,false,false,false,false,19,3,1,0,,0
-Core Java,Java features,Previous Question Bank,What is optional api? & List Methods of optional,,false,false,false,false,false,20,3,1,0,,0
-Core Java,Java features,Previous Question Bank,Diff between Optional.Of(object) and Optional.NullableOf(Object),,false,false,false,false,false,21,3,1,0,,0
-Core Java,Error vs Exception,Previous Question Bank,How to create customized exception?,,false,false,false,false,false,17,3,3,0,,0
-Core Java,Misc,Previous Question Bank,What is interceptors in corejava?,,false,false,false,false,false,47,3,3,0,,0
+Core Java,Basic Programs,Previous Question Bank,Write java code to find missing values from an array?,,false,false,false,false,false,0,3,12,0,,0
+Core Java,Collections,Previous Question Bank,What is collections?,,false,false,false,false,false,27,3,4,0,,0
+Core Java,Collections,Previous Question Bank,Difference between collections and streams?,,false,false,false,false,false,28,3,4,0,,0
+Core Java,Collections,Previous Question Bank,Which one is faster (set or hashmap)? explain,,false,false,false,false,false,29,3,4,0,,0
+Core Java,Error vs Exception,Previous Question Bank,What is checked and unchecked exceptions?,,false,false,false,false,false,16,3,5,0,,0
+Core Java,Collections,Previous Question Bank,How to check if a hashmap has this(any value) value?,,false,false,false,false,false,30,3,4,0,,0
+Core Java,Collections,Previous Question Bank,What is thread safe in hashmap?,,false,false,false,false,false,31,3,4,0,,0
+Core Java,Collections,Previous Question Bank,Difference between hashmap and set?,,false,false,false,false,false,32,3,4,0,,0
+Core Java,Collections,Previous Question Bank,What are all the methods in hashmap?,,false,false,false,false,false,33,3,4,0,,0
+Core Java,Multi-threading,Previous Question Bank,What is synchronization in java?,,false,false,false,false,false,43,3,7,0,,0
+Core Java,Java features,Previous Question Bank,What are all the methods of stream api?,,false,false,false,false,false,17,3,3,0,,0
+Core Java,Java features,Previous Question Bank,What is Reduce method in stream?,,false,false,false,false,false,18,3,3,0,,0
+Core Java,Java features,Previous Question Bank,Difference between stream and parallel stream?,,false,false,false,false,false,19,3,3,0,,0
+Core Java,Java features,Previous Question Bank,What is optional api? & List Methods of optional,,false,false,false,false,false,20,3,3,0,,0
+Core Java,Java features,Previous Question Bank,Diff between Optional.Of(object) and Optional.NullableOf(Object),,false,false,false,false,false,21,3,3,0,,0
+Core Java,Error vs Exception,Previous Question Bank,How to create customized exception?,,false,false,false,false,false,17,3,5,0,,0
+Core Java,Misc,Previous Question Bank,What is interceptors in corejava?,,false,false,false,false,false,47,3,6,0,,0
 SQL,General,Previous Question Bank,What is ACID properties?,,false,false,false,false,false,5,5,0,0,,0
 Spring,Spring Core,Previous Question Bank,What is the use of @bean?,,false,false,false,false,false,29,4,1,0,,0
 Spring,Spring Core,Previous Question Bank,What is @Qualifier?,,false,false,false,false,false,30,4,1,0,,0
-Core Java,Collections,Previous Question Bank,How to remove duplicates from list without using set?,,false,false,false,false,false,34,3,2,0,,0
+Core Java,Collections,Previous Question Bank,How to remove duplicates from list without using set?,,false,false,false,false,false,34,3,4,0,,0
 Spring,Spring Core,Previous Question Bank,Different types of dependency injection?,,false,false,false,false,false,8,4,1,0,,0
 Spring,Spring Performance,Previous Question Bank,How to find the delay of response from spring boot?,,false,false,false,false,false,0,4,8,0,,0
 Spring,Spring MVC,Previous Question Bank,Different methods of request mapping?,,false,false,false,false,false,3,4,6,0,,0
@@ -746,7 +773,7 @@ Spring,Hibernate,Previous Question Bank,What is the use of spring data jpa?,,fal
 Spring,Hibernate,Previous Question Bank,What are all the default methods of jpa?,,false,false,false,false,false,39,4,2,0,,0
 Spring,Hibernate,Previous Question Bank,What is right join and left join?,,false,false,false,false,false,40,4,2,0,,0
 Spring,Hibernate,Previous Question Bank,Does left join allows null value from right table,,false,false,false,false,false,41,4,2,0,,0
-Core Java,Basic Programs,Previous Question Bank,How to find the sum of the ages of an emplyees for age >35 using stream api?,,false,false,false,false,false,1,3,9,0,,0
+Core Java,Basic Programs,Previous Question Bank,How to find the sum of the ages of an emplyees for age >35 using stream api?,,false,false,false,false,false,1,3,12,0,,0
 Tools,Elasticsearch,Previous Question Bank,What is the use of elasticsearch and rabbitmq?,,false,false,false,false,false,7,6,0,0,,0
 Spring,Hibernate,Previous Question Bank,How to encrypt the confidential data entered by user while storing to repository?,,false,false,false,false,false,42,4,2,0,,0
 Spring,Ecosystem,Previous Question Bank,How to convert a JAR application to a WAR?,,false,false,false,false,false,2,4,0,0,,0
@@ -755,20 +782,23 @@ Spring,Ecosystem,Previous Question Bank,Which version of spring boot is used in 
 Spring,Ecosystem,Previous Question Bank,Can we have more than one property file and how to use that?,,false,false,false,false,false,5,4,0,0,,0
 Spring,Ecosystem,Previous Question Bank,Which library is used for logging?,,false,false,false,false,false,6,4,0,0,,0
 Spring,Ecosystem,Previous Question Bank,Where the log file would be generated for a project?,,false,false,false,false,false,7,4,0,0,,0
-Core Java,Misc,Previous Question Bank,What is serialization and deserialization?,,false,false,false,false,false,48,3,3,0,,0
+Core Java,Misc,Previous Question Bank,What is serialization and deserialization?,,false,false,false,false,false,48,3,6,0,,0
 Spring,Spring MVC,Previous Question Bank,"How to pass multiple ids to ""GET"" api using path variable?",,false,false,false,false,false,4,4,6,0,,0
 Spring,Spring MVC,Previous Question Bank,What is Produces & Types of Produces in api?,,false,false,false,false,false,5,4,6,0,,0
 Spring,Spring MVC,Previous Question Bank,What is the library used for responsebody?,Ans: Jackson,false,false,false,false,false,6,4,6,0,,0
 Spring,Spring Cloud,Previous Question Bank,What is other way of getting data from an application A to application B without using rest template?,,false,false,false,false,false,25,4,4,0,,0
-Core Java,Java Strings,Previous Question Bank,What is immutable class?,,false,false,false,false,false,7,3,7,0,,0
-OOPS,Pillers,Previous Question Bank,Can we define a method inside interface?,,false,false,false,false,false,12,2,0,0,,0
-OOPS,Misc,Previous Question Bank,Can we override static methods and private methods?,Overriding static and private methods is not allowed,false,false,false,false,false,15,2,3,0,,0
-OOPS,Misc,Previous Question Bank,Can we overload main method in java?,,false,false,false,false,false,16,2,3,0,,0
-Core Java,Java Strings,Previous Question Bank,Can we have immutable constructor?,,false,false,false,false,false,8,3,7,0,,0
+Core Java,Java Strings,Previous Question Bank,What is immutable class?,,false,false,false,false,false,7,3,10,0,,0
+OOPS,Understanding OOP Pillers,Previous Question Bank,Can we define a method inside interface?,"<ul><li>Yes, since Java 8, interfaces can contain method bodies using default or static keywords, alongside traditional abstract methods</li></ul>",false,false,false,false,false,8,2,1,0,,0
+OOPS,Fundamentals,Previous Question Bank,Can we override static methods and private methods?,Overriding static and private methods is not allowed,false,false,false,false,false,1,2,3,0,,0
+Core Java,Keywords & Lifecycle,Previous Question Bank,Can we overload main method in java?,,false,false,false,false,false,3,2,0,0,,0
+Core Java,Java Strings,Previous Question Bank,Can we have immutable constructor?,,false,false,false,false,false,8,3,10,0,,0
 Spring,Spring MVC,Previous Question Bank,What is spring mvc?,,false,false,false,false,false,8,4,6,0,,0
 Core Java,Java Strings,Previous Question Bank,"String s1=abc
 String s2=new String(""abc"")
-Will it create two different objects? If yes where?",,false,false,false,false,false,9,3,7,0,,0
-OOPS,Pillers,Previous Question Bank,What is the use of protected access modifier?,,false,false,false,false,false,14,2,0,0,,0
-OOPS,Misc,Previous Question Bank,What is the use of Default modifier?,,false,false,false,false,false,43,2,3,0,,0
+Will it create two different objects? If yes where?",,false,false,false,false,false,9,3,10,0,,0
+OOPS,Fundamentals,Previous Question Bank,What is the use of protected access modifier?,,false,false,false,false,false,8,2,3,0,,0
+OOPS,Fundamentals,Previous Question Bank,What is the use of Default modifier?,,false,false,false,false,false,7,2,3,0,,0
+OOPS,Core Concepts,Previous Question Bank,List all Core Concepts,<ul><li>Class</li><li>Object</li><li>Encapsulation</li><li>Inheritance</li><li>Polymorphism</li><li>Abstraction</li></ul>,false,false,false,false,false,2,2,0,0,,0
+OOPS,Core Concepts,Previous Question Bank,What is OOP & Why we need it?,<ol><li><p><strong>What it is:</strong> A programming paradigm represents real-world entities as classes and objects.</p></li><li><p><strong>Why we need it:</strong></p><ul><li><p><strong>Reusability:</strong> Write code once and use it again with inheritance.</p></li><li><p><strong>Maintenance:</strong> Fix bugs fast because code is split into small pieces.</p></li><li><p><strong>Security:</strong> Hide data using encapsulation so it stays safe.</p></li><li><p><strong>Scalability:</strong> Grow big software easily without breaking old code.</p></li></ul></li></ol>,false,false,false,false,false,0,2,0,0,,0
+OOPS,Understanding OOP Pillers,Previous Question Bank,Interface vs Abstract Class,"<ul><li>While Java 8+ interfaces can have default and static methods, abstract classes are still essential when your design requires</li></ul>",false,false,false,false,false,6,2,1,0,,0
 Introduction,General,Manageral Round,,,false,false,false,false,false,0,0,0,0,,0
