@@ -172,10 +172,9 @@ function refreshAfterExternalDataChange() {
   renderFileSwitcher();
   // A cross-device pull can bring in a themeDark/autoDownloadOn preference set on another device —
   // re-apply both so this device matches immediately, not just after its own next manual toggle.
+  // (repaint(), called below via refreshView(), re-syncs the #autoDownloadToggle checkbox itself.)
   theme.applyTheme();
   autoDownload.applyAutoDownloadState();
-  const autoDownloadToggleEl = /** @type {HTMLInputElement|null} */ (document.getElementById("autoDownloadToggle"));
-  if (autoDownloadToggleEl) autoDownloadToggleEl.checked = !!appState.toggles.autoDownloadOn;
   // refreshView() first: it recomputes appState.grouped/groupedUnfiltered from the new file's
   // rawData, which filters.syncControlsFromState()'s option lists read from — populating the
   // dropdowns before this recompute would show stale (usually empty) options.

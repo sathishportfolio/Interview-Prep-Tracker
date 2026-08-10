@@ -79,6 +79,11 @@ export function repaint() {
   document.body.classList.toggle("edit-mode-off", !appState.toggles.editModeOn);
   document.body.classList.toggle("drag-drop-off", !appState.toggles.dragDropOn);
   document.getElementById("editModeToggleBtn")?.classList.toggle("edit-mode-active", appState.toggles.editModeOn);
+  // Static checkbox (not part of the render engine) — kept in sync here so it reflects toggles
+  // changed from elsewhere too (Edit Mode's own lockstep, a cross-device sync pull), not just its
+  // own change handler.
+  const autoDownloadToggleEl = /** @type {HTMLInputElement|null} */ (document.getElementById("autoDownloadToggle"));
+  if (autoDownloadToggleEl) autoDownloadToggleEl.checked = !!appState.toggles.autoDownloadOn;
 
   if (afterRepaintHook) afterRepaintHook();
 }
