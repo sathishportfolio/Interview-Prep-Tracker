@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { wrapAnswerAsList, minifyHtml, minifyAllAnswers } from "./answerFormat.js";
+import { wrapAnswerAsList, minifyHtml, minifyAllAnswers, stripAttributesAndComments, cleanAnswerHtml, normalizeStoredAnswer } from "./answerFormat.js";
 
 test("wrapAnswerAsList wraps plain text in <ul><li>", () => {
   assert.equal(wrapAnswerAsList("Plain answer text"), "<ul><li>Plain answer text</li></ul>");
@@ -66,4 +66,61 @@ test("minifyAllAnswers reports changed:false when nothing needs minifying", () =
   const result = minifyAllAnswers(rawData);
   assert.equal(result.changed, false);
   assert.deepEqual(result.rawData, rawData);
+});
+
+test("stripAttributesAndComments removes style/class/id and every other attribute, including custom/data-*/aria-*/on* ones", () => {
+  const input = '<div id="x" class="y" style="color:red" data-foo="bar" aria-label="z" onclick="alert(1)" data-whatever-custom-thing="123">text</div>';
+  assert.equal(stripAttributesAndComments(input), "<div>text</div>");
+});
+
+test("stripAttributesAndComments removes HTML comments entirely", () => {
+  assert.equal(stripAttributesAndComments("<p>a</p><!-- a comment --><p>b</p>"), "<p>a</p><p>b</p>");
+});
+
+test("stripAttributesAndComments strips attributes from self-closing/void tags too", () => {
+  assert.equal(stripAttributesAndComments('<img src="x.png" alt="pic" />'), "<img>");
+  assert.equal(stripAttributesAndComments('<br class="x"/>'), "<br>");
+});
+
+test("stripAttributesAndComments leaves plain tags and text content untouched", () => {
+  const input = "<ul><li>Already plain</li></ul>";
+  assert.equal(stripAttributesAndComments(input), input);
+});
+
+test("cleanAnswerHtml strips attributes/comments, wraps, and minifies a real 'Text to HTML' export", () => {
+  const input = `<p class="demoTitle">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span style="background: #16643d; color: #fff;"> &nbsp;Text </span>&nbsp;-&nbsp;HTML&nbsp;.&nbsp;com</p>
+<p class="intro">Convert your visual text documents to HTML code instantly. Edit and clean your markup with a couple of clicks.</p>
+<p style="text-align: center;"><a href="https://text-html.com/" target="_blank" rel="nofollow"><img style="width: 90%; max-width: 400px;" src="https://text-html.com/pics/paste-text-here-convert-html.jpg" alt="screenshot" /></a></p>
+<h2>How to use the Text to HTML converter?</h2>
+<ul>
+<li>Paste a visual document to the left to convert it to HTML</li>
+<li>Paste your HTML code it the right to preview the document</li>
+</ul>
+<p><strong>Press the <span style="display: inline-block; background: #16643d; color: #fff; padding: 5px 15px; border-radius: 8px;">Clean</span> button to execute the <em style="background: transparent url('https://text-html.com/pics/checkmark.png') no-repeat scroll 4px -64px; display: inline-block; padding: 0 10px 0 20px; color: #16643d; font-weight: bold;">checked</em> <a href="https://html-cleaner.com/" target="_blank" rel="nofollow">HTML cleaning</a> options.</strong></p>
+<p class="aligncenter">Erase the page to get started. <span style="background: url('pics/png.png') no-repeat scroll -75px 0 transparent; height: 25px; width: 25px; display: inline-block;">&nbsp;</span></p>
+<p>&nbsp;</p>
+<!-- Comments are visible in the HTML source only -->`;
+  const result = cleanAnswerHtml(input);
+  // No leftover attributes (of any name, including custom ones) or comments.
+  assert.equal(/<[a-z][a-z0-9]*\s+[^>]/i.test(result), false, "no tag should have anything after its name");
+  assert.equal(/<!--/.test(result), false);
+  // Every original tag/text survives, just bare — wrapped as a single outer bullet since the
+  // cleaned content didn't already start with <ul><li>.
+  assert.equal(
+    result,
+    "<ul><li><p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span> &nbsp;Text </span>&nbsp;-&nbsp;HTML&nbsp;.&nbsp;com</p>" +
+      "<p>Convert your visual text documents to HTML code instantly. Edit and clean your markup with a couple of clicks.</p>" +
+      "<p><a><img></a></p>" +
+      "<h2>How to use the Text to HTML converter?</h2>" +
+      "<ul><li>Paste a visual document to the left to convert it to HTML</li>" +
+      "<li>Paste your HTML code it the right to preview the document</li></ul>" +
+      "<p><strong>Press the <span>Clean</span> button to execute the <em>checked</em><a>HTML cleaning</a> options.</strong></p>" +
+      "<p>Erase the page to get started. <span>&nbsp;</span></p>" +
+      "<p>&nbsp;</p></li></ul>"
+  );
+});
+
+test("normalizeStoredAnswer strips attributes/comments and minifies but does NOT wrap unwrapped content", () => {
+  const input = '<p class="x">Legacy answer</p>';
+  assert.equal(normalizeStoredAnswer(input), "<p>Legacy answer</p>");
 });
