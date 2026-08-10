@@ -7,6 +7,38 @@
  */
 import { sampleBulkRow } from "../data/csv/bulkCsv.js";
 import { attachDuplicateHints } from "./duplicateHints.js";
+import { appState } from "../state/appState.js";
+
+/**
+ * Resolves the Subject/Topic/SubTopic to prefill the sample row with: the panel's own fixed scope
+ * (set when it's mounted under a Subject/Topic/SubTopic accordion) if any, otherwise — for a
+ * root-level panel with no fixed scope — whichever Subject/Topic/SubTopic is currently expanded in
+ * the accordion (deepest open chain wins), mirroring the same "current chain" scan
+ * features/activeQuestion.js's computeBreadcrumbData uses for the header breadcrumb.
+ * @param {{fixedSubject?: string|null, fixedTopic?: string|null, fixedSubTopic?: string|null}} scope
+ * @returns {{subject?: string, topic?: string, subTopic?: string}}
+ */
+function resolveSampleScope(scope) {
+  if (scope.fixedSubject || scope.fixedTopic || scope.fixedSubTopic) {
+    return { subject: scope.fixedSubject || undefined, topic: scope.fixedTopic || undefined, subTopic: scope.fixedSubTopic || undefined };
+  }
+  let subject, topic, subTopic;
+  for (const key of appState.openNodeKeys) {
+    if (key.startsWith("S::")) subject = key.slice(3);
+    const topicMatch = /^(.+)::T::(.+)$/.exec(key);
+    if (topicMatch) {
+      subject = topicMatch[1];
+      topic = topicMatch[2];
+    }
+    const subTopicMatch = /^(.+)::(.+)::ST::(.+)$/.exec(key);
+    if (subTopicMatch) {
+      subject = subTopicMatch[1];
+      topic = subTopicMatch[2];
+      subTopic = subTopicMatch[3];
+    }
+  }
+  return { subject, topic, subTopic };
+}
 
 /**
  * @param {{
@@ -14,6 +46,7 @@ import { attachDuplicateHints } from "./duplicateHints.js";
  *   toggleLabel: string,
  *   onSubmit: (text: string) => {summaryText: string},
  *   showSampleLink?: boolean,
+ *   sampleScope?: {fixedSubject?: string|null, fixedTopic?: string|null, fixedSubTopic?: string|null},
  * }} config
  * @returns {HTMLElement}
  */
@@ -44,7 +77,7 @@ export function buildBulkPanel(config) {
     sampleLink.style.fontSize = "0.75rem";
     sampleLink.addEventListener("click", (e) => {
       e.preventDefault();
-      textarea.value = sampleBulkRow();
+      textarea.value = sampleBulkRow(resolveSampleScope(config.sampleScope || {}));
     });
     body.appendChild(sampleLink);
   }

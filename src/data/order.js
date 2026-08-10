@@ -114,3 +114,29 @@ export function reorderSiblingsByIdList(rawData, subject, topic, subTopic, order
     return q;
   });
 }
+
+/**
+ * When multiple questions are selected and the physically-dragged one is among them, computes the
+ * final sibling id order for moving the WHOLE selected group together within the same SubTopic list
+ * — SortableJS itself only moves the one dragged tile in the DOM (see features/dragDrop.js's
+ * onUpdate), so the raw post-drop DOM order only reflects that single item's new position; every
+ * other selected sibling is still sitting wherever it started. Relocates the selected ids as a
+ * contiguous block (preserving their own original relative order) to the slot where the dragged
+ * tile was dropped, same as a single-question drag would land it.
+ * @param {Question[]} rawData Full unfiltered array (pre-drop order, i.e. before this reorder is applied).
+ * @param {string} subject @param {string} topic @param {string} subTopic
+ * @param {string[]} orderedIds Post-drop DOM order (every sibling id; only draggedId actually moved)
+ * @param {string[]} selectedIds Every id selected when the drag started (includes draggedId)
+ * @param {string} draggedId The one tile SortableJS actually moved
+ * @returns {string[]} Final id order with every selected id relocated as a contiguous block
+ */
+export function applyGroupReorder(rawData, subject, topic, subTopic, orderedIds, selectedIds, draggedId) {
+  const selectedSet = new Set(selectedIds);
+  const oldOrder = siblingsOf(rawData, subject, topic, subTopic).map((q) => q.id);
+  const selectedBlock = oldOrder.filter((id) => selectedSet.has(id));
+  const nonSelected = oldOrder.filter((id) => !selectedSet.has(id));
+
+  const dropPos = orderedIds.indexOf(draggedId);
+  const insertIndex = orderedIds.slice(0, dropPos).filter((id) => !selectedSet.has(id)).length;
+  return [...nonSelected.slice(0, insertIndex), ...selectedBlock, ...nonSelected.slice(insertIndex)];
+}

@@ -18,6 +18,7 @@ export function createBulkAddPanel(scope = {}) {
   return buildBulkPanel({
     label: "Add",
     toggleLabel: "+ Bulk Add (CSV)",
+    sampleScope: scope,
     onSubmit: (text) => {
       if (!fileManager.ensureActiveFileFromPrompt()) return { summaryText: "Cancelled — a file name is required." };
       const parsed = parseBulkCsv(text, scope);

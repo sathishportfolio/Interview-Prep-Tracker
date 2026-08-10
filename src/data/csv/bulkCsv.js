@@ -107,9 +107,26 @@ export function serializeBulkCsv(questions) {
 }
 
 /**
- * A sample starter row for the "Copy/insert sample row" link.
+ * A sample starter row for the "Copy/insert sample row" link. Subject/Topic/SubTopic default to
+ * literal placeholder text, but callers (bulkPanelUI.js) pass through the panel's own fixed scope —
+ * or, for a root-level panel with no fixed scope, whichever Subject/Topic/SubTopic is currently
+ * expanded in the accordion — so the sample reflects where the user's actually adding to instead of
+ * always requiring a find-and-replace before pasting.
+ * @param {{subject?: string, topic?: string, subTopic?: string}} [scope]
  * @returns {string}
  */
-export function sampleBulkRow() {
-  return `${BULK_ALL_COLUMNS.join(",")}\nSubject,Topic,SubTopic,Sample question text,Sample answer,false,false,false,false,false`;
+export function sampleBulkRow(scope = {}) {
+  const record = {
+    Subject: scope.subject || "Subject",
+    Topic: scope.topic || "Topic",
+    SubTopic: scope.subTopic || "SubTopic",
+    Question: "Sample question text",
+    Answer: "Sample answer",
+    Done: "false",
+    ReviewLater: "false",
+    Duplicate: "false",
+    LessImportant: "false",
+    Starred: "false",
+  };
+  return serializeCsvObjects(BULK_ALL_COLUMNS, [record]);
 }

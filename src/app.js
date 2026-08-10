@@ -32,6 +32,7 @@ import * as reviewShortcuts from "./features/reviewShortcuts.js";
 import { openShortcutsHelp } from "./features/keyboardShortcutsHelp.js";
 import * as bulkSelection from "./features/bulkSelection.js";
 import * as tempModeFeature from "./features/tempModeFeature.js";
+import * as autoDownload from "./features/autoDownload.js";
 import * as groupPanels from "./features/groupPanels.js";
 import { showToast, confirmAction } from "./features/toast.js";
 import * as syncConfig from "./sync/syncConfig.js";
@@ -305,6 +306,14 @@ function init() {
     const on = /** @type {HTMLInputElement} */ (e.target).checked;
     tempModeFeature.setTempModeOn(on);
     showToast(on ? "Temp/Test Mode ON — nothing will be saved." : "Temp/Test Mode OFF.", "info");
+  });
+
+  const autoDownloadToggleEl = /** @type {HTMLInputElement|null} */ ($("autoDownloadToggle"));
+  if (autoDownloadToggleEl) autoDownloadToggleEl.checked = autoDownload.isAutoDownloadOn();
+  autoDownloadToggleEl?.addEventListener("change", (e) => {
+    const on = /** @type {HTMLInputElement} */ (e.target).checked;
+    autoDownload.toggleAutoDownload(on);
+    showToast(on ? "Auto Download ON — downloading a CSV backup of the current file every minute." : "Auto Download OFF.", "info");
   });
 
   // --- Root-level Bulk Add/Update/Copy ---

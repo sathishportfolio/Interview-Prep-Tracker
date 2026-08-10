@@ -5,7 +5,7 @@
  * Subject is bulk-add-only, per feature.md). Creates an empty-group placeholder immediately;
  * the user then adds questions into it via Bulk Add or the move form.
  */
-import { createEmptyGroup } from "../data/mutations.js";
+import { createEmptyGroup, addQuestion } from "../data/mutations.js";
 import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import { promptAction, showToast } from "./toast.js";
@@ -37,4 +37,27 @@ export function quickAddSubTopic(subject, topic) {
   openNode(`${subject}::T::${topic}`);
   openNode(`${subject}::${topic}::ST::${name.trim()}`);
   showToast(`SubTopic "${name.trim()}" added.`, "success");
+}
+
+/**
+ * Quick Add Question: a single `window.prompt` for the question text, added directly into a
+ * SubTopic without opening the Bulk Add (CSV) panel — for the common case of adding just one
+ * question. Answer is left blank (same as Bulk Add's "Add Answer" path) — use the answer editor
+ * afterward to fill it in.
+ * @param {string} subject
+ * @param {string} topic
+ * @param {string} subTopic
+ */
+export function quickAddQuestion(subject, topic, subTopic) {
+  const questionText = promptAction("New question text:");
+  if (!questionText || !questionText.trim()) return;
+  const result = addQuestion(
+    { rawData: appState.rawData, emptyGroups: appState.emptyGroups },
+    { subject, topic, subTopic, question: questionText.trim() }
+  );
+  applyDataChange({ rawData: result.rawData, emptyGroups: result.emptyGroups });
+  openNode(`S::${subject}`);
+  openNode(`${subject}::T::${topic}`);
+  openNode(`${subject}::${topic}::ST::${subTopic}`);
+  showToast(`Question added.`, "success");
 }

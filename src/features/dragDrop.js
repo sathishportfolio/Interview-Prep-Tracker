@@ -20,7 +20,7 @@
  * data/mutations.js's moveQuestions (question-level) and moveGroup (SubTopic/Topic-level), which
  * this module calls with a computed destination and nothing else.
  */
-import { reorderSiblingsByIdList } from "../data/order.js";
+import { reorderSiblingsByIdList, applyGroupReorder } from "../data/order.js";
 import { moveQuestions, moveGroup } from "../data/mutations.js";
 import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
@@ -183,7 +183,12 @@ function initQuestionSortable(el, Sortable) {
     onUpdate: () => {
       // Same-list reorder.
       const orderedIds = Array.from(el.children).map((c) => /** @type {string} */ (/** @type {HTMLElement} */ (c).dataset.qid));
-      const rawData = reorderSiblingsByIdList(appState.rawData, subject, topic, subTopic, orderedIds);
+      let finalIds = orderedIds;
+      if (dragState && dragState.kind === "question" && dragState.ids.length > 1) {
+        const draggedId = /** @type {string} */ (dragState.el.dataset.qid);
+        finalIds = applyGroupReorder(appState.rawData, subject, topic, subTopic, orderedIds, dragState.ids, draggedId);
+      }
+      const rawData = reorderSiblingsByIdList(appState.rawData, subject, topic, subTopic, finalIds);
       applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
     },
     onAdd: (evt) => {

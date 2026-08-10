@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nextQuestionOrder, moveQuestionOrder, reorderSiblingsByIdList } from "./order.js";
+import { nextQuestionOrder, moveQuestionOrder, reorderSiblingsByIdList, applyGroupReorder } from "./order.js";
 
 function q(id, order) {
   return { id, subject: "S", topic: "T", subTopic: "ST", question: "Q", answer: "", done: false, reviewLater: false, duplicate: false, lessImportant: false, starred: false, order, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0 };
@@ -43,4 +43,31 @@ test("reorderSiblingsByIdList only touches matching subject/topic/subTopic", () 
   assert.equal(out.find((x) => x.id === "b").order, 0);
   assert.equal(out.find((x) => x.id === "a").order, 1);
   assert.equal(out.find((x) => x.id === "c").order, 0); // untouched
+});
+
+test("applyGroupReorder moves every selected sibling together, preserving their own relative order", () => {
+  const rawData = [q("a", 0), q("b", 1), q("c", 2), q("d", 3), q("e", 4)];
+  // a and c are selected; only "a" is the one SortableJS physically dragged (dropped between d and
+  // e) — the DOM-post-drop order reflects that single move, "c" is still sitting where it started.
+  const orderedIds = ["b", "c", "d", "a", "e"];
+  const result = applyGroupReorder(rawData, "S", "T", "ST", orderedIds, ["a", "c"], "a");
+  // Both a and c relocate as a block (a before c, their original relative order) to land where "a"
+  // was dropped — right after "d", before "e".
+  assert.deepEqual(result, ["b", "d", "a", "c", "e"]);
+});
+
+test("applyGroupReorder handles a non-contiguous selection dragged to the end of the list", () => {
+  const rawData = [q("a", 0), q("b", 1), q("c", 2), q("d", 3), q("e", 4)];
+  // b and d selected; "b" physically dragged past the end.
+  const orderedIds = ["a", "c", "d", "e", "b"];
+  const result = applyGroupReorder(rawData, "S", "T", "ST", orderedIds, ["b", "d"], "b");
+  assert.deepEqual(result, ["a", "c", "e", "b", "d"]);
+});
+
+test("applyGroupReorder dragging the group to the very front", () => {
+  const rawData = [q("a", 0), q("b", 1), q("c", 2), q("d", 3)];
+  // c and d selected; "d" physically dragged to the front.
+  const orderedIds = ["d", "a", "b", "c"];
+  const result = applyGroupReorder(rawData, "S", "T", "ST", orderedIds, ["c", "d"], "d");
+  assert.deepEqual(result, ["c", "d", "a", "b"]);
 });
