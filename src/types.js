@@ -78,6 +78,8 @@
  * @property {boolean} autoExpandChildrenOn default false — opening a Subject/Topic also opens its
  *   first Topic/SubTopic in the same click (see features/autoExpand.js); never cascades to Questions.
  * @property {boolean} themeDark default true — see features/theme.js.
+ * @property {boolean} [autoDownloadOn] default false — periodic CSV auto-download backstop, synced
+ *   like every other toggle here (see features/autoDownload.js).
  */
 
 /**

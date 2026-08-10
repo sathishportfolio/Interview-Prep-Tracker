@@ -24,6 +24,7 @@ export function emptySchema() {
       tempMode: false,
       autoExpandChildrenOn: false,
       themeDark: true,
+      autoDownloadOn: false,
     },
     activeQuestion: null,
     sync: {

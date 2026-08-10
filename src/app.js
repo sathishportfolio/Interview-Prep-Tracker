@@ -170,9 +170,12 @@ function initDropdownMenu(btnId, panelId, onOpen) {
 /** Shared refresh after anything that changes appState.files/filters from outside the normal edit flow (file switch, load, or a sync pull/move/copy/fetch). */
 function refreshAfterExternalDataChange() {
   renderFileSwitcher();
-  // A cross-device pull can bring in a themeDark preference set on another device — re-apply it so
-  // this device's display matches immediately, not just after its own next manual toggle.
+  // A cross-device pull can bring in a themeDark/autoDownloadOn preference set on another device —
+  // re-apply both so this device matches immediately, not just after its own next manual toggle.
   theme.applyTheme();
+  autoDownload.applyAutoDownloadState();
+  const autoDownloadToggleEl = /** @type {HTMLInputElement|null} */ (document.getElementById("autoDownloadToggle"));
+  if (autoDownloadToggleEl) autoDownloadToggleEl.checked = !!appState.toggles.autoDownloadOn;
   // refreshView() first: it recomputes appState.grouped/groupedUnfiltered from the new file's
   // rawData, which filters.syncControlsFromState()'s option lists read from — populating the
   // dropdowns before this recompute would show stale (usually empty) options.
@@ -186,6 +189,7 @@ function init() {
   fileManager.bootstrapFromStorage();
   tempModeFeature.initTempModeFromStorage(); // re-enters Temp/Test Mode if it was still on at last close
   theme.applyTheme(); // before first paint, so there's no light-theme flash for returning dark-theme users
+  autoDownload.applyAutoDownloadState(); // resumes the auto-download timer if it was still on
 
   // First-time-mobile-visitor default: Flatten View ON.
   if (flattenView.isMobile() && !localStorage.getItem("iqv:v1")) {
@@ -309,10 +313,10 @@ function init() {
   });
 
   const autoDownloadToggleEl = /** @type {HTMLInputElement|null} */ ($("autoDownloadToggle"));
-  if (autoDownloadToggleEl) autoDownloadToggleEl.checked = autoDownload.isAutoDownloadOn();
+  if (autoDownloadToggleEl) autoDownloadToggleEl.checked = !!appState.toggles.autoDownloadOn;
   autoDownloadToggleEl?.addEventListener("change", (e) => {
     const on = /** @type {HTMLInputElement} */ (e.target).checked;
-    autoDownload.toggleAutoDownload(on);
+    autoDownload.setAutoDownloadOn(on);
     showToast(on ? "Auto Download ON — downloading a CSV backup of the current file every minute." : "Auto Download OFF.", "info");
   });
 

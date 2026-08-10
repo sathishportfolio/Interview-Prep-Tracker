@@ -46,6 +46,7 @@ export const appState = {
     tempMode: false,
     autoExpandChildrenOn: false,
     themeDark: true,
+    autoDownloadOn: false,
   },
 
   /** @type {TimerState} */
