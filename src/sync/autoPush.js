@@ -16,6 +16,12 @@
  * writes leave behind. doPush() guards against its own push's writes the same way (via `pushing`) —
  * without that guard, pushBin()'s `store.writeSync` on success would re-mark dirty and re-arm the
  * debounce from inside doPush itself, auto-pushing forever every DEBOUNCE_MS even with no real edits.
+ *
+ * Besides the 60s debounce, a "visibilitychange" listener fires an immediate push the moment the tab
+ * is backgrounded/closed while dirty — the actual "push at end of session" behavior (app.js separately
+ * does a one-time silent pull at startup, the "pull at start of session" half): relying on the 60s
+ * timer alone means a quick visit-edit-close cycle can close the tab before the debounce ever fires,
+ * and beforeunload can't reliably await an async gzip+fetch, so this is the best-effort save point.
  */
 import { appState } from "../state/appState.js";
 import * as bins from "./bins.js";
@@ -64,6 +70,19 @@ export function initAutoPush(callback, pushedCallback, dirtyChangeCallback) {
     if (!dirty) return;
     e.preventDefault();
     e.returnValue = "";
+  });
+  // Fires on tab close, tab switch, and app backgrounding alike (unlike beforeunload, which only
+  // covers the close/navigate case and can't reliably await this async push anyway) — the earliest
+  // reliable signal that the session might be ending, so the safety-net push happens here instead of
+  // waiting out the rest of the 60s debounce.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "hidden") return;
+    if (!dirty || pushing) return;
+    if (debounceHandle) {
+      clearTimeout(debounceHandle);
+      debounceHandle = null;
+    }
+    doPush();
   });
 }
 

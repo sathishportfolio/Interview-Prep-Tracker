@@ -377,9 +377,10 @@ function init() {
   renderSyncMenuState();
   // Keeps the relative-time label ("5 min ago" -> "1 hr ago") advancing even with no new sync activity.
   setInterval(updateSyncStatusLabel, 30000);
-  // No push-per-edit or pull-on-load (JSONBin's free tier has tight request-rate/size limits) — the
-  // Push/Pull buttons are the primary sync path. autoPush.js only backstops edits left unpushed for
-  // a full minute, and blocks tab close while something is still unpushed.
+  // No push-per-edit (JSONBin's free tier has tight request-rate/size limits) — the Push/Pull
+  // buttons are the primary sync path. autoPush.js backstops edits left unpushed for a full minute
+  // (or the tab being backgrounded/closed sooner) so a session's changes still reach the cloud
+  // without waiting on a manual Push. See the silent startup pull below for the read-side backstop.
   autoPush.initAutoPush(
     (usage) => updateSyncUsageBadge(usage),
     () => updateSyncStatusLabel(),
@@ -424,6 +425,23 @@ function init() {
   // from whatever they were about to work on.
   if (appState.activeQuestion && !appState.toggles.editModeOn) {
     activeQuestionFeature.jumpToActiveQuestion();
+  }
+
+  // --- Session-start pull ---
+  // A silent, one-time pull of the current bin right after the local paint above, not gated behind
+  // the manual Pull button's confirm dialog: at this point in the session nothing local has changed
+  // yet, so there's nothing of this device's to lose by taking the cloud's version — but pulling
+  // mid-session (once edits exist) would risk clobbering unpushed local work with stale cloud data,
+  // which is exactly why pull otherwise stays manual-only. Paired with autoPush's
+  // push-on-backgrounded/close (see sync/autoPush.js) as the "push at end of session" half.
+  if (syncConfig.isSyncConfigured() && appState.sync.enabled && !appState.toggles.tempMode) {
+    bins.pullBinIntoLocalState(appState.sync.currentBinId).then((result) => {
+      if (!result.ok) return;
+      autoPush.markSynced(); // this pull's own writes aren't a new local edit needing a push
+      fileManager.bootstrapFromStorage();
+      refreshAfterExternalDataChange();
+      updateSyncStatusLabel();
+    });
   }
 }
 
