@@ -26,15 +26,25 @@ export function wrapAnswerAsList(answer) {
 /**
  * Collapses whitespace in an HTML string to keep stored/synced answers small — never strips tags,
  * attributes, or content, only redundant whitespace (indentation, line breaks, doubled spaces) that
- * a browser would collapse away when rendering anyway.
+ * a browser would collapse away when rendering anyway. `<pre>...</pre>` blocks (code snippets) are
+ * carved out and restored byte-for-byte before that collapsing happens, since browsers render
+ * whitespace inside `<pre>` literally — collapsing it would flatten multi-line code onto one line.
  * @param {string} html
  * @returns {string}
  */
 export function minifyHtml(html) {
-  return html
+  const preBlocks = [];
+  const withPlaceholders = html.replace(/<pre[^>]*>[\s\S]*?<\/pre>/gi, (match) => {
+    preBlocks.push(match);
+    return "@@PRE" + (preBlocks.length - 1) + "@@";
+  });
+  const minified = withPlaceholders
     .replace(/\s+/g, " ")
     .replace(/>\s+</g, "><")
+    .replace(/>\s+(@@PRE\d+@@)/g, ">$1")
+    .replace(/(@@PRE\d+@@)\s+</g, "$1<")
     .trim();
+  return minified.replace(/@@PRE(\d+)@@/g, (_, i) => preBlocks[Number(i)]);
 }
 
 /**

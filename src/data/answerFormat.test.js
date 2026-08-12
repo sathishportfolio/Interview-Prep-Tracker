@@ -47,6 +47,19 @@ test("minifyHtml is a no-op on already-minified HTML", () => {
   assert.equal(minifyHtml(minified), minified);
 });
 
+test("minifyHtml preserves whitespace/newlines inside a <pre><code> block", () => {
+  const input = "<ul><li><pre><code>import java.lang.annotation.*;\n\n@Retention(RetentionPolicy.RUNTIME)\npublic @interface MyCustomAnnotation {\n    String value() default \"Default Text\";\n}</code></pre></li>\n</ul>";
+  assert.equal(
+    minifyHtml(input),
+    "<ul><li><pre><code>import java.lang.annotation.*;\n\n@Retention(RetentionPolicy.RUNTIME)\npublic @interface MyCustomAnnotation {\n    String value() default \"Default Text\";\n}</code></pre></li></ul>"
+  );
+});
+
+test("minifyHtml still collapses whitespace outside <pre> blocks while leaving the block untouched", () => {
+  const input = "<p>Before</p>\n  <pre>  keep   this   </pre>\n  <p>After</p>";
+  assert.equal(minifyHtml(input), "<p>Before</p><pre>  keep   this   </pre><p>After</p>");
+});
+
 test("minifyAllAnswers minifies only answers that need it, reporting changed:true", () => {
   const rawData = [
     { id: "a", answer: "<ul>\n  <li>Needs minifying</li>\n</ul>" },

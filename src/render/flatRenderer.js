@@ -67,6 +67,30 @@ export function renderFlat(tree) {
   );
 }
 
+/**
+ * Looks up a Flatten View group's own element by its subject/topic/subTopic dataset (mirrors
+ * render/accordion.js's findNodeElement for the tree view) — used by features/reviewShortcuts.js's
+ * Tab/Shift+Tab SubTopic navigation to scroll an empty Subject/Topic/SubTopic group into view when
+ * there's no question to activate/scroll to instead. `topic`/`subTopic` pass `null` for a
+ * subject-only or topic-only empty-group position, matching how createFlatGroup only sets those
+ * dataset attributes when the group actually has them.
+ * @param {string} subject
+ * @param {string|null} topic
+ * @param {string|null} subTopic
+ * @returns {HTMLElement|null}
+ */
+export function findFlatGroupEl(subject, topic, subTopic) {
+  if (!rootEl) return null;
+  return (
+    /** @type {HTMLElement|null} */ (
+      [...rootEl.querySelectorAll(".flat-group")].find((el) => {
+        const d = /** @type {HTMLElement} */ (el).dataset;
+        return d.subject === subject && (topic == null ? d.topic === undefined : d.topic === topic) && (subTopic == null ? d.subTopic === undefined : d.subTopic === subTopic);
+      }) ?? null
+    )
+  );
+}
+
 function createFlatGroup(g) {
   const wrap = document.createElement("div");
   wrap.className = "flat-group";

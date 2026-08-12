@@ -138,3 +138,44 @@ export function flattenQuestions(tree) {
   }
   return out;
 }
+
+/**
+ * Flattens a GroupedTree to one "navigable position" per leaf branch, in the same order the tree
+ * (and Flatten View — see render/flatRenderer.js's identical subject/topic/subTopic-with-no-children
+ * handling) renders in. Most positions are `level: "subTopic"` with a real subTopic and questions,
+ * but an empty-group placeholder Subject with no Topics, or a Topic with no SubTopics, has nothing
+ * deeper to descend into — those surface as their own `level: "subject"`/`"topic"` position instead
+ * of being silently skipped, so the Tab/Shift+Tab SubTopic-navigation shortcuts stop there rather
+ * than jumping straight past an empty group to the next one with content.
+ * `firstQuestionId`/`lastQuestionId` are only ever non-null for `level: "subTopic"` positions that
+ * actually have questions (tiered display order — starred-first, see this module's tierOf).
+ * @param {GroupedTree} tree
+ * @returns {Array<{level: "subject"|"topic"|"subTopic", subject: string, topic?: string, subTopic?: string, firstQuestionId: string|null, lastQuestionId: string|null}>}
+ */
+export function flattenNavigablePositions(tree) {
+  /** @type {Array<{level: "subject"|"topic"|"subTopic", subject: string, topic?: string, subTopic?: string, firstQuestionId: string|null, lastQuestionId: string|null}>} */
+  const out = [];
+  for (const s of tree.subjects) {
+    if (s.topics.length === 0) {
+      out.push({ level: "subject", subject: s.subject, firstQuestionId: null, lastQuestionId: null });
+      continue;
+    }
+    for (const t of s.topics) {
+      if (t.subTopics.length === 0) {
+        out.push({ level: "topic", subject: s.subject, topic: t.topic, firstQuestionId: null, lastQuestionId: null });
+        continue;
+      }
+      for (const st of t.subTopics) {
+        out.push({
+          level: "subTopic",
+          subject: s.subject,
+          topic: t.topic,
+          subTopic: st.subTopic,
+          firstQuestionId: st.questions[0]?.id ?? null,
+          lastQuestionId: st.questions[st.questions.length - 1]?.id ?? null,
+        });
+      }
+    }
+  }
+  return out;
+}

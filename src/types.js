@@ -114,6 +114,14 @@
  * @property {number|null} lastPushAt
  * @property {number|null} lastPullAt
  * @property {number|null} lastKnownRemoteUpdatedAt
+ * @property {string|null} [lastPushedPayloadHash] Hash of this device's last-pushed bin content
+ *   (sync/bins.js's pushCurrentBinIfChanged) — lets a repeated Push with no new edits be detected
+ *   and skipped (Duplicate Push Protection) instead of burning a JSONBin request.
+ * @property {string|null} [lastRemoteActiveDevice] Device ID (see sync/device.js) that made the
+ *   most recently pulled/pushed bin's last write — purely informational/display, not used for any
+ *   sync decision.
+ * @property {string|null} [lastRemoteUpdateTimestamp] IST-formatted ("MMM dd, yyyy HH:mm:ss") wall-
+ *   clock time of that same last write — shown in the Auto-Pull-on-Login toast (see app.js).
  * @property {boolean} enabled false = auto-push backstop paused (conserves JSONBin API usage);
  *   Manual Push/Pull remain available regardless. Defaults false on fresh installs, true for
  *   pre-existing configured installs (see persistence/schema.js's coerceSync).

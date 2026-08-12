@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { groupData, flattenQuestions } from "./group.js";
+import { groupData, flattenQuestions, flattenNavigablePositions } from "./group.js";
 
 function q(overrides) {
   return {
@@ -81,4 +81,44 @@ test("flattenQuestions returns all questions across the tree", () => {
   const tree = groupData(rawData, []);
   const flat = flattenQuestions(tree);
   assert.equal(flat.length, 2);
+});
+
+test("flattenNavigablePositions walks SubTopics in Subject > Topic > SubTopic display order, with each SubTopic's first/last question id", () => {
+  const rawData = [
+    q({ id: "a", subject: "S2", topic: "T1", subTopic: "ST1", subjectOrder: 1 }),
+    q({ id: "b", subject: "S1", topic: "T2", subTopic: "ST1", subjectOrder: 0, topicOrder: 1 }),
+    q({ id: "c", subject: "S1", topic: "T1", subTopic: "ST2", subjectOrder: 0, topicOrder: 0, subTopicOrder: 1 }),
+    q({ id: "d1", subject: "S1", topic: "T1", subTopic: "ST1", subjectOrder: 0, topicOrder: 0, subTopicOrder: 0, order: 0 }),
+    q({ id: "d2", subject: "S1", topic: "T1", subTopic: "ST1", subjectOrder: 0, topicOrder: 0, subTopicOrder: 0, order: 1 }),
+  ];
+  const tree = groupData(rawData, []);
+  const flat = flattenNavigablePositions(tree);
+  assert.deepEqual(flat, [
+    { level: "subTopic", subject: "S1", topic: "T1", subTopic: "ST1", firstQuestionId: "d1", lastQuestionId: "d2" },
+    { level: "subTopic", subject: "S1", topic: "T1", subTopic: "ST2", firstQuestionId: "c", lastQuestionId: "c" },
+    { level: "subTopic", subject: "S1", topic: "T2", subTopic: "ST1", firstQuestionId: "b", lastQuestionId: "b" },
+    { level: "subTopic", subject: "S2", topic: "T1", subTopic: "ST1", firstQuestionId: "a", lastQuestionId: "a" },
+  ]);
+});
+
+test("flattenNavigablePositions reports firstQuestionId/lastQuestionId: null for an empty-group placeholder SubTopic", () => {
+  const tree = groupData([], [{ subject: "S1", topic: "T1", subTopic: "ST1" }]);
+  const flat = flattenNavigablePositions(tree);
+  assert.deepEqual(flat, [{ level: "subTopic", subject: "S1", topic: "T1", subTopic: "ST1", firstQuestionId: null, lastQuestionId: null }]);
+});
+
+test("flattenNavigablePositions surfaces an empty Subject (no Topics) as its own level:'subject' stop", () => {
+  const tree = groupData([], [{ subject: "S1", topic: null, subTopic: null }]);
+  const flat = flattenNavigablePositions(tree);
+  assert.deepEqual(flat, [{ level: "subject", subject: "S1", firstQuestionId: null, lastQuestionId: null }]);
+});
+
+test("flattenNavigablePositions surfaces an empty Topic (no SubTopics) as its own level:'topic' stop, alongside a real sibling SubTopic", () => {
+  const rawData = [q({ id: "a", subject: "S1", topic: "T2", subTopic: "ST1" })];
+  const tree = groupData(rawData, [{ subject: "S1", topic: "T1", subTopic: null }]);
+  const flat = flattenNavigablePositions(tree);
+  assert.deepEqual(flat, [
+    { level: "subTopic", subject: "S1", topic: "T2", subTopic: "ST1", firstQuestionId: "a", lastQuestionId: "a" },
+    { level: "topic", subject: "S1", topic: "T1", firstQuestionId: null, lastQuestionId: null },
+  ]);
 });

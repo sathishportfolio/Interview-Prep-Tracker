@@ -98,7 +98,8 @@ export function markSynced() {
 async function doPush() {
   debounceHandle = null;
   pushing = true;
-  const pushed = await bins.pushCurrentBin();
+  const result = await bins.pushCurrentBinIfChanged();
+  const pushed = result.ok;
   pushing = false;
   if (pushed) setDirty(false);
 

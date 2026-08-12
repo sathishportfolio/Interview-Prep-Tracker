@@ -3,6 +3,14 @@
  * features/reviewShortcuts.js — keyboard shortcuts for the review flow, all scoped to the current
  * Active Question so they never fight normal browser/page behavior:
  *   Up/Down          move the Active Question to the previous/next question in the visible list
+ *   Home/End         scroll to the top/bottom of the page
+ *   Tab              move to the next SubTopic and mark its first question the Active Question
+ *                    (Subject → Topic → SubTopic order, cascading into the next Topic/Subject once
+ *                    the current one runs out of SubTopics; stops — doesn't skip past — an empty
+ *                    Subject/Topic/SubTopic; wraps to the first Subject's first question past the
+ *                    last one). Works the same in Flatten View (see render/flatRenderer.js).
+ *   Shift+Tab        the mirror of Tab: previous SubTopic, its LAST question, wrapping to the last
+ *                    Subject's last question before the first one.
  *   d                mark the Active Question Done
  *   r                flag the Active Question Review Later
  *   s or *           flag the Active Question Starred
@@ -22,14 +30,16 @@
  * selection everywhere else on the page, same as always).
  */
 import { appState, toggleNodeOpen } from "../state/appState.js";
-import { flattenQuestions } from "../data/group.js";
-import { applyOpenState } from "../render/accordion.js";
+import { flattenQuestions, flattenNavigablePositions } from "../data/group.js";
+import { applyOpenState, openNode, scrollNodeIntoView } from "../render/accordion.js";
 import { findQuestionHeaderEl } from "../render/treeRenderer.js";
+import { findFlatGroupEl } from "../render/flatRenderer.js";
 import * as activeQuestion from "./activeQuestion.js";
 import * as statusFlags from "./statusFlags.js";
 import * as moveButtons from "./moveButtons.js";
 import * as copySingle from "./copySingle.js";
 import { openShortcutsHelp } from "./keyboardShortcutsHelp.js";
+import { repaint } from "./refresh.js";
 
 /** @param {EventTarget|null} target */
 function isTypingTarget(target) {
@@ -65,6 +75,134 @@ function moveActive(direction) {
     nextIdx = direction === "down" ? Math.min(idx + 1, ids.length - 1) : Math.max(idx - 1, 0);
   }
   activeQuestion.setActiveQuestion(ids[nextIdx]);
+}
+
+/**
+ * Finds where the "current" position sits in navigable-position order (see
+ * data/group.js's flattenNavigablePositions) — from the currently open Subject/Topic/SubTopic
+ * accordion chain FIRST, falling back to the Active Question's SubTopic only if nothing is open at
+ * all (e.g. right after Close All). The open-chain reconstruction has to win over the Active
+ * Question when both exist: landing on an empty Subject/Topic (see revealEmptyPosition) opens that
+ * chain WITHOUT touching the Active Question (there's no question there to point it at), so after
+ * that a stale Active Question from wherever it was before would otherwise make the very next
+ * Tab/Shift+Tab jump from the wrong place instead of continuing on from the empty stop.
+ *
+ * Reconstructing "current" from appState.openNodeKeys has to be scoped by prefix at each level, not
+ * just pattern-matched anywhere in the set: Subject-level exclusivity is global (openNodeExclusive
+ * closes every OTHER "S::" key), so at most one Subject is ever open, but closing a Subject doesn't
+ * cascade-delete that Subject's own now-unreachable "T::"/"ST::" keys — they just linger in the set,
+ * invisible in the DOM. Scanning for a bare "::ST::" match anywhere (as an earlier version of this
+ * function did) could pick up one of those orphaned keys from a previously visited, now-closed
+ * Subject instead of the actually-open one.
+ * @param {Array<{level: "subject"|"topic"|"subTopic", subject: string, topic?: string, subTopic?: string}>} positions
+ * @returns {number} index into `positions`, or -1 if no current position can be found
+ */
+function currentPositionIndex(positions) {
+  const openKeys = [...appState.openNodeKeys];
+  const openSubjectKey = openKeys.find((k) => k.startsWith("S::"));
+  if (openSubjectKey) {
+    const subject = openSubjectKey.slice(3);
+    const openTopicKey = openKeys.find((k) => k.startsWith(`${subject}::T::`));
+    if (openTopicKey) {
+      const topic = openTopicKey.slice(`${subject}::T::`.length);
+      const openSubTopicKey = openKeys.find((k) => k.startsWith(`${subject}::${topic}::ST::`));
+      if (openSubTopicKey) {
+        const subTopic = openSubTopicKey.slice(`${subject}::${topic}::ST::`.length);
+        const idx = positions.findIndex((p) => p.level === "subTopic" && p.subject === subject && p.topic === topic && p.subTopic === subTopic);
+        if (idx !== -1) return idx;
+      }
+      const idx = positions.findIndex((p) => p.level === "topic" && p.subject === subject && p.topic === topic);
+      if (idx !== -1) return idx;
+      const fallbackIdx = positions.findIndex((p) => p.subject === subject && p.topic === topic);
+      if (fallbackIdx !== -1) return fallbackIdx;
+    }
+    const idx = positions.findIndex((p) => p.level === "subject" && p.subject === subject);
+    if (idx !== -1) return idx;
+    const fallbackIdx = positions.findIndex((p) => p.subject === subject);
+    if (fallbackIdx !== -1) return fallbackIdx;
+  }
+
+  const qid = activeQuestionId();
+  if (qid) {
+    const q = appState.rawData.find((x) => x.id === qid);
+    if (q) {
+      const idx = positions.findIndex((p) => p.level === "subTopic" && p.subject === q.subject && p.topic === q.topic && p.subTopic === q.subTopic);
+      if (idx !== -1) return idx;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Reveals an empty (`firstQuestionId`/`lastQuestionId: null`) Subject/Topic/SubTopic position —
+ * there's no question to activate, so this is the fallback for that case. Always updates
+ * appState.openNodeKeys for the full ancestor chain (via openNode), even in Flatten View where that
+ * has no visual accordion to expand (see render/flatRenderer.js) — currentPositionIndex reconstructs
+ * "where Tab/Shift+Tab currently are" from openNodeKeys, so skipping this update while in Flatten
+ * View left it stuck on whatever was open before, which is exactly what made Tab/Shift+Tab misbehave
+ * after switching views mid-session but "work again" after a reload (openNodeKeys is transient,
+ * never persisted — see state/appState.js — so a reload always starts it clean). Only the actual
+ * scroll target differs by view: Flatten View scrolls to its own always-visible group heading
+ * instead of a tree accordion node.
+ * @param {{level: "subject"|"topic"|"subTopic", subject: string, topic?: string, subTopic?: string}} position
+ */
+function revealEmptyPosition(position) {
+  const subjectKey = `S::${position.subject}`;
+  openNode(subjectKey);
+  let topicKey = null;
+  let stKey = null;
+  if (position.level !== "subject") {
+    topicKey = `${position.subject}::T::${position.topic}`;
+    openNode(topicKey);
+    if (position.level !== "topic") {
+      stKey = `${position.subject}::${position.topic}::ST::${position.subTopic}`;
+      openNode(stKey);
+    }
+  }
+  repaint();
+
+  if (appState.toggles.flatGroupView) {
+    findFlatGroupEl(position.subject, position.topic ?? null, position.subTopic ?? null)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    return;
+  }
+  scrollNodeIntoView(stKey || topicKey || subjectKey);
+}
+
+/**
+ * Tab/Shift+Tab shared implementation: moves to the next/previous navigable position (SubTopic, or
+ * an empty Subject/Topic that has nothing deeper to descend into — see
+ * data/group.js's flattenNavigablePositions) and marks its first (Tab) or last (Shift+Tab) question
+ * the Active Question — which also reveals it (expanding ancestors and scrolling into view, same as
+ * Up/Down; works unchanged in Flatten View since it's driven by the question row itself, not a
+ * tree accordion — see activeQuestion.js's revealActiveQuestion). An empty position has no question
+ * to activate, so it's revealed instead (see revealEmptyPosition) — either way this is a stop, not a
+ * skip past it hunting for content. Runs off either end wraps around (Tab past the last position
+ * goes to the very first Subject's first question; Shift+Tab past the first goes to the very last
+ * Subject's last question) rather than dead-ending.
+ * @param {"next"|"prev"} direction
+ */
+function navigateSubTopic(direction) {
+  const positions = flattenNavigablePositions(appState.grouped);
+  if (positions.length === 0) return;
+  const idx = currentPositionIndex(positions);
+
+  /** @type {number} */
+  let targetIdx;
+  if (direction === "next") {
+    targetIdx = idx === -1 ? 0 : idx + 1;
+    if (targetIdx >= positions.length) targetIdx = 0; // wrap: first Subject's first question
+  } else {
+    targetIdx = idx === -1 ? positions.length - 1 : idx - 1;
+    if (targetIdx < 0) targetIdx = positions.length - 1; // wrap: last Subject's last question
+  }
+
+  const target = positions[targetIdx];
+  const qid = direction === "next" ? target.firstQuestionId : target.lastQuestionId;
+  if (qid) {
+    activeQuestion.setActiveQuestion(qid);
+  } else {
+    revealEmptyPosition(target);
+  }
 }
 
 /** @param {string} qid */
@@ -131,6 +269,23 @@ export function initReviewShortcuts() {
     if (e.key === "ArrowUp") {
       e.preventDefault();
       moveActive("up");
+      return;
+    }
+
+    if (e.key === "Home") {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    if (e.key === "End") {
+      e.preventDefault();
+      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
+      return;
+    }
+
+    if (e.key === "Tab") {
+      e.preventDefault();
+      navigateSubTopic(e.shiftKey ? "prev" : "next");
       return;
     }
 

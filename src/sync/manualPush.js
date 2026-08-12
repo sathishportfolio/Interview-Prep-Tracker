@@ -20,8 +20,12 @@ export async function manualPush() {
   if (!confirmAction("Push local changes to the cloud now?")) {
     return { ok: false };
   }
-  const pushed = await bins.pushCurrentBin();
-  if (!pushed) {
+  const result = await bins.pushCurrentBinIfChanged();
+  if (result.skipped) {
+    showToast("Already pushed latest changes.", "info");
+    return { ok: true };
+  }
+  if (!result.ok) {
     showToast("Push failed or nothing to push.", "error");
     return { ok: false };
   }

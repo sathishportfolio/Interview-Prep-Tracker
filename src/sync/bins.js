@@ -23,6 +23,20 @@ import { appState } from "../state/appState.js";
 import * as store from "../persistence/store.js";
 import { gzipToBase64, gunzipFromBase64 } from "./gzip.js";
 import { pushToBin, pullFromBin, createBin as createBinRemote, usageAgainstFreeTierCap } from "./jsonbin.js";
+import { getDeviceId, formatIST } from "./device.js";
+
+/**
+ * Cheap non-cryptographic string hash (djb2) — only used to notice "did this device's own bin
+ * content change since its last push" for duplicate-push protection (see pushCurrentBinIfChanged),
+ * never for anything security-sensitive.
+ * @param {string} str
+ * @returns {string}
+ */
+function hashString(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = (h * 33) ^ str.charCodeAt(i);
+  return (h >>> 0).toString(36);
+}
 
 /** @param {FileRecord} file @returns {string|null} The bin this file actually lives in. */
 export function resolveBinId(file) {
@@ -66,14 +80,36 @@ export function groupLocalFilesByBin() {
 /**
  * @param {FileRecord[]} files
  * @param {boolean} includeAppMeta Only the current bin carries these app-level singletons.
+ * @returns {Record<string, any>} The meaningful content payload — deliberately excludes
+ *   activeDevice/isUpdated/updateTimestamp (see serializeBinPayload) so hashing it for
+ *   duplicate-push detection isn't defeated by the timestamp changing on every push.
  */
-function serializeBinPayload(files, includeAppMeta) {
+function serializeBinContent(files, includeAppMeta) {
   const payload = { schemaVersion: 1, files };
   if (includeAppMeta) {
     Object.assign(payload, {
       globalToggles: appState.toggles,
       activeQuestion: appState.activeQuestion,
       timer: appState.timer,
+    });
+  }
+  return payload;
+}
+
+/**
+ * @param {FileRecord[]} files
+ * @param {boolean} includeAppMeta Only the current bin carries these app-level singletons — device
+ *   tracking (activeDevice/isUpdated/updateTimestamp) included, so a bin holding other devices'
+ *   files but not currently "current" here doesn't get its device attribution overwritten by this
+ *   device's push.
+ */
+function serializeBinPayload(files, includeAppMeta) {
+  const payload = serializeBinContent(files, includeAppMeta);
+  if (includeAppMeta) {
+    Object.assign(payload, {
+      activeDevice: getDeviceId(),
+      isUpdated: true,
+      updateTimestamp: formatIST(Date.now()),
     });
   }
   return JSON.stringify(payload);
@@ -99,7 +135,7 @@ export async function computeCurrentBinUsage() {
  * anything else that needs to peek at a bin's `updatedAt`/files without applying it to local state
  * (see applyBinToLocalState for the part that does).
  * @param {string} binId
- * @returns {Promise<{ok: boolean, files: FileRecord[], globalToggles?: any, activeQuestion?: any, timer?: any, updatedAt: number|null, error?: string}>}
+ * @returns {Promise<{ok: boolean, files: FileRecord[], globalToggles?: any, activeQuestion?: any, timer?: any, activeDevice?: string, isUpdated?: boolean, updateTimestamp?: string, updatedAt: number|null, error?: string}>}
  */
 export async function pullBinRaw(binId) {
   const masterKey = appState.sync.masterKey;
@@ -116,6 +152,9 @@ export async function pullBinRaw(binId) {
       globalToggles: parsed.globalToggles,
       activeQuestion: parsed.activeQuestion,
       timer: parsed.timer,
+      activeDevice: parsed.activeDevice,
+      isUpdated: parsed.isUpdated,
+      updateTimestamp: parsed.updateTimestamp,
       updatedAt: result.updatedAt,
     };
   } catch {
@@ -168,12 +207,39 @@ export async function pushCurrentBin() {
 }
 
 /**
+ * Duplicate Push Protection: pushes the current bin only if its content actually changed since this
+ * device's last successful push — compared by hash (see hashString), over content only
+ * (serializeBinContent), never the device-tracking meta stamped on afterward, so the timestamp
+ * changing on every push can't itself defeat the comparison. Manual Push and the auto-push backstop
+ * both route through this instead of pushCurrentBin so neither burns a JSONBin request on a no-op
+ * push (e.g. clicking Push twice in a row with no edits in between).
+ * @returns {Promise<{ok: boolean, skipped: boolean}>}
+ */
+export async function pushCurrentBinIfChanged() {
+  const currentBinId = appState.sync.currentBinId;
+  if (!currentBinId) return { ok: false, skipped: false };
+
+  const files = groupLocalFilesByBin().get(currentBinId) || [];
+  const hash = hashString(JSON.stringify(serializeBinContent(files, true)));
+  if (hash === appState.sync.lastPushedPayloadHash) {
+    return { ok: true, skipped: true };
+  }
+
+  const result = await pushBin(currentBinId);
+  if (result.ok) {
+    appState.sync = { ...appState.sync, lastPushedPayloadHash: hash };
+    store.writeSync(appState.sync);
+  }
+  return { ok: result.ok, skipped: false };
+}
+
+/**
  * Applies an already-fetched bin payload (from pullBinRaw) to local state: files from this bin
  * upserted by id, app-level meta applied only if this is the current bin. Split out from
  * pullBinIntoLocalState as its own step so callers that already have a fetched payload (e.g.
  * fetchAllBins) can apply it without a redundant re-fetch.
  * @param {string} binId
- * @param {{files: FileRecord[], globalToggles?: any, activeQuestion?: any, timer?: any, updatedAt: number|null}} remote
+ * @param {{files: FileRecord[], globalToggles?: any, activeQuestion?: any, timer?: any, activeDevice?: string, isUpdated?: boolean, updateTimestamp?: string, updatedAt: number|null}} remote
  */
 export function applyBinToLocalState(binId, remote) {
   const byId = new Map(appState.files.map((f) => [f.id, f]));
@@ -186,7 +252,13 @@ export function applyBinToLocalState(binId, remote) {
     if (remote.timer) appState.timer = remote.timer;
   }
 
-  appState.sync = { ...appState.sync, lastPullAt: Date.now(), lastKnownRemoteUpdatedAt: remote.updatedAt };
+  appState.sync = {
+    ...appState.sync,
+    lastPullAt: Date.now(),
+    lastKnownRemoteUpdatedAt: remote.updatedAt,
+    lastRemoteActiveDevice: remote.activeDevice ?? appState.sync.lastRemoteActiveDevice,
+    lastRemoteUpdateTimestamp: remote.updateTimestamp ?? appState.sync.lastRemoteUpdateTimestamp,
+  };
   store.writeFiles(appState.files);
   store.writeGlobalToggles(appState.toggles);
   store.writeActiveQuestion(appState.activeQuestion);

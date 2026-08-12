@@ -8,6 +8,9 @@ import { openModal } from "./modal.js";
 
 const SHORTCUTS = [
   ["Up / Down", "Move the Active Question to the previous/next question"],
+  ["Home / End", "Scroll to the top/bottom of the page"],
+  ["Tab", "Move to the next SubTopic and mark its first question active (stops at an empty Subject/Topic/SubTopic; wraps at the end)"],
+  ["Shift + Tab", "Move to the previous SubTopic and mark its last question active (stops at an empty Subject/Topic/SubTopic; wraps at the start)"],
   ["d", "Mark the Active Question Done"],
   ["r", "Flag the Active Question Review Later"],
   ["s or *", "Flag the Active Question Starred"],

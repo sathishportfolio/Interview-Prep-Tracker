@@ -41,6 +41,13 @@ export function buildTreeHandlers() {
     // previously open — toggleNodeOpenExclusive only updated appState, not that row's own DOM.
     onToggleQuestionOpen: (qid) => {
       toggleNodeOpenExclusive(`Q::${qid}`);
+      // Opening a question's answer body while Edit Mode is off is a review action — mark it the
+      // Active Question so this is the resume point on next load. Edit Mode's own gated controls
+      // (Edit Answer, etc.) already set it explicitly on save, so this only covers the plain-review
+      // open/close click.
+      if (appState.openNodeKeys.has(`Q::${qid}`) && !appState.toggles.editModeOn) {
+        activeQuestion.setActiveQuestionQuiet(qid);
+      }
       repaint();
     },
     onToggleSelectQuestion: (qid) => bulkSelection.toggleSelectQuestion(qid),

@@ -434,9 +434,22 @@ function init() {
   // mid-session (once edits exist) would risk clobbering unpushed local work with stale cloud data,
   // which is exactly why pull otherwise stays manual-only. Paired with autoPush's
   // push-on-backgrounded/close (see sync/autoPush.js) as the "push at end of session" half.
+  //
+  // Auto-Pull on Login: only actually applies the pull if the bin's real JSONBin `updatedAt` is
+  // newer than what this device last knew (appState.sync.lastKnownRemoteUpdatedAt) — that's already
+  // stamped fresh by this SAME device's own successful pushes (see sync/bins.js's pushBin), so a
+  // newer remote timestamp here reliably means some OTHER device/instance pushed since this one was
+  // last open. When that's the case, surface which device and when (activeDevice/updateTimestamp,
+  // see sync/device.js) before pulling.
   if (syncConfig.isSyncConfigured() && appState.sync.enabled && !appState.toggles.tempMode) {
-    bins.pullBinIntoLocalState(appState.sync.currentBinId).then((result) => {
-      if (!result.ok) return;
+    bins.pullBinRaw(appState.sync.currentBinId).then((remote) => {
+      if (!remote.ok) return;
+      const isNewer = remote.updatedAt != null && (!appState.sync.lastKnownRemoteUpdatedAt || remote.updatedAt > appState.sync.lastKnownRemoteUpdatedAt);
+      if (!isNewer) return;
+      if (remote.activeDevice && remote.updateTimestamp) {
+        showToast(`Found update from last active session from ${remote.activeDevice} on ${remote.updateTimestamp} - Pulling`, "info");
+      }
+      bins.applyBinToLocalState(/** @type {string} */ (appState.sync.currentBinId), remote);
       autoPush.markSynced(); // this pull's own writes aren't a new local edit needing a push
       fileManager.bootstrapFromStorage();
       refreshAfterExternalDataChange();

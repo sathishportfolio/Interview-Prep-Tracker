@@ -34,6 +34,9 @@ export function emptySchema() {
       lastPushAt: null,
       lastPullAt: null,
       lastKnownRemoteUpdatedAt: null,
+      lastPushedPayloadHash: null,
+      lastRemoteActiveDevice: null,
+      lastRemoteUpdateTimestamp: null,
       enabled: false,
     },
     timer: {

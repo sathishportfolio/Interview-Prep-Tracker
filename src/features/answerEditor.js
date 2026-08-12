@@ -10,6 +10,7 @@ import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import { openModal } from "./modal.js";
 import { showToast } from "./toast.js";
+import { setActiveQuestionQuiet } from "./activeQuestion.js";
 
 /** @param {string} questionId */
 export function openAnswerEditor(questionId) {
@@ -60,6 +61,7 @@ export function openAnswerEditor(questionId) {
     onSave: () => {
       const answer = cleanAnswerHtml(textarea.value);
       const rawData = updateQuestion(appState.rawData, questionId, { answer });
+      setActiveQuestionQuiet(questionId);
       applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
     },
   });
