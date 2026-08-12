@@ -5,8 +5,11 @@
  * edit was removed — see manualPush.js) but leaving a change sitting unpushed indefinitely risks
  * losing it if the tab closes, so: (1) after DEBOUNCE_MS of no further local changes, auto-push
  * once, and (2) block tab close while a change is known to be unpushed. `appState.sync.enabled`
- * (the Sync menu's Auto-sync toggle) gates this entirely — while off, edits never mark dirty and
- * this backstop never fires, conserving API usage; Manual Push/Pull are unaffected either way.
+ * (the Sync menu's Auto-sync toggle) gates the actual push attempts (the debounced push and the
+ * visibilitychange safety-net push never fire while off, conserving API usage) but NOT the dirty
+ * flag itself — the status dot still tracks "does the cloud have my latest changes?" even while
+ * paused, so the user always has an honest signal regardless of the toggle. Manual Push/Pull are
+ * unaffected either way.
  *
  * "Dirty" is tracked from the "iqv:persisted" DOM event (persistence/store.js's explicit hook), but
  * that event also fires for writes that a pull/sync action itself makes (applying remote data
@@ -60,9 +63,13 @@ export function initAutoPush(callback, pushedCallback, dirtyChangeCallback) {
   onDirtyChange = dirtyChangeCallback || null;
   document.addEventListener("iqv:persisted", () => {
     if (pushing) return; // this write is doPush()'s own bookkeeping, not a new local edit
-    if (!appState.sync || !appState.sync.masterKey || !appState.sync.currentBinId || !appState.sync.enabled) return;
+    if (!appState.sync || !appState.sync.masterKey || !appState.sync.currentBinId) return;
     if (appState.toggles.tempMode) return; // temp mode never syncs
+    // Dirty tracking (the status dot) reflects reality regardless of Auto-sync being paused, so the
+    // user can always tell whether the cloud is behind — only the actual debounced push is gated by
+    // sync.enabled, to conserve API usage while paused.
     setDirty(true);
+    if (!appState.sync.enabled) return;
     if (debounceHandle) clearTimeout(debounceHandle);
     debounceHandle = setTimeout(doPush, DEBOUNCE_MS);
   });
@@ -78,6 +85,7 @@ export function initAutoPush(callback, pushedCallback, dirtyChangeCallback) {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "hidden") return;
     if (!dirty || pushing) return;
+    if (!appState.sync.enabled) return; // paused: dirty dot stays lit, but no push happens behind the user's back
     if (debounceHandle) {
       clearTimeout(debounceHandle);
       debounceHandle = null;

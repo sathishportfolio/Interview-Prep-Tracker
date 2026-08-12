@@ -333,6 +333,7 @@ function init() {
   $("themeToggleBtn")?.addEventListener("click", () => theme.toggleTheme());
   $("editModeToggleBtn")?.addEventListener("click", () => editMode.toggleEditMode());
   $("closeAllBtn")?.addEventListener("click", () => closeAll.closeAllAccordions());
+  closeAll.initCloseAllShortcut();
   $("undoBtn")?.addEventListener("click", () => undoRedo.undo());
   $("redoBtn")?.addEventListener("click", () => undoRedo.redo());
   $("keyboardShortcutsBtn")?.addEventListener("click", () => openShortcutsHelp());
