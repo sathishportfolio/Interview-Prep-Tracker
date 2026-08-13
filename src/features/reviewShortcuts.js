@@ -15,7 +15,9 @@
  *   r                flag the Active Question Review Later
  *   s or *           flag the Active Question Starred
  *   Ctrl/Cmd+Up/Down move the Active Question to the top/bottom of its SubTopic
- *   Enter            expand/collapse the Active Question's answer
+ *   Enter            expand/collapse the Active Question's answer (opening auto-closes whichever
+ *                    other question's answer was previously open, same single-open exclusivity as
+ *                    clicking a question — see toggleQuestionBody)
  *   Ctrl/Cmd+Enter    Google-search the Active Question
  *   Ctrl/Cmd+C        copy the Active Question's text (only when nothing else is text-selected)
  *   ?                 open the Keyboard Shortcuts help modal
@@ -29,11 +31,11 @@
  * handling in render/accordion.js); or text is actively selected (so Ctrl/Cmd+C still copies the
  * selection everywhere else on the page, same as always).
  */
-import { appState, toggleNodeOpen } from "../state/appState.js";
+import { appState, toggleNodeOpenExclusive } from "../state/appState.js";
 import { flattenQuestions, flattenNavigablePositions } from "../data/group.js";
-import { applyOpenState, openNode, scrollNodeIntoView } from "../render/accordion.js";
-import { findQuestionHeaderEl } from "../render/treeRenderer.js";
+import { openNode, scrollNodeIntoView } from "../render/accordion.js";
 import { findFlatGroupEl } from "../render/flatRenderer.js";
+import { findQuestionHeaderEl } from "../render/treeRenderer.js";
 import * as activeQuestion from "./activeQuestion.js";
 import * as statusFlags from "./statusFlags.js";
 import * as moveButtons from "./moveButtons.js";
@@ -205,14 +207,23 @@ function navigateSubTopic(direction) {
   }
 }
 
-/** @param {string} qid */
+/**
+ * Toggles a question's answer body open/closed, applying the same single-open exclusivity as
+ * clicking it (see treeHandlers.js's onToggleQuestionOpen) — otherwise Up/Down/Tab navigation
+ * followed by Enter would stack up multiple expanded answers instead of the previously-open one
+ * auto-closing as the Active Question moves on. Exclusivity only updates appState, not the other
+ * row's own DOM, so this repaints to resync it. When opening, re-scrolls the question into view
+ * AFTER that repaint — collapsing a long previously-open answer elsewhere on the page shifts layout,
+ * and scrolling only once the new layout has settled keeps the transition from jumping.
+ * @param {string} qid
+ */
 function toggleQuestionBody(qid) {
-  const header = findQuestionHeaderEl(qid);
-  const body = /** @type {HTMLElement|null} */ (header && header.nextElementSibling);
-  if (!header || !body) return;
   const key = `Q::${qid}`;
-  toggleNodeOpen(key);
-  applyOpenState(header, body, key);
+  toggleNodeOpenExclusive(key);
+  repaint();
+  if (appState.openNodeKeys.has(key)) {
+    findQuestionHeaderEl(qid)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
 }
 
 export function initReviewShortcuts() {
