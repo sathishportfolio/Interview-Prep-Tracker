@@ -453,7 +453,11 @@ function init() {
   // last open. When that's the case, surface which device and when (activeDevice/updateTimestamp, see
   // sync/device.js) before pulling. gists.pullIfRemoteNewer() does the whole check-then-maybe-apply in
   // one request — there's no cheaper "metadata only" endpoint to peek with first.
-  if (syncConfig.isSyncConfigured() && appState.sync.enabled && !appState.toggles.tempMode) {
+  //
+  // Deliberately NOT gated behind appState.sync.enabled (the Auto-sync/push toggle) — pausing
+  // auto-push shouldn't also silence "check for the latest data on load," since pulling never writes
+  // anything remote. A paused device should still open showing whatever's newest.
+  if (syncConfig.isSyncConfigured() && !appState.toggles.tempMode) {
     gists.pullIfRemoteNewer().then((result) => {
       if (!result.ok) {
         showToast(`Session-start pull failed: ${result.error || "unknown error"}`, "error");

@@ -168,7 +168,13 @@ function applyRemotePullResult(result) {
   const meta = parseMeta(result);
   if (!meta) return { ok: false, error: `This gist has no readable "${META_FILENAME}" file — it isn't the sync gist (maybe the wrong gist id was pasted, or its last write was corrupted?).` };
 
-  const byId = new Map(appState.files.map((f) => [f.id, f]));
+  // Seed ONLY with files that have never been pushed (gistFileName null) — there's nothing remote to
+  // reconcile those against, so they survive untouched. Every file that HAS a gistFileName must come
+  // from what's actually still present in the remote gist below: if another device deleted it, its
+  // blob is simply absent from result.files, and it must NOT survive the pull. Seeding from the full
+  // local file list (the previous approach) meant a remote delete could never propagate — a locally
+  // known file just stayed forever regardless of whether the gist still had it.
+  const byId = new Map(appState.files.filter((f) => !f.gistFileName).map((f) => [f.id, f]));
   /** @type {Array<{fileName: string, error: string}>} */
   const failures = [];
   for (const [filename, f] of Object.entries(result.files)) {
@@ -181,8 +187,10 @@ function applyRemotePullResult(result) {
         lastPushedHash: hashString(JSON.stringify(content)),
       });
     } catch (e) {
-      // Read-safety fallback: skip this one file rather than losing everything else in the gist —
-      // whatever local copy already existed for it (if any) is left untouched.
+      // Read-safety fallback: a genuinely unreadable blob shouldn't be treated as "deleted" — keep
+      // whatever local copy already existed for this exact blob (if any) rather than losing it.
+      const existingLocal = appState.files.find((lf) => lf.gistFileName === filename);
+      if (existingLocal) byId.set(existingLocal.id, existingLocal);
       failures.push({ fileName: filename, error: "Could not parse this file's content." });
       console.error(`Cross-Device Sync: failed to parse "${filename}" from the sync gist: ${e}`);
     }
@@ -326,10 +334,13 @@ export async function pullIfRemoteNewer() {
 /**
  * Deletes a file's blob from the shared sync gist (one PATCH, setting its filename to `null` per the
  * Gist API's delete-a-file convention) and removes it from this device's local storage's own record.
- * No-ops successfully if sync isn't configured or the file was never pushed, since there's nothing
- * remote to clean up in that case. Not subject to the version/lock pre-push validation that
- * pushAllChangedFiles uses — a delete is a deliberate, infrequent, user-confirmed action rather than
- * a background auto-push, so it goes straight through.
+ * Also bumps the meta blob's `version`/`lastWriter` in the SAME PATCH — a delete is a real state
+ * change other devices need to notice via the version/updated_at tracking just like a content push,
+ * otherwise a device that only ever deletes files (never edits content) would never advance the
+ * version counter. No-ops successfully if sync isn't configured or the file was never pushed, since
+ * there's nothing remote to clean up in that case. Not subject to the lock-check pre-push validation
+ * that pushAllChangedFiles uses — a delete is a deliberate, infrequent, user-confirmed action rather
+ * than a background auto-push, so it goes straight through.
  * @param {string} fileId
  * @returns {Promise<{ok: boolean, error?: string}>}
  */
@@ -339,7 +350,23 @@ export async function deleteFileFromGist(fileId) {
   if (!token || !configGistId) return { ok: true };
   const file = appState.files.find((f) => f.id === fileId);
   if (!file || !file.gistFileName) return { ok: true };
-  return pushToGist({ token, gistId: configGistId, files: { [file.gistFileName]: null }, description: syncGistDescription() });
+
+  const remoteResult = await pullFromGist({ token, gistId: configGistId });
+  const remoteMeta = remoteResult.ok ? parseMeta(remoteResult) : null;
+  const remoteVersion = remoteMeta && typeof remoteMeta.version === "number" ? remoteMeta.version : appState.sync.knownVersion ?? 0;
+  const newVersion = remoteVersion + 1;
+
+  const result = await pushToGist({
+    token,
+    gistId: configGistId,
+    files: { [file.gistFileName]: null, [META_FILENAME]: { content: serializeMetaContent({ version: newVersion, activeDevice: null }) } },
+    description: syncGistDescription(),
+  });
+  if (!result.ok) return result;
+
+  appState.sync = { ...appState.sync, knownVersion: newVersion, lastRemoteActiveDevice: getDeviceId(), lastRemoteUpdateTimestamp: formatIST(Date.now()) };
+  store.writeSync(appState.sync);
+  return { ok: true };
 }
 
 /**
