@@ -116,6 +116,7 @@ body {
 }
 .export-menu-item { justify-content: flex-start; border: none; }
 .last-synced-label { font-size: 0.75rem; opacity: 0.8; }
+.last-synced-detail-label { font-size: 0.72rem; opacity: 0.65; margin-bottom: 0.5rem; }
 
 .bulk-select-menu-wrap { position: relative; display: inline-block; }
 .bulk-select-menu-panel {

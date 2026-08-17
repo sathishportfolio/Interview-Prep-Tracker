@@ -59,16 +59,16 @@ export async function createGist({ token, files, description }) {
 }
 
 /**
- * @param {{token: string, gistId: string, files: Record<string, {content: string}|null>}} config A
+ * @param {{token: string, gistId: string, files: Record<string, {content: string}|null>, description?: string}} config A
  *   file value of `null` deletes that file from the gist (the Gist API's own convention for PATCH).
  * @returns {Promise<{ok: boolean, error?: string}>}
  */
-export async function pushToGist({ token, gistId, files }) {
+export async function pushToGist({ token, gistId, files, description }) {
   try {
     const res = await fetch(`${API_BASE}/${gistId}`, {
       method: "PATCH",
       headers: headers(token),
-      body: JSON.stringify({ files }),
+      body: JSON.stringify({ files, ...(description !== undefined ? { description } : {}) }),
     });
     if (!res.ok) return { ok: false, error: await describeError("Gist push", res) };
     return { ok: true };
@@ -89,7 +89,22 @@ export async function pullFromGist({ token, gistId }) {
     /** @type {Record<string, {content: string}>} */
     const files = {};
     for (const [name, f] of Object.entries(json.files || {})) {
-      files[name] = { content: /** @type {any} */ (f).content || "" };
+      const entry = /** @type {any} */ (f);
+      // GitHub truncates a gist file's inline `content` past a size threshold (flagging
+      // `truncated: true`), returning only a partial prefix — JSON.parse-ing that partial string is
+      // exactly what produces "Could not parse this file's content" for a large CSV file. The full
+      // content is available at `raw_url` instead; fall back to the (truncated) inline content only
+      // if that fetch itself fails, rather than losing the file's data entirely.
+      if (entry.truncated && entry.raw_url) {
+        try {
+          const rawRes = await fetch(entry.raw_url);
+          files[name] = { content: rawRes.ok ? await rawRes.text() : entry.content || "" };
+        } catch {
+          files[name] = { content: entry.content || "" };
+        }
+      } else {
+        files[name] = { content: entry.content || "" };
+      }
     }
     const updatedAt = json.updated_at ? Date.parse(json.updated_at) : null;
     return { ok: true, files, updatedAt: Number.isFinite(updatedAt) ? updatedAt : null };

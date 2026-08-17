@@ -13,6 +13,19 @@
  * assignGistFilenames) rather than a generic "data.json", so the gist reads legibly on
  * gist.github.com. The one meta blob is named META_FILENAME and its presence is what distinguishes
  * "this is actually the sync gist" from a stray/wrong gist id (see applyRemotePullResult).
+ *
+ * Version + write lock: the meta blob also carries a monotonically increasing `version` and an
+ * `activeDevice` write lock, giving pushes optimistic-concurrency protection against two devices
+ * clobbering each other's changes (see pushAllChangedFiles' pre-push validation). This is
+ * best-effort, not a true distributed lock — the Gist API has no compare-and-swap primitive, so the
+ * fetch-check-then-write in pushAllChangedFiles has an inherent (narrow) race window no matter how
+ * many round trips are spent on it. The lock auto-releases as part of every successful push (written
+ * back as `activeDevice: null` in the SAME request that bumps the version), rather than requiring a
+ * separate acquire/release step or risking a device that goes offline mid-edit locking everyone else
+ * out forever. `activeDevice` (the lock) is intentionally a separate field from `lastWriter`/
+ * `lastWriteTimestamp` (which device most recently completed a write, for the "Synced at ... from
+ * ..." display) — the lock is almost always null, but the display fields should always show the
+ * real last writer.
  * @typedef {import('../types.js').FileRecord} FileRecord
  */
 import { appState } from "../state/appState.js";
@@ -40,17 +53,42 @@ function serializeFileContent(file) {
   return JSON.stringify({ id, fileName, rawData, emptyGroups, filters, lastExportVersion, lastExportDate });
 }
 
-/** @returns {string} */
-function serializeMetaContent() {
+/**
+ * @param {{version: number, activeDevice: string|null}} lock
+ * @returns {string}
+ */
+function serializeMetaContent({ version, activeDevice }) {
   return JSON.stringify({
     schemaVersion: 1,
+    version,
+    activeDevice,
+    lastWriter: getDeviceId(),
+    lastWriteTimestamp: formatIST(Date.now()),
     globalToggles: appState.toggles,
     activeQuestion: appState.activeQuestion,
     timer: appState.timer,
-    activeDevice: getDeviceId(),
-    isUpdated: true,
-    updateTimestamp: formatIST(Date.now()),
   });
+}
+
+/**
+ * "Interview-Prep-Tracker-DD-MM-YYYY-hh-mmam" — the gist's own description, refreshed on every
+ * create/push so it reads as a human-friendly "last touched" stamp directly in the gist.github.com
+ * listing, without needing to open the gist to see the meta blob's own timestamp.
+ * @returns {string}
+ */
+function syncGistDescription() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).formatToParts(Date.now());
+  const get = (type) => parts.find((p) => p.type === type)?.value ?? "";
+  const ampm = get("dayPeriod").toLowerCase().replace(/[^a-z]/g, "");
+  return `Interview-Prep-Tracker-${get("day")}-${get("month")}-${get("year")}-${get("hour")}-${get("minute")}${ampm}`;
 }
 
 /** @param {string} str @returns {number} rough UTF-8 byte size of a string, for the safe-ceiling check. */
@@ -99,22 +137,36 @@ function assignGistFilenames(files) {
 }
 
 /**
+ * Parses the meta blob out of a pulled gist payload — read-safety guard: wrapped in try/catch, never
+ * throws, returns null on ANY formatting problem (missing file, malformed JSON, non-object) so every
+ * caller can fall back to "treat as unreadable" instead of crashing or applying garbage state.
+ * @param {{files: Record<string, {content: string}>}} result
+ * @returns {any|null}
+ */
+function parseMeta(result) {
+  const raw = result.files[META_FILENAME]?.content;
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Applies an already-fetched gist payload (from pullFromGist) to local state. Validates the meta
- * blob is present first — a genuine sync gist is ALWAYS created with META_FILENAME (see
- * createNewSyncGist/pushAllChangedFiles), so its absence means this gist id isn't actually the sync
- * gist (most likely a stray/wrong id), and applying it as if it were would silently lose data.
+ * blob is present/parseable FIRST (see parseMeta) — a genuine sync gist is ALWAYS created with
+ * META_FILENAME (see createNewSyncGist/pushAllChangedFiles), so its absence/corruption means this
+ * gist id isn't actually the sync gist, or its last write was somehow malformed — either way,
+ * lastSyncedLabel/lastRemoteActiveDevice/knownVersion are only ever updated below AFTER this parse
+ * succeeds, never from a failed/partial read.
  * @param {{files: Record<string, {content: string}>, updatedAt: number|null}} result
  * @returns {{ok: boolean, error?: string, failures?: Array<{fileName: string, error: string}>}}
  */
 function applyRemotePullResult(result) {
-  const metaRaw = result.files[META_FILENAME]?.content;
-  if (!metaRaw) return { ok: false, error: `This gist has no "${META_FILENAME}" file — it isn't the sync gist (maybe the wrong gist id was pasted?).` };
-  let meta;
-  try {
-    meta = JSON.parse(metaRaw);
-  } catch {
-    return { ok: false, error: "Could not read the sync gist's settings file." };
-  }
+  const meta = parseMeta(result);
+  if (!meta) return { ok: false, error: `This gist has no readable "${META_FILENAME}" file — it isn't the sync gist (maybe the wrong gist id was pasted, or its last write was corrupted?).` };
 
   const byId = new Map(appState.files.map((f) => [f.id, f]));
   /** @type {Array<{fileName: string, error: string}>} */
@@ -129,6 +181,8 @@ function applyRemotePullResult(result) {
         lastPushedHash: hashString(JSON.stringify(content)),
       });
     } catch (e) {
+      // Read-safety fallback: skip this one file rather than losing everything else in the gist —
+      // whatever local copy already existed for it (if any) is left untouched.
       failures.push({ fileName: filename, error: "Could not parse this file's content." });
       console.error(`Cross-Device Sync: failed to parse "${filename}" from the sync gist: ${e}`);
     }
@@ -139,12 +193,15 @@ function applyRemotePullResult(result) {
   if (meta.activeQuestion !== undefined) appState.activeQuestion = meta.activeQuestion;
   if (meta.timer) appState.timer = meta.timer;
 
+  // Only reached once the meta parse above succeeded — lastSyncedLabel/activeDevice/version state
+  // never gets updated from a failed or partial read (see this function's doc comment).
   appState.sync = {
     ...appState.sync,
     lastPullAt: Date.now(),
     lastKnownRemoteUpdatedAt: result.updatedAt,
-    lastRemoteActiveDevice: meta.activeDevice ?? appState.sync.lastRemoteActiveDevice,
-    lastRemoteUpdateTimestamp: meta.updateTimestamp ?? appState.sync.lastRemoteUpdateTimestamp,
+    knownVersion: typeof meta.version === "number" ? meta.version : appState.sync.knownVersion,
+    lastRemoteActiveDevice: meta.lastWriter ?? appState.sync.lastRemoteActiveDevice,
+    lastRemoteUpdateTimestamp: meta.lastWriteTimestamp ?? appState.sync.lastRemoteUpdateTimestamp,
   };
   store.writeFiles(appState.files);
   store.writeGlobalToggles(appState.toggles);
@@ -155,11 +212,20 @@ function applyRemotePullResult(result) {
 }
 
 /**
- * Pushes every locally-changed file (new content or never-pushed) plus the meta blob (if the
- * app-level singletons changed) to the shared sync gist in a single PATCH. Duplicate Push Protection:
- * a file/meta blob with unchanged content is skipped entirely, so a push with nothing new to say is a
- * no-op — no request sent at all.
- * @returns {Promise<{ok: boolean, error?: string, skipped?: boolean}>}
+ * Pushes every locally-changed file (new content or never-pushed) plus the meta blob to the shared
+ * sync gist in a single PATCH — but only after pre-push validation against a FRESH fetch of the
+ * remote meta:
+ *   - Blocked if the remote's real `version` is ahead of this device's last-known version (someone
+ *     else pushed since this device last pulled) — abort, tell the user to pull first.
+ *   - Blocked if the remote's `activeDevice` write lock is currently held by a DIFFERENT device
+ *     (a push from that device is in flight right now) — abort, tell the user to retry shortly.
+ * A successful push bumps `version` by 1 and writes `activeDevice: null` in the same request —
+ * acquire, write, and release all happen as one atomic-from-our-perspective operation, so there's no
+ * separate "holding" state that could leak if a device goes offline mid-edit.
+ * Duplicate Push Protection: if nothing local actually changed (no file/meta diff), returns
+ * `skipped: true` WITHOUT any network call at all — the remote validation fetch only happens once
+ * there's something worth sending.
+ * @returns {Promise<{ok: boolean, error?: string, skipped?: boolean, blocked?: "behind"|"locked"}>}
  */
 export async function pushAllChangedFiles() {
   const token = appState.sync.githubToken;
@@ -169,33 +235,53 @@ export async function pushAllChangedFiles() {
   assignGistFilenames(appState.files);
 
   /** @type {Record<string, {content: string}>} */
-  const patch = {};
+  const filePatch = {};
   let anyFileChanged = false;
   for (const file of appState.files) {
     const content = serializeFileContent(file);
     const hash = hashString(content);
     if (file.lastPushedHash === hash) continue;
-    patch[/** @type {string} */ (file.gistFileName)] = { content };
-    file.lastPushedHash = hash;
+    filePatch[/** @type {string} */ (file.gistFileName)] = { content };
     anyFileChanged = true;
   }
 
-  const metaContent = serializeMetaContent();
-  const metaHash = hashString(metaContent);
-  const metaChanged = metaHash !== appState.sync.lastMetaPushedHash;
-  if (metaChanged) patch[META_FILENAME] = { content: metaContent };
+  // Cheap local-only check first: don't even fetch remote for validation if there's nothing to push.
+  const localTogglesChanged = hashString(JSON.stringify({ t: appState.toggles, a: appState.activeQuestion, ti: appState.timer })) !== appState.sync.lastMetaPushedHash;
+  if (!anyFileChanged && !localTogglesChanged) return { ok: true, skipped: true };
 
-  if (!anyFileChanged && !metaChanged) return { ok: true, skipped: true };
+  // Pre-Push Validation: fetch the remote meta fresh (not the possibly-stale local cache) right
+  // before writing, so the version/lock check reflects reality at push time.
+  const remoteResult = await pullFromGist({ token, gistId: configGistId });
+  if (!remoteResult.ok) return { ok: false, error: remoteResult.error };
+  const remoteMeta = parseMeta(remoteResult);
+  if (!remoteMeta) return { ok: false, error: `This gist has no readable "${META_FILENAME}" file — it isn't the sync gist.` };
 
-  const result = await pushToGist({ token, gistId: configGistId, files: patch });
+  const remoteVersion = typeof remoteMeta.version === "number" ? remoteMeta.version : 0;
+  const localVersion = appState.sync.knownVersion ?? 0;
+  if (remoteVersion > localVersion) {
+    return { ok: false, blocked: "behind", error: `Your local data is behind the latest synced version (remote is v${remoteVersion}, you have v${localVersion}) — pull before pushing.` };
+  }
+  if (remoteMeta.activeDevice && remoteMeta.activeDevice !== getDeviceId()) {
+    return { ok: false, blocked: "locked", error: `Another device (${remoteMeta.activeDevice}) is currently syncing — try again shortly.` };
+  }
+
+  const newVersion = remoteVersion + 1;
+  const metaContent = serializeMetaContent({ version: newVersion, activeDevice: null });
+  filePatch[META_FILENAME] = { content: metaContent };
+
+  const result = await pushToGist({ token, gistId: configGistId, files: filePatch, description: syncGistDescription() });
   if (!result.ok) return { ok: false, error: result.error };
 
+  for (const file of appState.files) file.lastPushedHash = hashString(serializeFileContent(file));
   if (anyFileChanged) store.writeFiles(appState.files);
   appState.sync = {
     ...appState.sync,
     lastPushAt: Date.now(),
     lastKnownRemoteUpdatedAt: Date.now(),
-    ...(metaChanged ? { lastMetaPushedHash: metaHash } : {}),
+    knownVersion: newVersion,
+    lastMetaPushedHash: hashString(JSON.stringify({ t: appState.toggles, a: appState.activeQuestion, ti: appState.timer })),
+    lastRemoteActiveDevice: getDeviceId(),
+    lastRemoteUpdateTimestamp: formatIST(Date.now()),
   };
   store.writeSync(appState.sync);
   return { ok: true, skipped: false };
@@ -232,21 +318,18 @@ export async function pullIfRemoteNewer() {
   const isNewer = result.updatedAt != null && (!appState.sync.lastKnownRemoteUpdatedAt || result.updatedAt > appState.sync.lastKnownRemoteUpdatedAt);
   if (!isNewer) return { ok: true, applied: false };
 
-  let meta;
-  try {
-    meta = JSON.parse(result.files[META_FILENAME]?.content || "{}");
-  } catch {
-    meta = {};
-  }
+  const meta = parseMeta(result);
   const applied = applyRemotePullResult(result);
-  return { ok: applied.ok, applied: applied.ok, error: applied.error, failures: applied.failures, activeDevice: meta.activeDevice, updateTimestamp: meta.updateTimestamp };
+  return { ok: applied.ok, applied: applied.ok, error: applied.error, failures: applied.failures, activeDevice: meta?.lastWriter, updateTimestamp: meta?.lastWriteTimestamp };
 }
 
 /**
  * Deletes a file's blob from the shared sync gist (one PATCH, setting its filename to `null` per the
  * Gist API's delete-a-file convention) and removes it from this device's local storage's own record.
  * No-ops successfully if sync isn't configured or the file was never pushed, since there's nothing
- * remote to clean up in that case.
+ * remote to clean up in that case. Not subject to the version/lock pre-push validation that
+ * pushAllChangedFiles uses — a delete is a deliberate, infrequent, user-confirmed action rather than
+ * a background auto-push, so it goes straight through.
  * @param {string} fileId
  * @returns {Promise<{ok: boolean, error?: string}>}
  */
@@ -256,14 +339,14 @@ export async function deleteFileFromGist(fileId) {
   if (!token || !configGistId) return { ok: true };
   const file = appState.files.find((f) => f.id === fileId);
   if (!file || !file.gistFileName) return { ok: true };
-  return pushToGist({ token, gistId: configGistId, files: { [file.gistFileName]: null } });
+  return pushToGist({ token, gistId: configGistId, files: { [file.gistFileName]: null }, description: syncGistDescription() });
 }
 
 /**
- * Creates a brand-new sync gist holding the meta blob plus every currently-loaded local file, and
- * connects to it — the setup wizard's "Create new" path. Unlike the old per-file-gist design, this
- * pushes everything already loaded locally right away instead of leaving files stranded until the
- * next auto-push.
+ * Creates a brand-new sync gist holding the meta blob (version 1, unlocked) plus every currently-
+ * loaded local file, and connects to it — the setup wizard's "Create new" path. Unlike the old
+ * per-file-gist design, this pushes everything already loaded locally right away instead of leaving
+ * files stranded until the next auto-push.
  * @returns {Promise<{ok: boolean, error?: string}>}
  */
 export async function createNewSyncGist() {
@@ -271,17 +354,25 @@ export async function createNewSyncGist() {
   if (!token) return { ok: false, error: "No GitHub token configured." };
 
   assignGistFilenames(appState.files);
+  const metaContent = serializeMetaContent({ version: 1, activeDevice: null });
   /** @type {Record<string, {content: string}>} */
-  const files = { [META_FILENAME]: { content: serializeMetaContent() } };
+  const files = { [META_FILENAME]: { content: metaContent } };
   for (const file of appState.files) {
     files[/** @type {string} */ (file.gistFileName)] = { content: serializeFileContent(file) };
   }
 
-  const result = await createGist({ token, files, description: "Interview Prep Tracker — sync" });
+  const result = await createGist({ token, files, description: syncGistDescription() });
   if (!result.ok) return { ok: false, error: result.error };
 
   for (const file of appState.files) file.lastPushedHash = hashString(serializeFileContent(file));
-  appState.sync = { ...appState.sync, configGistId: result.gistId, lastMetaPushedHash: hashString(serializeMetaContent()) };
+  appState.sync = {
+    ...appState.sync,
+    configGistId: result.gistId,
+    knownVersion: 1,
+    lastMetaPushedHash: hashString(JSON.stringify({ t: appState.toggles, a: appState.activeQuestion, ti: appState.timer })),
+    lastRemoteActiveDevice: getDeviceId(),
+    lastRemoteUpdateTimestamp: formatIST(Date.now()),
+  };
   store.writeFiles(appState.files);
   store.writeSync(appState.sync);
   return { ok: true };

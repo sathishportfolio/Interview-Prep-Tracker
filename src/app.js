@@ -47,14 +47,22 @@ function $(id) {
   return document.getElementById(id);
 }
 
-/** Reflects the cloud data's freshness inside the Sync menu, e.g. "5 min ago". */
+/**
+ * Reflects the cloud data's freshness inside the Sync menu — the compact relative-time label (e.g.
+ * "5 min ago") plus the explicit "Synced at [Timestamp] from [activeDevice]" detail line underneath.
+ * Called after every push/pull, manual or background (see autoPush.js's onPushed callback and the
+ * manualPush/manualPull/session-start-pull handlers below), so both stay current the moment a sync
+ * actually happens, not just on next menu open.
+ */
 function updateSyncStatusLabel() {
   const menuBtn = $("syncMenuBtn");
   const label = $("lastSyncedLabel");
+  const detailLabel = $("lastSyncedDetailLabel");
   const text = syncConfig.lastSyncedLabel();
   const title = text === "Never synced" ? text : `Last sync with cloud: ${text}`;
   if (menuBtn) menuBtn.title = title;
   if (label) label.textContent = text;
+  if (detailLabel) detailLabel.textContent = syncConfig.lastSyncedDetailLabel();
 }
 
 /** Toggles the setup-prompt vs. connected views inside the Sync menu panel to match current config. */
@@ -375,6 +383,14 @@ function init() {
   renderSyncMenuState();
   // Keeps the relative-time label ("5 min ago" -> "1 hr ago") advancing even with no new sync activity.
   setInterval(updateSyncStatusLabel, 30000);
+  // Explicit page-load/refresh message: state what's already known locally about the last sync,
+  // independent of whether the session-start pull below finds anything newer — that pull only fires
+  // its own toast when it actually applies a fresher update, so this is what tells the user "here's
+  // where things stood" on every load, even when nothing new comes in this session.
+  if (syncConfig.isSyncConfigured()) {
+    const lastSyncDetail = syncConfig.lastSyncedDetailLabel();
+    if (lastSyncDetail !== "Never synced") showToast(lastSyncDetail, "info");
+  }
   // Push happens automatically a few seconds after each edit (Gist's limits are generous enough to
   // afford this, unlike JSONBin's free tier) — the Push button below just forces it immediately
   // instead of waiting out the debounce. See the silent startup pull below for the read-side backstop.

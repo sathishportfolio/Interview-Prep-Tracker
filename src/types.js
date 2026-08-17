@@ -107,12 +107,17 @@
  * @property {number|null} lastPushAt
  * @property {number|null} lastPullAt
  * @property {number|null} lastKnownRemoteUpdatedAt
+ * @property {number} [knownVersion] This device's last-known remote version number (the meta blob's
+ *   `version` field — see sync/gists.js). A push is blocked if the remote's real version is ahead of
+ *   this, meaning some other device pushed since this device last pulled (see
+ *   pushAllChangedFiles' pre-push validation). 0 until the first successful push/pull.
  * @property {string|null} [lastMetaPushedHash] Hash of this device's last-pushed meta-blob content
  *   (sync/gists.js's pushAllChangedFiles) — lets a repeated push with no new meta changes skip
  *   re-sending that blob instead of burning API bandwidth on a no-op.
- * @property {string|null} [lastRemoteActiveDevice] Device ID (see sync/device.js) that made the
- *   most recently pulled/pushed gist's last write — purely informational/display, not used for
- *   any sync decision.
+ * @property {string|null} [lastRemoteActiveDevice] Device ID (see sync/device.js) of whichever
+ *   device most recently completed a successful write (the meta blob's `lastWriter` field) — purely
+ *   informational/display (the "Synced at ... from ..." label), NOT the same thing as the meta
+ *   blob's `activeDevice` write-lock field, which is transient and normally null.
  * @property {string|null} [lastRemoteUpdateTimestamp] IST-formatted ("MMM dd, yyyy HH:mm:ss") wall-
  *   clock time of that same last write — shown in the Auto-Pull-on-Login toast (see app.js).
  * @property {boolean} enabled false = auto-push paused; Manual Push/Pull remain available

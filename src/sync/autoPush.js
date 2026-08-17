@@ -103,7 +103,13 @@ async function doPush() {
   pushing = true;
   const result = await gists.pushAllChangedFiles();
   pushing = false;
-  if (result.ok) setDirty(false);
-
-  if (result.ok && onPushed) onPushed();
+  if (result.ok) {
+    setDirty(false);
+    if (onPushed) onPushed();
+  } else if (result.blocked) {
+    // Silent by design (see this module's doc comment) — the dirty dot stays lit as the only
+    // user-facing signal; the next edit re-arms the debounce and tries again. Logged for
+    // debuggability without interrupting the user on every blocked background attempt.
+    console.warn(`Cross-Device Sync: auto-push blocked (${result.blocked}): ${result.error}`);
+  }
 }

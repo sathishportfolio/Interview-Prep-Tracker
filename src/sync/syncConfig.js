@@ -58,13 +58,28 @@ export function lastSyncedLabel() {
   return `${months} month${months !== 1 ? "s" : ""} ago`;
 }
 
+/**
+ * "Synced at [Timestamp] from [activeDevice]" — the explicit, human-readable form (as opposed to
+ * lastSyncedLabel's compact relative time) shown in the Sync menu detail row and in the page-load
+ * toast (see app.js). `lastRemoteActiveDevice`/`lastRemoteUpdateTimestamp` are set by BOTH directions
+ * of sync (see sync/gists.js's pushAllChangedFiles and applyRemotePullResult) — a push records this
+ * device as the last to sync, a pull records whichever device the gist says last wrote it.
+ * @returns {string}
+ */
+export function lastSyncedDetailLabel() {
+  const timestamp = appState.sync?.lastRemoteUpdateTimestamp;
+  const device = appState.sync?.lastRemoteActiveDevice;
+  if (!timestamp || !device) return "Never synced";
+  return `Synced at ${timestamp} from ${device}`;
+}
+
 /** Loads sync config into appState (called at bootstrap). */
 export function loadSyncConfig(schemaSync) {
   appState.sync = schemaSync;
 }
 
 export function clearSyncConfig() {
-  appState.sync = { githubToken: null, configGistId: null, lastPushAt: null, lastPullAt: null, lastKnownRemoteUpdatedAt: null, lastMetaPushedHash: null, lastRemoteActiveDevice: null, lastRemoteUpdateTimestamp: null, enabled: true };
+  appState.sync = { githubToken: null, configGistId: null, lastPushAt: null, lastPullAt: null, lastKnownRemoteUpdatedAt: null, knownVersion: 0, lastMetaPushedHash: null, lastRemoteActiveDevice: null, lastRemoteUpdateTimestamp: null, enabled: true };
   store.writeSync(appState.sync);
 }
 
