@@ -50,7 +50,7 @@
       <button id="loadSampleBtn" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-flask"></i> Load Sample</button>
 
       <select id="fileSwitcher" class="form-select form-select-sm file-switcher"></select>
-      <button id="deleteCurrentFileBtn" type="button" class="btn btn-outline-danger btn-sm" title="Remove the current file from this device only (does not delete it from any cloud bin — use Sync → Manage cloud sync for that)" hidden><i class="fa-solid fa-trash"></i></button>
+      <button id="deleteCurrentFileBtn" type="button" class="btn btn-outline-danger btn-sm" title="Remove the current file from this device only (does not delete its gist — use Sync → Manage cloud sync for that)" hidden><i class="fa-solid fa-trash"></i></button>
 
       <div class="export-btn-wrap">
         <button id="exportMenuBtn" class="btn btn-outline-success btn-sm" aria-haspopup="true" aria-expanded="false"><i class="fa-solid fa-file-export"></i> Export</button>
@@ -63,7 +63,6 @@
       <div class="sync-menu-wrap">
         <button id="syncMenuBtn" class="btn btn-outline-secondary btn-sm" title="Cloud Sync" aria-haspopup="true" aria-expanded="false">
           <i class="fa-solid fa-cloud"></i> Sync
-          <span id="syncMenuUsageBadge" class="sync-usage-badge" hidden></span>
           <span id="syncMenuStatusDot" class="sync-status-dot" hidden aria-hidden="true"></span>
           <span id="syncMenuStatusIndicator" class="sync-status-indicator" hidden aria-hidden="true"></span>
         </button>
@@ -75,7 +74,7 @@
           <div id="syncMenuConnected" class="sync-menu-connected" hidden>
             <div class="sync-menu-status">
               <span id="lastSyncedLabel" class="last-synced-label"></span>
-              <label class="sync-toggle-label" title="Pause/resume the 60s auto-push backstop. Manual Push/Pull always work.">
+              <label class="sync-toggle-label" title="Pause/resume push-on-edit. Manual Push/Pull always work.">
                 <input type="checkbox" id="syncEnabledToggle" class="sync-toggle-input" />
                 <span class="sync-toggle-text">Auto-sync</span>
               </label>
@@ -83,11 +82,6 @@
             <div class="sync-menu-actions">
               <button id="manualPushBtn" type="button" class="btn btn-sm btn-outline-primary" title="Send your local changes to the cloud"><i class="fa-solid fa-cloud-arrow-up"></i> Push</button>
               <button id="manualPullBtn" type="button" class="btn btn-sm btn-outline-primary" title="Get the latest changes from the cloud"><i class="fa-solid fa-cloud-arrow-down"></i> Pull</button>
-            </div>
-            <div class="sync-menu-usage-row" title="How much of your free cloud storage this device's data is using">
-              <div class="progress sync-usage-progress" role="progressbar" aria-label="Cloud storage used" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                <div id="syncUsageFill" class="progress-bar bg-success" style="width: 0%">0%</div>
-              </div>
             </div>
             <button id="syncSettingsBtn" type="button" class="btn btn-sm btn-link sync-menu-manage">Manage cloud sync →</button>
           </div>

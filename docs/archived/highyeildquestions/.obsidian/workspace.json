@@ -14,7 +14,7 @@
               "type": "markdown",
               "state": {
                 "file": "my-prep/01_OOPS.md",
-                "mode": "source",
+                "mode": "preview",
                 "source": true
               },
               "icon": "lucide-file",
@@ -187,7 +187,7 @@
       "bases:Create new base": false
     }
   },
-  "active": "303d15f63fb878d3",
+  "active": "c69d4afdbbd27f50",
   "lastOpenFiles": [
     "csv/01_OOPS.csv",
     "csv/redis_highyield.csv",

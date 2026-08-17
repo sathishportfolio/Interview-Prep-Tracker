@@ -28,16 +28,17 @@ export function emptySchema() {
     },
     activeQuestion: null,
     sync: {
-      masterKey: null,
-      currentBinId: null,
-      knownBins: [],
+      githubToken: null,
+      configGistId: null,
       lastPushAt: null,
       lastPullAt: null,
       lastKnownRemoteUpdatedAt: null,
-      lastPushedPayloadHash: null,
+      lastMetaPushedHash: null,
       lastRemoteActiveDevice: null,
       lastRemoteUpdateTimestamp: null,
-      enabled: false,
+      // Auto-sync defaults ON: once a gist is connected, edits push automatically without an extra
+      // opt-in step (Gist's limits are generous enough to afford this — see sync/autoPush.js).
+      enabled: true,
     },
     timer: {
       running: false,
@@ -58,7 +59,7 @@ export function coerceSchema(raw) {
   if (!raw || typeof raw !== "object") return base;
   return {
     schemaVersion: SCHEMA_VERSION,
-    files: Array.isArray(raw.files) ? raw.files.map((f) => ({ binId: null, ...f })) : base.files,
+    files: Array.isArray(raw.files) ? raw.files.map((f) => ({ gistFileName: null, lastPushedHash: null, ...f })) : base.files,
     activeFileId: raw.activeFileId ?? base.activeFileId,
     globalToggles: { ...base.globalToggles, ...(raw.globalToggles || {}) },
     activeQuestion: raw.activeQuestion ?? base.activeQuestion,
@@ -68,23 +69,27 @@ export function coerceSchema(raw) {
 }
 
 /**
- * Sync-specific coercion: also migrates older shapes into `currentBinId` — the pre-multi-bin
- * single `binId` field, then the later `defaultBinId` field (renamed once "default bin" became
- * "current bin" everywhere, since only one bin is ever synced at a time) — so older
- * persisted/pulled schemas keep working unchanged.
+ * Sync-specific coercion. No migration from the old JSONBin fields (`masterKey`/`currentBinId`/
+ * `knownBins`/`binId`) — a JSONBin master key and bin id have no meaningful mapping onto a GitHub
+ * token and gist id, so a pre-Gist-migration schema simply comes back unconfigured here and the user
+ * reconnects via the setup wizard (see app.js's one-shot "reconnect" toast, which detects a legacy
+ * `masterKey` field before this function drops it).
  * @param {any} rawSync
  */
 function coerceSync(rawSync) {
   const base = emptySchema().sync;
   if (!rawSync || typeof rawSync !== "object") return base;
   return {
-    ...base,
-    ...rawSync,
-    currentBinId: rawSync.currentBinId ?? rawSync.defaultBinId ?? rawSync.binId ?? base.currentBinId,
-    knownBins: Array.isArray(rawSync.knownBins) ? rawSync.knownBins : base.knownBins,
-    // Pre-existing configured schemas (from before this field existed) infer `enabled: true` so
-    // upgrading doesn't silently pause a working sync setup; brand-new schemas keep `base`'s false.
-    // An explicit persisted value (either true or false) always wins over the inference.
-    enabled: rawSync.enabled ?? !!(rawSync.masterKey && (rawSync.currentBinId || rawSync.defaultBinId || rawSync.binId)),
+    githubToken: typeof rawSync.githubToken === "string" ? rawSync.githubToken : base.githubToken,
+    configGistId: typeof rawSync.configGistId === "string" ? rawSync.configGistId : base.configGistId,
+    lastPushAt: rawSync.lastPushAt ?? base.lastPushAt,
+    lastPullAt: rawSync.lastPullAt ?? base.lastPullAt,
+    lastKnownRemoteUpdatedAt: rawSync.lastKnownRemoteUpdatedAt ?? base.lastKnownRemoteUpdatedAt,
+    lastMetaPushedHash: rawSync.lastMetaPushedHash ?? base.lastMetaPushedHash,
+    lastRemoteActiveDevice: rawSync.lastRemoteActiveDevice ?? base.lastRemoteActiveDevice,
+    lastRemoteUpdateTimestamp: rawSync.lastRemoteUpdateTimestamp ?? base.lastRemoteUpdateTimestamp,
+    // Auto-sync defaults ON (base.enabled is true) — an explicit persisted value always wins, so a
+    // user who deliberately paused it stays paused across reloads.
+    enabled: rawSync.enabled ?? base.enabled,
   };
 }

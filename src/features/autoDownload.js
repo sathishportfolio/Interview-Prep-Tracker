@@ -2,8 +2,9 @@
 /**
  * features/autoDownload.js — "Auto Download (1 min)" toggle shown next to Temp/Test Mode. A
  * persisted global toggle like themeDark/dragDropOn (see appState.toggles), not module-local state,
- * so it survives reload AND round-trips through cloud sync the same way those do (sync/bins.js
- * pushes/pulls appState.toggles wholesale — see its serializeBinPayload/applyBinToLocalState).
+ * so it survives reload AND round-trips through cloud sync the same way those do (sync/gists.js
+ * pushes/pulls appState.toggles wholesale as part of the app-config gist manifest — see its
+ * serializeManifestContent/pullAllFiles).
  * While on, silently re-triggers the same CSV download as the Export menu's "Download as CSV"
  * button (fileManager.downloadProgressCsv) once every minute, as a lightweight recurring local
  * backup.

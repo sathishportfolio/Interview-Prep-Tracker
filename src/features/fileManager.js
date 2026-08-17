@@ -100,7 +100,8 @@ export function loadCsvAsNewFile(fileName, csvText) {
     filters: emptyFilterState(),
     lastExportVersion: null,
     lastExportDate: null,
-    binId: null,
+    gistFileName: null,
+    lastPushedHash: null,
   };
   appState.files = [...appState.files, file];
   appState.activeFileId = file.id;
@@ -239,7 +240,7 @@ export function downloadFile(fileId) {
 
 /**
  * Deletes a file from local storage entirely — the local-storage half of a full delete (see
- * sync/bins.js's removeFileFromBin for the remote half; sync/syncConfig.js's buildFileRow calls
+ * sync/gists.js's deleteFileFromGist for the remote half; sync/syncConfig.js's buildFileRow calls
  * both, in that order, so a failed remote removal never leaves the file gone locally but still
  * lingering in the cloud). If the deleted file was active, falls back to another loaded file if one
  * exists, or clears the working copy to the empty state otherwise (mirrors clearActiveFile).

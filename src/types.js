@@ -64,9 +64,13 @@
  * @property {FilterState} filters
  * @property {string|null} lastExportVersion   e.g. "v003"
  * @property {string|null} lastExportDate      e.g. "Aug07" (matches export filename token)
- * @property {string|null} binId   Sync bin this file lives in. null = the current bin
- *   (SyncConfig.currentBinId) — most files stay null; only set when a file has been moved/copied
- *   to a bin of its own (e.g. to keep it out of a bin that's near the free-tier size cap).
+ * @property {string|null} gistFileName   This file's own blob name within the single shared sync
+ *   gist (SyncConfig.configGistId) — e.g. "My CSV.json", sanitized/deduped from fileName (see
+ *   sync/gists.js's assignGistFilenames). null until the file's first successful push, which assigns
+ *   it. Every file shares the same gist; this is just which blob inside it is this file's own.
+ * @property {string|null} lastPushedHash   Hash of this file's content as of its last successful
+ *   push (sync/gists.js's pushAllChangedFiles) — lets an unchanged file be skipped on the next push
+ *   instead of burning a Gist API request on a no-op PATCH.
  */
 
 /**
@@ -89,42 +93,31 @@
  */
 
 /**
- * @typedef {Object} BinInfo
- * @property {string} id
- * @property {string} label   User-facing nickname, e.g. "Overflow bin" — the id itself is the
- *   only thing that matters functionally, this is just so the manager UI is legible.
- * @property {string} [description]   Optional longer note, e.g. "Archived questions from 2023" —
- *   most users skip this entirely (see sync/syncConfig.js's Edit Bin dialog); never required to
- *   create or rename a bin.
- */
-
-/**
- * Cross-Device Sync config. JSONBin's Master Key is account-wide (works against any bin under
- * that account), so there's exactly one masterKey but potentially many bins: `currentBinId` is the
- * ONE bin everything syncs through — the File Switcher only ever shows files that resolve to it
- * (see sync/bins.js's resolveBinId), and Push/Pull/usage-% all target it exclusively. `knownBins`
- * is the registry of every other bin the user has created/used (for switching which bin is current,
- * and the "move/copy file to a bin" UI in sync/syncConfig.js's manager). Sync timestamps
- * (`lastPushAt`/`lastPullAt`/`lastKnownRemoteUpdatedAt`) are set by sync/bins.js on manual push/pull
- * (see sync/manualPush.js, sync/manualPull.js) and persisted like the rest of this config.
+ * Cross-Device Sync config. `githubToken` is a GitHub Personal Access Token (fine-grained, `gist`
+ * scope recommended) — account-wide, works against any gist under that account. `configGistId`
+ * points at the single shared gist EVERYTHING syncs through: every CSV file's own content blob plus
+ * one meta blob for the app-level singletons (globalToggles/activeQuestion/timer/device-tracking
+ * meta) all live inside this one gist (see sync/gists.js) — there's no separate per-file gist and no
+ * separate pointer/manifest gist. Sync timestamps (`lastPushAt`/`lastPullAt`/
+ * `lastKnownRemoteUpdatedAt`) are set by sync/gists.js on manual push/pull (see sync/manualPush.js,
+ * sync/manualPull.js) and persisted like the rest of this config.
  * @typedef {Object} SyncConfig
- * @property {string|null} masterKey
- * @property {string|null} currentBinId
- * @property {BinInfo[]} knownBins
+ * @property {string|null} githubToken
+ * @property {string|null} configGistId
  * @property {number|null} lastPushAt
  * @property {number|null} lastPullAt
  * @property {number|null} lastKnownRemoteUpdatedAt
- * @property {string|null} [lastPushedPayloadHash] Hash of this device's last-pushed bin content
- *   (sync/bins.js's pushCurrentBinIfChanged) — lets a repeated Push with no new edits be detected
- *   and skipped (Duplicate Push Protection) instead of burning a JSONBin request.
+ * @property {string|null} [lastMetaPushedHash] Hash of this device's last-pushed meta-blob content
+ *   (sync/gists.js's pushAllChangedFiles) — lets a repeated push with no new meta changes skip
+ *   re-sending that blob instead of burning API bandwidth on a no-op.
  * @property {string|null} [lastRemoteActiveDevice] Device ID (see sync/device.js) that made the
- *   most recently pulled/pushed bin's last write — purely informational/display, not used for any
- *   sync decision.
+ *   most recently pulled/pushed gist's last write — purely informational/display, not used for
+ *   any sync decision.
  * @property {string|null} [lastRemoteUpdateTimestamp] IST-formatted ("MMM dd, yyyy HH:mm:ss") wall-
  *   clock time of that same last write — shown in the Auto-Pull-on-Login toast (see app.js).
- * @property {boolean} enabled false = auto-push backstop paused (conserves JSONBin API usage);
- *   Manual Push/Pull remain available regardless. Defaults false on fresh installs, true for
- *   pre-existing configured installs (see persistence/schema.js's coerceSync).
+ * @property {boolean} enabled false = auto-push paused; Manual Push/Pull remain available
+ *   regardless. Defaults true (see persistence/schema.js's emptySchema) — auto-sync is on by default
+ *   once a gist is connected.
  */
 
 /**

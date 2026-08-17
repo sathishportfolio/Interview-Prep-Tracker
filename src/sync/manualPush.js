@@ -1,37 +1,26 @@
 // @ts-check
 /**
- * sync/manualPush.js — Manual Push button: force an on-demand push of the current bin to the
- * cloud. The app deliberately does not push automatically on every edit (JSONBin's free tier has
- * tight request-rate and bin-size limits) — local edits stay local until the user explicitly
- * pushes, mirroring manualPull.js on the read side.
+ * sync/manualPush.js — Manual Push button: force an on-demand push right now instead of waiting for
+ * autoPush.js's debounce. Uses the same pushAllChangedFiles path autoPush.js uses, so a click here
+ * and the automatic push behave identically.
  */
 import { appState } from "../state/appState.js";
-import { confirmAction, showToast } from "../features/toast.js";
-import * as bins from "./bins.js";
+import { showToast } from "../features/toast.js";
+import * as gists from "./gists.js";
 
 /**
- * @returns {Promise<{ok: boolean, usage?: {percent: number, overCap: boolean}}>}
+ * @returns {Promise<{ok: boolean}>}
  */
 export async function manualPush() {
-  if (!appState.sync || !appState.sync.masterKey || !appState.sync.currentBinId) {
+  if (!appState.sync || !appState.sync.githubToken) {
     showToast("Set up Cross-Device Sync first.", "error");
     return { ok: false };
   }
-  if (!confirmAction("Push local changes to the cloud now?")) {
-    return { ok: false };
-  }
-  const result = await bins.pushCurrentBinIfChanged();
-  if (result.skipped) {
-    showToast("Already pushed latest changes.", "info");
-    return { ok: true };
-  }
+  const result = await gists.pushAllChangedFiles();
   if (!result.ok) {
-    showToast("Push failed or nothing to push.", "error");
+    showToast(result.error || "Push failed.", "error");
     return { ok: false };
   }
-
-  const usage = await bins.computeCurrentBinUsage();
-
-  showToast("Pushed local changes to the cloud.", "success");
-  return { ok: true, usage };
+  showToast(result.skipped ? "Already pushed latest changes." : "Pushed local changes to the cloud.", result.skipped ? "info" : "success");
+  return { ok: true };
 }

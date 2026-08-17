@@ -39,7 +39,9 @@ import * as syncConfig from "./sync/syncConfig.js";
 import * as manualPull from "./sync/manualPull.js";
 import * as manualPush from "./sync/manualPush.js";
 import * as autoPush from "./sync/autoPush.js";
-import * as bins from "./sync/bins.js";
+import * as gists from "./sync/gists.js";
+import * as store from "./persistence/store.js";
+import { STORAGE_KEY } from "./persistence/schema.js";
 
 function $(id) {
   return document.getElementById(id);
@@ -55,35 +57,6 @@ function updateSyncStatusLabel() {
   if (label) label.textContent = text;
 }
 
-/** Shows the current bin's size against the JSONBin free-tier cap as a single Bootstrap progress bar in the Sync menu. */
-function updateSyncUsageBadge(usage) {
-  const fill = $("syncUsageFill");
-  if (!usage || !fill) return;
-  const percent = Math.min(usage.percent, 100);
-  fill.style.width = `${percent}%`;
-  fill.textContent = `${usage.percent}%`;
-  fill.closest(".progress")?.setAttribute("aria-valuenow", String(usage.percent));
-  fill.classList.toggle("bg-success", !usage.overCap);
-  fill.classList.toggle("bg-danger", usage.overCap);
-
-  // Mirrored onto the collapsed Sync button itself so nearing/over the free-tier cap is visible
-  // without having to open the dropdown first.
-  const badge = $("syncMenuUsageBadge");
-  if (badge) {
-    badge.hidden = false;
-    badge.textContent = `${usage.percent}%`;
-    badge.title = usage.overCap ? "Cloud storage usage is near/at the free-tier limit" : "Cloud storage usage";
-    badge.classList.toggle("usage-over", usage.overCap);
-    badge.classList.toggle("usage-warn", !usage.overCap && usage.percent >= 70);
-  }
-}
-
-/** Recomputes the usage badge from local state alone (no network call) — see bins.computeCurrentBinUsage. */
-function refreshSyncUsageBadge() {
-  if (!syncConfig.isSyncConfigured()) return;
-  bins.computeCurrentBinUsage().then(updateSyncUsageBadge);
-}
-
 /** Toggles the setup-prompt vs. connected views inside the Sync menu panel to match current config. */
 function renderSyncMenuState() {
   const configured = syncConfig.isSyncConfigured();
@@ -93,7 +66,6 @@ function renderSyncMenuState() {
   if (connected) connected.hidden = !configured;
   if (configured) {
     updateSyncStatusLabel();
-    refreshSyncUsageBadge();
     updateSyncStatusIndicator();
     const toggle = /** @type {HTMLInputElement|null} */ ($("syncEnabledToggle"));
     if (toggle) toggle.checked = !!appState.sync.enabled;
@@ -183,9 +155,34 @@ function refreshAfterExternalDataChange() {
   renderSyncMenuState();
 }
 
+/**
+ * One-shot check for a pre-Gist-migration schema still carrying JSONBin's `masterKey` field —
+ * `coerceSync` (persistence/schema.js) silently drops it on read (there's no meaningful mapping onto
+ * a GitHub token/gist id), so this reads the RAW persisted JSON directly, before that coercion, to
+ * decide whether to prompt a reconnect. Immediately re-persists the (now-coerced) sync config right
+ * after detecting it, so the raw legacy field is gone from storage and this doesn't fire again next
+ * load.
+ * @returns {boolean}
+ */
+function detectAndClearLegacyJsonBinConfig() {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.sync?.masterKey) return false;
+  } catch {
+    return false;
+  }
+  store.writeSync(appState.sync);
+  return true;
+}
+
 function init() {
   // --- Bootstrap state from storage ---
   fileManager.bootstrapFromStorage();
+  if (detectAndClearLegacyJsonBinConfig()) {
+    showToast("Cross-Device Sync moved from JSONBin to GitHub Gist — reconnect via Sync → Set Up Cloud Sync.", "info");
+  }
   tempModeFeature.initTempModeFromStorage(); // re-enters Temp/Test Mode if it was still on at last close
   theme.applyTheme(); // before first paint, so there's no light-theme flash for returning dark-theme users
   autoDownload.applyAutoDownloadState(); // resumes the auto-download timer if it was still on
@@ -280,7 +277,7 @@ function init() {
   });
 
   $("resetAllBtn")?.addEventListener("click", () => {
-    if (!confirmAction("Reset ALL data? This deletes every uploaded CSV, progress, setting, and Cross-Device Sync connection (Master Key/Bin IDs) from this browser. This cannot be undone.")) return;
+    if (!confirmAction("Reset ALL data? This deletes every uploaded CSV, progress, setting, and Cross-Device Sync connection (GitHub token/gist IDs) from this browser. This cannot be undone.")) return;
     fileManager.resetAllData();
     // A full reload (rather than re-running the refresh pipeline in place) guarantees every bit of
     // in-memory state boots fresh from the now-empty persisted schema, instead of relying on every
@@ -293,12 +290,12 @@ function init() {
     if (id) fileManager.switchToFile(id);
   });
 
-  // Soft delete: local-only, never touches any cloud bin — full local+remote removal lives in the
-  // Cross-Device Sync manager's "Manage Files" section instead (sync/syncConfig.js's buildFileRow).
+  // Soft delete: local-only, never touches any cloud gist — full local+remote removal lives in the
+  // Cross-Device Sync manager's Files list instead (sync/syncConfig.js's buildFileRow).
   $("deleteCurrentFileBtn")?.addEventListener("click", () => {
     const file = appState.files.find((f) => f.id === appState.activeFileId);
     if (!file) return;
-    if (!confirmAction(`Remove "${file.fileName}" from this device only? This does NOT delete it from any cloud bin — to remove it everywhere, use Sync → Manage cloud sync → Manage Files. This cannot be undone on this device.`)) return;
+    if (!confirmAction(`Remove "${file.fileName}" from this device only? This does NOT delete its gist — to remove it everywhere, use Sync → Manage cloud sync. This cannot be undone on this device.`)) return;
     fileManager.deleteFile(file.id);
     showToast(`Removed "${file.fileName}" from this device.`, "info");
   });
@@ -359,7 +356,7 @@ function init() {
   // --- Sync ---
   syncConfig.initSyncConfig({
     onSyncedDataChanged: () => {
-      autoPush.markSynced(); // bin management (move/copy/fetch/clear) already left local state in sync
+      autoPush.markSynced(); // setup wizard actions (create/connect/pull/clear) already left local state in sync
       fileManager.bootstrapFromStorage();
       refreshAfterExternalDataChange();
     },
@@ -378,12 +375,10 @@ function init() {
   renderSyncMenuState();
   // Keeps the relative-time label ("5 min ago" -> "1 hr ago") advancing even with no new sync activity.
   setInterval(updateSyncStatusLabel, 30000);
-  // No push-per-edit (JSONBin's free tier has tight request-rate/size limits) — the Push/Pull
-  // buttons are the primary sync path. autoPush.js backstops edits left unpushed for a full minute
-  // (or the tab being backgrounded/closed sooner) so a session's changes still reach the cloud
-  // without waiting on a manual Push. See the silent startup pull below for the read-side backstop.
+  // Push happens automatically a few seconds after each edit (Gist's limits are generous enough to
+  // afford this, unlike JSONBin's free tier) — the Push button below just forces it immediately
+  // instead of waiting out the debounce. See the silent startup pull below for the read-side backstop.
   autoPush.initAutoPush(
-    (usage) => updateSyncUsageBadge(usage),
     () => updateSyncStatusLabel(),
     (dirty) => updateSyncDot(dirty)
   );
@@ -397,13 +392,12 @@ function init() {
   });
   $("manualPushBtn")?.addEventListener("click", async () => {
     const result = await manualPush.manualPush();
-    updateSyncUsageBadge(result.usage);
     if (result.ok) {
       autoPush.markSynced();
       updateSyncStatusLabel();
     }
   });
-  // Auto-sync toggle: pauses/resumes the 60s auto-push backstop only (see sync/autoPush.js) — Manual
+  // Auto-sync toggle: pauses/resumes the automatic push-on-edit only (see sync/autoPush.js) — Manual
   // Push/Pull above are unaffected either way, so a paused user can still sync on demand.
   $("syncEnabledToggle")?.addEventListener("change", (e) => {
     const on = /** @type {HTMLInputElement} */ (e.target).checked;
@@ -429,28 +423,33 @@ function init() {
   }
 
   // --- Session-start pull ---
-  // A silent, one-time pull of the current bin right after the local paint above, not gated behind
-  // the manual Pull button's confirm dialog: at this point in the session nothing local has changed
-  // yet, so there's nothing of this device's to lose by taking the cloud's version — but pulling
-  // mid-session (once edits exist) would risk clobbering unpushed local work with stale cloud data,
-  // which is exactly why pull otherwise stays manual-only. Paired with autoPush's
-  // push-on-backgrounded/close (see sync/autoPush.js) as the "push at end of session" half.
+  // A silent, one-time pull right after the local paint above, not gated behind the manual Pull
+  // button's confirm dialog: at this point in the session nothing local has changed yet, so there's
+  // nothing of this device's to lose by taking the cloud's version — but pulling mid-session (once
+  // edits exist) would risk clobbering unpushed local work with stale cloud data, which is exactly
+  // why pull otherwise stays manual-only. Paired with autoPush's push-on-backgrounded/close (see
+  // sync/autoPush.js) as the "push at end of session" half.
   //
-  // Auto-Pull on Login: only actually applies the pull if the bin's real JSONBin `updatedAt` is
-  // newer than what this device last knew (appState.sync.lastKnownRemoteUpdatedAt) — that's already
-  // stamped fresh by this SAME device's own successful pushes (see sync/bins.js's pushBin), so a
+  // Auto-Pull on Login: only actually applies the pull if the sync gist's real `updated_at` is newer
+  // than what this device last knew (appState.sync.lastKnownRemoteUpdatedAt) — that's already stamped
+  // fresh by this SAME device's own successful pushes (see sync/gists.js's pushAllChangedFiles), so a
   // newer remote timestamp here reliably means some OTHER device/instance pushed since this one was
-  // last open. When that's the case, surface which device and when (activeDevice/updateTimestamp,
-  // see sync/device.js) before pulling.
+  // last open. When that's the case, surface which device and when (activeDevice/updateTimestamp, see
+  // sync/device.js) before pulling. gists.pullIfRemoteNewer() does the whole check-then-maybe-apply in
+  // one request — there's no cheaper "metadata only" endpoint to peek with first.
   if (syncConfig.isSyncConfigured() && appState.sync.enabled && !appState.toggles.tempMode) {
-    bins.pullBinRaw(appState.sync.currentBinId).then((remote) => {
-      if (!remote.ok) return;
-      const isNewer = remote.updatedAt != null && (!appState.sync.lastKnownRemoteUpdatedAt || remote.updatedAt > appState.sync.lastKnownRemoteUpdatedAt);
-      if (!isNewer) return;
-      if (remote.activeDevice && remote.updateTimestamp) {
-        showToast(`Found update from last active session from ${remote.activeDevice} on ${remote.updateTimestamp} - Pulling`, "info");
+    gists.pullIfRemoteNewer().then((result) => {
+      if (!result.ok) {
+        showToast(`Session-start pull failed: ${result.error || "unknown error"}`, "error");
+        return;
       }
-      bins.applyBinToLocalState(/** @type {string} */ (appState.sync.currentBinId), remote);
+      if (!result.applied) return;
+      if (result.activeDevice && result.updateTimestamp) {
+        showToast(`Found update from last active session from ${result.activeDevice} on ${result.updateTimestamp} - Pulled`, "info");
+      }
+      if (result.failures && result.failures.length > 0) {
+        showToast(`Pulled with ${result.failures.length} file(s) failing — see console for details.`, "error");
+      }
       autoPush.markSynced(); // this pull's own writes aren't a new local edit needing a push
       fileManager.bootstrapFromStorage();
       refreshAfterExternalDataChange();
@@ -459,13 +458,6 @@ function init() {
   }
 }
 
-/**
- * Everything syncs through exactly one "current" bin at a time (see sync/bins.js's module doc
- * comment) — so the File Switcher only ever lists files that resolve to it (bins.resolveBinId),
- * never files parked in some other bin the user isn't currently working from. Switching bins (via
- * the Cross-Device Sync modal's "Set as current bin") pulls that bin's files in and this then shows
- * them; files elsewhere aren't lost, just out of view until you switch back.
- */
 function updateDeleteFileBtn() {
   const deleteBtn = $("deleteCurrentFileBtn");
   if (deleteBtn) deleteBtn.hidden = appState.activeFileId === null;
@@ -482,37 +474,17 @@ function renderFileSwitcher() {
   updateDeleteFileBtn();
   if (!select) return;
 
-  const currentBinId = appState.sync.currentBinId;
-  const filesHere = appState.files.filter((f) => bins.resolveBinId(f) === currentBinId);
-
-  // The active file can end up outside the current bin right after switching bins (nothing else
-  // auto-corrects appState.activeFileId) — snap to one of this bin's own files instead of leaving
-  // the tree showing data for a file the switcher itself no longer lists. switchToFile's own
-  // onFilesChanged re-runs this function with the corrected state, so just bail out here.
-  if (filesHere.length > 0 && !filesHere.some((f) => f.id === appState.activeFileId)) {
-    fileManager.switchToFile(filesHere[0].id);
-    return;
-  }
-
   // A switcher only means something once there's something to switch between.
-  select.hidden = filesHere.length <= 1;
+  select.hidden = appState.files.length <= 1;
   select.textContent = "";
-  if (filesHere.length === 0) {
-    // The active file (if any) belongs to some OTHER bin now — clear the working copy so the tree
-    // falls back to the "no data" state instead of continuing to show that file's stale content
-    // (appState.rawData is never touched by the bin switch itself, only appState.files).
-    if (appState.activeFileId !== null) {
-      fileManager.clearActiveFile();
-      refreshView();
-    }
-    updateDeleteFileBtn();
+  if (appState.files.length === 0) {
     const opt = document.createElement("option");
-    opt.textContent = appState.files.length === 0 ? "No files loaded" : "No files in this bin";
+    opt.textContent = "No files loaded";
     opt.value = "";
     select.appendChild(opt);
     return;
   }
-  for (const f of filesHere) {
+  for (const f of appState.files) {
     const opt = document.createElement("option");
     opt.value = f.id;
     opt.textContent = f.fileName;

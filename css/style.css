@@ -137,11 +137,6 @@ body {
 
 .sync-menu-wrap { position: relative; }
 .sync-status-dot { display: inline-block; width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--review); margin-left: 0.2rem; vertical-align: middle; }
-/* Cloud storage usage %, shown directly on the collapsed Sync button (not just inside its dropdown)
-   so nearing the free-tier cap is visible without opening the menu. */
-.sync-usage-badge { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 0.05rem 0.32rem; border-radius: 0.7rem; margin-left: 0.25rem; vertical-align: middle; background: var(--bg-badge); color: var(--text-badge); }
-.sync-usage-badge.usage-warn { background: #fff3cd; color: #997404; }
-.sync-usage-badge.usage-over { background: #f8d7da; color: #842029; }
 .sync-menu-panel {
   position: absolute;
   top: calc(100% + 0.35rem);
@@ -154,8 +149,8 @@ body {
   box-shadow: 0 0.5rem 1.25rem var(--shadow);
   padding: 0.75rem;
 }
-/* Distinct from .sync-status-dot (unpushed-changes) and .sync-usage-badge (storage %) — reflects
-   whether the Auto-sync toggle is on (green) or paused (muted), only shown once configured. */
+/* Distinct from .sync-status-dot (unpushed-changes) — reflects whether the Auto-sync toggle is on
+   (green) or paused (muted), only shown once configured. */
 .sync-status-indicator { display: inline-block; width: 0.45rem; height: 0.45rem; border-radius: 50%; margin-left: 0.2rem; vertical-align: middle; }
 .sync-status-indicator.sync-indicator-on { background: var(--done); }
 .sync-status-indicator.sync-indicator-paused { background: var(--text-faint); }
@@ -167,42 +162,17 @@ body {
 .sync-toggle-text { font-size: 0.78rem; }
 .sync-menu-actions { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; }
 .sync-menu-actions .btn { flex: 1; }
-.sync-menu-usage-row { margin-bottom: 0.5rem; }
-.sync-usage-progress { height: 1.1rem; font-size: 0.7rem; }
 .sync-menu-manage { padding: 0; font-size: 0.8rem; }
-
-/* The bin manager (table + multi-field rows) is cramped at the default modal width — 2x it, same
-   pattern as the Move form's 3-column picker below. */
-.modal-host .modal-box:has(.sync-bin-table) { max-width: 960px; }
 
 /* Duplicate Finder needs room for long question text, answer previews, and the append picker. */
 .modal-host .modal-box:has(.dup-finder) { max-width: 960px; }
 
-.sync-bin-table { width: 100%; table-layout: fixed; font-size: 0.82rem; margin-bottom: 0.5rem; border-collapse: collapse; }
-.sync-bin-table th { text-align: left; font-weight: 600; color: var(--text-muted); padding: 0.3rem 0.5rem 0.3rem 0; border-bottom: 1px solid var(--border-soft); }
-.sync-bin-table td { padding: 0.4rem 0.5rem 0.4rem 0; border-bottom: 1px solid var(--border-soft); vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sync-bin-table th:nth-child(1), .sync-bin-table td:nth-child(1) { width: 18%; }
-.sync-bin-table th:nth-child(2), .sync-bin-table td:nth-child(2) { width: 19%; }
-.sync-bin-table th:nth-child(3), .sync-bin-table td:nth-child(3) { width: 24%; }
-.sync-bin-table th:nth-child(4), .sync-bin-table td:nth-child(4) { width: 23%; }
-.sync-bin-table th:nth-child(5), .sync-bin-table td:nth-child(5) { width: 16%; }
-.sync-bin-table code { font-size: 0.78rem; }
-.sync-bin-description { color: var(--text-muted); font-style: italic; }
-.sync-bin-table td.sync-bin-actions { display: flex; gap: 0.3rem; justify-content: flex-end; white-space: nowrap; overflow: visible; text-overflow: clip; }
-.sync-bin-actions .btn { padding: 0.1rem 0.35rem; font-size: 0.75rem; }
-.sync-bin-edit-row td { padding: 0.5rem 0; border-bottom: 1px solid var(--border-soft); white-space: normal; overflow: visible; }
-.sync-bin-edit-form { display: flex; gap: 0.5rem; align-items: flex-start; background: var(--bg-surface-alt); border-radius: 0.35rem; padding: 0.5rem; }
-.sync-bin-edit-form input { flex: 0 1 220px; min-width: 0; margin-bottom: 0; }
-.sync-bin-edit-form textarea { flex: 1 1 auto; min-width: 0; resize: vertical; font-size: 0.82rem; }
-.sync-bin-edit-form button { flex-shrink: 0; white-space: nowrap; }
-.sync-inline-row { display: flex; gap: 0.5rem; align-items: center; }
-.sync-inline-row input { flex: 1; min-width: 0; margin-bottom: 0; }
-.sync-inline-row button { flex-shrink: 0; white-space: nowrap; }
-.sync-file-row { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(180px, 240px) auto auto auto auto; gap: 0.5rem; align-items: center; padding: 0.4rem 0; border-top: 1px solid var(--border-soft); }
+.sync-file-row { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(100px, auto) auto auto; gap: 0.5rem; align-items: center; padding: 0.4rem 0; border-top: 1px solid var(--border-soft); }
 .sync-file-row:first-of-type { border-top: none; }
 .sync-file-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; }
-.sync-file-row select { width: 100%; }
-/* Separates the Cross-Device Sync manager's Manage Bins / Manage Files / Register-or-Add-a-Bin
+.sync-file-status { white-space: nowrap; }
+.sync-file-usage-warn { color: #997404; }
+/* Separates the Cross-Device Sync manager's Files list from its App-config-gist-id/danger-zone
    sections so each is easy to tell apart at a glance (see sync/syncConfig.js's sectionDivider). */
 .sync-section-divider { border: none; border-top: 1px solid var(--border-soft); margin: 0.9rem 0; }
 

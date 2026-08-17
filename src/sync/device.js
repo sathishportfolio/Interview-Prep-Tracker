@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * sync/device.js — per-browser/per-instance device identity and IST timestamp formatting, used to
- * attribute pushes across concurrent devices/instances (sync/bins.js's activeDevice/updateTimestamp
+ * attribute pushes across concurrent devices/instances (sync/gists.js's activeDevice/updateTimestamp
  * tracking). The device ID is deliberately stored directly in localStorage rather than through
  * persistence/store.js's synced StorageSchemaV1 envelope: it must stay device-local forever and
  * never be overwritten by a pull or travel inside a pushed bin payload, unlike everything else that

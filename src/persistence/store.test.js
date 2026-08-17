@@ -55,20 +55,20 @@ test("readSchema returns a default schema when nothing is stored", () => {
   assert.equal(read.activeFileId, null);
 });
 
-test("coerceSchema infers sync.enabled true for a pre-existing configured schema with no enabled field", () => {
-  const schema = coerceSchema({ sync: { masterKey: "k", currentBinId: "b1" } });
+test("coerceSchema defaults sync.enabled to true for a configured schema with no enabled field", () => {
+  const schema = coerceSchema({ sync: { githubToken: "k", configGistId: "b1" } });
   assert.equal(schema.sync.enabled, true);
 });
 
 test("coerceSchema keeps an explicit persisted sync.enabled: false even when configured", () => {
-  const schema = coerceSchema({ sync: { masterKey: "k", currentBinId: "b1", enabled: false } });
+  const schema = coerceSchema({ sync: { githubToken: "k", configGistId: "b1", enabled: false } });
   assert.equal(schema.sync.enabled, false);
 });
 
-test("emptySchema defaults sync.enabled to false", () => {
-  assert.equal(emptySchema().sync.enabled, false);
+test("emptySchema defaults sync.enabled to true", () => {
+  assert.equal(emptySchema().sync.enabled, true);
 });
 
-test("coerceSchema defaults sync.enabled to false when there's no sync object at all", () => {
-  assert.equal(coerceSchema({}).sync.enabled, false);
+test("coerceSchema defaults sync.enabled to true when there's no sync object at all", () => {
+  assert.equal(coerceSchema({}).sync.enabled, true);
 });
