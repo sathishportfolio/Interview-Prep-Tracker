@@ -1,0 +1,68 @@
+{
+  "states": {
+    " ": {
+      "enabled": true
+    },
+    "x": {
+      "enabled": true
+    },
+    "-": {
+      "enabled": false
+    },
+    ">": {
+      "enabled": false
+    },
+    "<": {
+      "enabled": false
+    },
+    "?": {
+      "enabled": false
+    },
+    "/": {
+      "enabled": false
+    },
+    "!": {
+      "enabled": true
+    },
+    "*": {
+      "enabled": false
+    },
+    "\"": {
+      "enabled": false
+    },
+    "l": {
+      "enabled": false
+    },
+    "i": {
+      "enabled": false
+    },
+    "I": {
+      "enabled": false
+    },
+    "f": {
+      "enabled": false
+    },
+    "k": {
+      "enabled": false
+    },
+    "u": {
+      "enabled": false
+    },
+    "d": {
+      "enabled": false
+    },
+    "w": {
+      "enabled": false
+    },
+    "p": {
+      "enabled": false
+    },
+    "c": {
+      "enabled": false
+    },
+    "b": {
+      "enabled": false
+    }
+  },
+  "cycleOrder": " x!cp*/>\"?liIfkudwb-<"
+}

@@ -1,0 +1,68 @@
+.checkbox-progress {
+	padding: var(--size-4-4) var(--size-4-4);
+}
+
+.checkbox-progress-label {
+	font-size: var(--font-smallest);
+	color: var(--text-muted);
+	margin-bottom: var(--size-2-3);
+
+    display: flex;
+    align-items: center;
+    gap: var(--size-4-1);
+    justify-content: center;
+}
+
+.checkbox-no-hover {
+    pointer-events: none;
+}
+
+.checkbox-progress-bar {
+	height: 8px;
+	background: var(--background-modifier-border);
+	border-radius: 4px;
+	overflow: hidden;
+}
+
+.checkbox-progress-fill {
+	height: 100%;
+	background: var(--text-accent);
+}
+
+.checkbox-empty {
+	text-align: center;
+	color: var(--text-faint);
+	font-size: var(--font-smallest);
+}
+
+.checkbox-statusbar-item {
+    display: flex;
+    align-items: center;
+    height: 100%;
+	gap: var(--size-4-1);
+	align-self: center;
+}
+
+.checkbox-statusbar-icon {
+	display: block;
+	height: 12px;
+	transform: translateY(-2px);
+}
+
+.checkbox-cycle-setting-label-prefix {
+	margin-right: var(--size-2-3);
+}
+
+.checkbox-cycle-setting-label {
+	font-size: var(--font-smallest);
+	margin-top: var(--size-2-3);
+
+    display: flex;
+    align-items: center;
+    justify-content: left;
+	flex-wrap: wrap;
+}
+
+.checkbox-cycle-setting-bullet {
+	margin-right: var(--size-2-3);
+}

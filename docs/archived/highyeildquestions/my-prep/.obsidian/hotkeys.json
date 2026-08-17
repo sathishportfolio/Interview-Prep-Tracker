@@ -1,0 +1,18 @@
+{
+  "multistate-checkboxes:cycle-checkbox-state-backward": [
+    {
+      "modifiers": [
+        "Mod"
+      ],
+      "key": "."
+    }
+  ],
+  "multistate-checkboxes:cycle-checkbox-state": [
+    {
+      "modifiers": [
+        "Mod"
+      ],
+      "key": "M"
+    }
+  ]
+}
