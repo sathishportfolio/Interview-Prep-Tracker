@@ -31,7 +31,8 @@
 import { appState } from "../state/appState.js";
 import * as store from "../persistence/store.js";
 import { createGist, pushToGist, pullFromGist, usageAgainstSafeCeiling } from "./github.js";
-import { getDeviceId, formatIST } from "./device.js";
+import { getDeviceId, getDeviceLabel, formatIST } from "./device.js";
+import { minifyAllAnswers } from "../data/answerFormat.js";
 
 const META_FILENAME = "_sync-meta.json";
 
@@ -54,6 +55,24 @@ function serializeFileContent(file) {
 }
 
 /**
+ * Runs the same answer-HTML normalization fileManager.bootstrapFromStorage applies on every load,
+ * BEFORE serializing for push — mutates `file.rawData` in place if it changes anything. Without this,
+ * a freshly-loaded CSV (upload/sample) gets pushed with its raw, un-normalized answer HTML, then
+ * bootstrapFromStorage normalizes it moments later (on the very next reload/pull-triggered refresh)
+ * — the local copy now silently disagrees with what was actually pushed, so the NEXT push thinks
+ * there's a real content change (there isn't, just normalization drift) and re-sends + bumps version
+ * for nothing. Normalizing here first means the pushed content always already matches what any device
+ * would normalize it to anyway, so there's nothing left to drift.
+ * @param {FileRecord} file
+ * @returns {string}
+ */
+function serializeNormalizedFileContent(file) {
+  const result = minifyAllAnswers(file.rawData);
+  if (result.changed) file.rawData = result.rawData;
+  return serializeFileContent(file);
+}
+
+/**
  * @param {{version: number, activeDevice: string|null}} lock
  * @returns {string}
  */
@@ -62,7 +81,7 @@ function serializeMetaContent({ version, activeDevice }) {
     schemaVersion: 1,
     version,
     activeDevice,
-    lastWriter: getDeviceId(),
+    lastWriter: getDeviceLabel(),
     lastWriteTimestamp: formatIST(Date.now()),
     globalToggles: appState.toggles,
     activeQuestion: appState.activeQuestion,
@@ -246,16 +265,22 @@ export async function pushAllChangedFiles() {
   const filePatch = {};
   let anyFileChanged = false;
   for (const file of appState.files) {
-    const content = serializeFileContent(file);
+    const content = serializeNormalizedFileContent(file);
     const hash = hashString(content);
     if (file.lastPushedHash === hash) continue;
     filePatch[/** @type {string} */ (file.gistFileName)] = { content };
     anyFileChanged = true;
   }
 
-  // Cheap local-only check first: don't even fetch remote for validation if there's nothing to push.
+  // Cheap local-only check first: don't fetch remote for full validation if there's no actual data
+  // to push. Still sends a lightweight description-only PATCH (no files, no version bump, no
+  // validation needed since it touches nothing version-tracked) so the gist's "last touched" stamp
+  // refreshes on every push attempt, not just ones carrying real content changes.
   const localTogglesChanged = hashString(JSON.stringify({ t: appState.toggles, a: appState.activeQuestion, ti: appState.timer })) !== appState.sync.lastMetaPushedHash;
-  if (!anyFileChanged && !localTogglesChanged) return { ok: true, skipped: true };
+  if (!anyFileChanged && !localTogglesChanged) {
+    await pushToGist({ token, gistId: configGistId, files: {}, description: syncGistDescription() });
+    return { ok: true, skipped: true };
+  }
 
   // Pre-Push Validation: fetch the remote meta fresh (not the possibly-stale local cache) right
   // before writing, so the version/lock check reflects reality at push time.
@@ -288,7 +313,7 @@ export async function pushAllChangedFiles() {
     lastKnownRemoteUpdatedAt: Date.now(),
     knownVersion: newVersion,
     lastMetaPushedHash: hashString(JSON.stringify({ t: appState.toggles, a: appState.activeQuestion, ti: appState.timer })),
-    lastRemoteActiveDevice: getDeviceId(),
+    lastRemoteActiveDevice: getDeviceLabel(),
     lastRemoteUpdateTimestamp: formatIST(Date.now()),
   };
   store.writeSync(appState.sync);
@@ -364,7 +389,7 @@ export async function deleteFileFromGist(fileId) {
   });
   if (!result.ok) return result;
 
-  appState.sync = { ...appState.sync, knownVersion: newVersion, lastRemoteActiveDevice: getDeviceId(), lastRemoteUpdateTimestamp: formatIST(Date.now()) };
+  appState.sync = { ...appState.sync, knownVersion: newVersion, lastRemoteActiveDevice: getDeviceLabel(), lastRemoteUpdateTimestamp: formatIST(Date.now()) };
   store.writeSync(appState.sync);
   return { ok: true };
 }
@@ -385,7 +410,7 @@ export async function createNewSyncGist() {
   /** @type {Record<string, {content: string}>} */
   const files = { [META_FILENAME]: { content: metaContent } };
   for (const file of appState.files) {
-    files[/** @type {string} */ (file.gistFileName)] = { content: serializeFileContent(file) };
+    files[/** @type {string} */ (file.gistFileName)] = { content: serializeNormalizedFileContent(file) };
   }
 
   const result = await createGist({ token, files, description: syncGistDescription() });
@@ -397,7 +422,7 @@ export async function createNewSyncGist() {
     configGistId: result.gistId,
     knownVersion: 1,
     lastMetaPushedHash: hashString(JSON.stringify({ t: appState.toggles, a: appState.activeQuestion, ti: appState.timer })),
-    lastRemoteActiveDevice: getDeviceId(),
+    lastRemoteActiveDevice: getDeviceLabel(),
     lastRemoteUpdateTimestamp: formatIST(Date.now()),
   };
   store.writeFiles(appState.files);

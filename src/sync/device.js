@@ -5,9 +5,13 @@
  * tracking). The device ID is deliberately stored directly in localStorage rather than through
  * persistence/store.js's synced StorageSchemaV1 envelope: it must stay device-local forever and
  * never be overwritten by a pull or travel inside a pushed bin payload, unlike everything else that
- * module manages.
+ * module manages. The optional user-chosen alias (getDeviceAlias/setDeviceAlias) is stored the same
+ * way, for the same reason — it names THIS device, so it must never be clobbered by another device's
+ * sync data. getDeviceLabel() (alias, falling back to the raw ID) is what gets written into synced
+ * content so every device displays the same human-chosen name once one is set.
  */
 const DEVICE_ID_KEY = "iqv:deviceId";
+const DEVICE_ALIAS_KEY = "iqv:deviceAlias";
 
 function randomSuffix() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID().slice(0, 8);
@@ -42,6 +46,37 @@ export function getDeviceId() {
     localStorage.setItem(DEVICE_ID_KEY, id);
   }
   return id;
+}
+
+/**
+ * @returns {string|null} This browser/instance's user-chosen alias, if one was set — device-local
+ *   like the ID itself (see the module doc comment), so setting an alias on one device never
+ *   overwrites another device's alias or ID via sync.
+ */
+export function getDeviceAlias() {
+  return localStorage.getItem(DEVICE_ALIAS_KEY) || null;
+}
+
+/**
+ * Sets (or, given a blank/whitespace-only value, clears) this device's alias.
+ * @param {string} alias
+ */
+export function setDeviceAlias(alias) {
+  const trimmed = (alias || "").trim();
+  if (trimmed) localStorage.setItem(DEVICE_ALIAS_KEY, trimmed);
+  else localStorage.removeItem(DEVICE_ALIAS_KEY);
+}
+
+/**
+ * @returns {string} The alias if one is set, otherwise the generated device ID — this is the name
+ *   that should be written into synced content (meta blob's `lastWriter`, "Synced at ... from ..."
+ *   displays) so every device shows the same human-chosen name for this device once one is set,
+ *   instead of the opaque generated ID. The write-lock's `activeDevice` field and its equality check
+ *   against `getDeviceId()` deliberately keep using the raw ID, not this label, since two devices
+ *   could in principle choose the same alias.
+ */
+export function getDeviceLabel() {
+  return getDeviceAlias() || getDeviceId();
 }
 
 /**

@@ -50,19 +50,23 @@ function $(id) {
 /**
  * Reflects the cloud data's freshness inside the Sync menu — the compact relative-time label (e.g.
  * "5 min ago") plus the explicit "Synced at [Timestamp] from [activeDevice]" detail line underneath.
- * Called after every push/pull, manual or background (see autoPush.js's onPushed callback and the
- * manualPush/manualPull/session-start-pull handlers below), so both stay current the moment a sync
- * actually happens, not just on next menu open.
+ * The same detail line is mirrored into the page footer (#footerLastSyncedDetail) so it stays visible
+ * without opening the Sync menu. Called after every push/pull, manual or background (see
+ * autoPush.js's onPushed callback and the manualPush/manualPull/session-start-pull handlers below),
+ * so both stay current the moment a sync actually happens, not just on next menu open.
  */
 function updateSyncStatusLabel() {
   const menuBtn = $("syncMenuBtn");
   const label = $("lastSyncedLabel");
   const detailLabel = $("lastSyncedDetailLabel");
+  const footerDetailLabel = $("footerLastSyncedDetail");
   const text = syncConfig.lastSyncedLabel();
   const title = text === "Never synced" ? text : `Last sync with cloud: ${text}`;
+  const detailText = syncConfig.lastSyncedDetailLabel();
   if (menuBtn) menuBtn.title = title;
   if (label) label.textContent = text;
-  if (detailLabel) detailLabel.textContent = syncConfig.lastSyncedDetailLabel();
+  if (detailLabel) detailLabel.textContent = detailText;
+  if (footerDetailLabel) footerDetailLabel.textContent = detailText;
 }
 
 /** Toggles the setup-prompt vs. connected views inside the Sync menu panel to match current config. */

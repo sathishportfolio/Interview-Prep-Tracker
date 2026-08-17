@@ -20,6 +20,7 @@ import { showToast, confirmAction } from "../features/toast.js";
 import { openModal } from "../features/modal.js";
 import * as fileManager from "../features/fileManager.js";
 import * as gists from "./gists.js";
+import { getDeviceId, getDeviceAlias, setDeviceAlias } from "./device.js";
 
 /** @type {(() => void)|null} Called after any action that changes local files/settings (create/connect/pull/delete/clear). */
 let onSyncedDataChanged = null;
@@ -279,6 +280,9 @@ function buildConfiguredView(wrap) {
   }
 
   section.appendChild(sectionDivider());
+  section.appendChild(buildDeviceAliasRow(wrap));
+
+  section.appendChild(sectionDivider());
 
   const configRow = document.createElement("p");
   configRow.className = "small text-muted";
@@ -368,6 +372,52 @@ function buildFileRow(wrap, file) {
   row.appendChild(deleteBtn);
 
   return row;
+}
+
+/**
+ * "This device's name" row: an optional human-readable alias for this browser/instance, shown
+ * instead of the generated device ID (e.g. "Windows-7f3a9c2b") everywhere a device name is synced and
+ * displayed — the meta blob's `lastWriter` and the "Synced at ... from ..." labels (see device.js's
+ * getDeviceLabel). The generated ID is kept as the fallback placeholder and as what's actually saved
+ * when the field is left blank, so clearing the alias just reverts to it.
+ * @param {HTMLElement} wrap
+ */
+function buildDeviceAliasRow(wrap) {
+  const box = document.createElement("div");
+
+  box.appendChild(mkLabel("This Device's Name"));
+
+  const row = document.createElement("div");
+  row.style.display = "flex";
+  row.style.gap = "0.4rem";
+
+  const input = mkInput(getDeviceAlias() || "");
+  input.placeholder = getDeviceId();
+  input.style.marginBottom = "0";
+  input.style.flex = "1";
+  row.appendChild(input);
+
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.className = "btn btn-sm btn-outline-secondary";
+  saveBtn.textContent = "Save";
+  saveBtn.addEventListener("click", () => {
+    setDeviceAlias(input.value);
+    showToast(getDeviceAlias() ? `This device will now show as "${getDeviceAlias()}".` : "Device name cleared — back to the generated ID.", "success");
+    renderInto(wrap);
+  });
+  row.appendChild(saveBtn);
+
+  box.appendChild(row);
+
+  const hint = document.createElement("p");
+  hint.className = "small text-muted";
+  hint.style.marginTop = "0.3rem";
+  hint.style.marginBottom = "0";
+  hint.textContent = "Shown on other devices as who last synced. Stays on this device only — not affected by pull.";
+  box.appendChild(hint);
+
+  return box;
 }
 
 /** @param {string} text */

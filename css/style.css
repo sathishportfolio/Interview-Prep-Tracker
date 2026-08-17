@@ -118,6 +118,9 @@ body {
 .last-synced-label { font-size: 0.75rem; opacity: 0.8; }
 .last-synced-detail-label { font-size: 0.72rem; opacity: 0.65; margin-bottom: 0.5rem; }
 
+.app-footer { text-align: center; padding: 0.6rem 1rem 1rem; }
+.footer-last-synced-detail { font-size: 0.7rem; opacity: 0.5; }
+
 .bulk-select-menu-wrap { position: relative; display: inline-block; }
 .bulk-select-menu-panel {
   position: absolute;
