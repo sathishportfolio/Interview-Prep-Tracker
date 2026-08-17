@@ -242,10 +242,10 @@
 - [ ] Why can't Generics use primitives?
 - [ ] Why can't we do new T()?
 - [ ] Why can't Generic Arrays be created?
-- [ ] Why is List<Integer> not a subtype of List<Number>?
+- [ ] Why is `List<Integer>` not a subtype of `List<Number>`?
 - [ ] What are Bounded Type Parameters?
 - [ ] Generic Wildcards
-- [ ] List<?> vs List<Object>
+- [ ] `List<?>` vs `List<Object>`
 - [ ] Wildcard Upper vs Lower Bounds (extends vs super)
 - [ ] Explain PECS (Producer Extends, Consumer Super)
 - [ ] What is Type Erasure?

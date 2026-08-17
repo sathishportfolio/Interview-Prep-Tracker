@@ -1,0 +1,91 @@
+Subject,Topic,Question,Answer
+OOP,General,What is OOP and why it matters,
+OOP,General,Characteristics of an OOP,
+OOP,4 Pillars of OOP,Explain with examples,
+OOP,Encapsulation,Definition,
+OOP,Encapsulation,How is it achieved,
+OOP,Encapsulation,What are all the benefits,
+OOP,Encapsulation,Explain State Control by encapsulation using one example,
+OOP,Encapsulation,Access modifiers,
+OOP,Abstraction,Definition,
+OOP,Abstraction,How is it achieved,
+OOP,Abstraction,Abstract class vs methods,
+OOP,Abstraction,Interface vs Abstract class,
+OOP,Abstraction,Method in interface vs Abstract,
+OOP,Abstraction,How will you choose Interface or Abstract class,
+OOP,Abstraction,When do you layer an interface on top of the abstract class,• Validation using Template Method Pattern
+OOP,Abstraction,default & static methods in java 8,
+OOP,Abstraction,"static, final and private methods",
+OOP,Abstraction,Explain how abstraction promotes loose coupling and reducing tight coupling,
+OOP,Abstraction,Explain loose coupling with dependency injection using payment processor and notification system,
+OOP,Inheritance,Definition,
+OOP,Inheritance,Parent child analogy,
+OOP,Inheritance,What relationship does inheritance form,
+OOP,Inheritance,Why do we need Inheritance & One Major Drawback,
+OOP,Inheritance,Types,
+OOP,Inheritance,Diamond problem,
+OOP,Inheritance,How multiple inheritance resolved in java,• Explain
+OOP,Inheritance,Two interfaces have the same default method. How do you resolve it?,
+OOP,Inheritance,What is another way of using inheritance is called?,
+OOP,Inheritance,Another way of using inheritance based on what condition? What relationship does it form?,
+OOP,Polymorphism,Definition,• same interface but different implementation
+OOP,Polymorphism,Static — Compile-time — method overloading vs Dynamic — Runtime — overriding,
+OOP,Polymorphism,overloading vs overriding,
+OOP,Polymorphism,What are the rules for method overriding?,"• Same Method Signature
+• Inheritance Required
+• Compatible Return Type (same or covariant)
+• Equal or Broadened Access
+• Non-Overridable Methods ( private, static, or final )"
+OOP,Polymorphism,What are the rules regarding checked and unchecked exceptions in method overriding?,"• Checked Exceptions
+  ◦ Cannot declare broader or new checked exceptions
+  ◦ Can declare narrower checked exceptions
+  ◦ Can declare fewer or no checked exceptions
+  ◦ Parent declares no checked exceptions
+• Unchecked Exceptions
+  ◦ No restrictions
+  ◦ Flexibility"
+OOP,Polymorphism,when is method overriding vs method hiding applicable,
+OOP,Association,Definition,
+OOP,Aggregation,Definition,
+OOP,Composition,Definition,
+OOP,Composition,What relationship does Composition form,
+OOP,Composition,Inheritance vs Composition,
+OOP,Composition,How will you choose Inheritance or Composition,
+OOP,Composition,Explain benefit of Composition over Inheritance with a use case,• Department class getListOfEmployees where Employee class extended as PermanantEmployees / ContractEmployees also can be accomodated
+OOP,Cohesion,"Definition — What, When, Where, Why & How",
+OOP,Coupling,"Definition — What, When, Where, Why & How",
+OOP,Misc,Constructor vs Method,
+OOP,Misc,Constructor Chaining (this() vs super()),
+OOP,Misc,this vs super,
+OOP,Misc,Functional Interface,
+OOP,Misc,Marker Interface,
+OOP,Misc,Final Class vs Final Method vs Final Variable,
+OOP,Nested Classes,Definition,
+OOP,Nested Classes,"Types — What, When, Where, Why & How",
+OOP,SOLID,Explain with examples,
+OOP,GOF,Definition,
+OOP,GOF,All categories — List down types for each,
+OOP,GOF,"Example implementation for,","• Creational
+  ◦ Singleton
+  ◦ Factory
+  ◦ Builder
+• Structural
+  ◦ Adapter
+  ◦ Facade
+  ◦ Proxy
+• Behavioural
+  ◦ Observer
+  ◦ Strategy
+  ◦ Template Method (Example — validation using interface & abstract)"
+OOP,Scenario Based,"Interface or Abstract Class, which would you choose for a payment system?",
+OOP,Scenario Based,"Inheritance or Composition, which is better and why?",
+OOP,Scenario Based,"How would you design a notification framework supporting Email, SMS, Push, WhatsApp?",
+OOP,Scenario Based,Explain Parent obj = new Child();. Which methods and variables are accessible?,
+OOP,Scenario Based,Explain Dynamic Method Dispatch internally.,
+OOP,Scenario Based,Two interfaces have the same default method. How do you resolve it?,
+OOP,Scenario Based,Why is programming to interfaces considered a best practice?,
+OOP,Scenario Based,Refactor a tightly coupled design into a loosely coupled one.,
+OOP,Scenario Based,Design a plugin architecture using OOP principles.,
+OOP,Scenario Based,A class has 15 constructor parameters. How would you redesign it?,
+OOP,Scenario Based,How would you model a payment gateway using abstraction and polymorphism?,
+OOP,Scenario Based,Explain a real production example where composition helped more than inheritance.,
