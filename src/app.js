@@ -298,16 +298,6 @@ function init() {
     if (id) fileManager.switchToFile(id);
   });
 
-  // Soft delete: local-only, never touches any cloud gist — full local+remote removal lives in the
-  // Cross-Device Sync manager's Files list instead (sync/syncConfig.js's buildFileRow).
-  $("deleteCurrentFileBtn")?.addEventListener("click", () => {
-    const file = appState.files.find((f) => f.id === appState.activeFileId);
-    if (!file) return;
-    if (!confirmAction(`Remove "${file.fileName}" from this device only? This does NOT delete its gist — to remove it everywhere, use Sync → Manage cloud sync. This cannot be undone on this device.`)) return;
-    fileManager.deleteFile(file.id);
-    showToast(`Removed "${file.fileName}" from this device.`, "info");
-  });
-
   const tempModeToggleEl = /** @type {HTMLInputElement|null} */ ($("tempModeToggle"));
   if (tempModeToggleEl) tempModeToggleEl.checked = appState.toggles.tempMode;
   tempModeToggleEl?.addEventListener("change", (e) => {
@@ -478,20 +468,12 @@ function init() {
   }
 }
 
-function updateDeleteFileBtn() {
-  const deleteBtn = $("deleteCurrentFileBtn");
-  if (deleteBtn) deleteBtn.hidden = appState.activeFileId === null;
-}
-
 function renderFileSwitcher() {
   const select = /** @type {HTMLSelectElement} */ ($("fileSwitcher"));
   // First-time users have nothing to sample-load from yet, so "Load Sample" is the obvious next
   // step; once real data exists it's just clutter next to Upload CSV.
   const loadSampleBtn = $("loadSampleBtn");
   if (loadSampleBtn) loadSampleBtn.hidden = appState.files.length > 0;
-  // Visible whenever there's an active file, independent of the switcher select itself (which hides
-  // once there's only one file to switch between — deleting the sole file is still valid).
-  updateDeleteFileBtn();
   if (!select) return;
 
   // A switcher only means something once there's something to switch between.
