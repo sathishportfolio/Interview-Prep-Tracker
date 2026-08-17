@@ -180,6 +180,13 @@ export function renderGlobalActions(toggles, handlers) {
   if (!actionsEl) return;
   actionsEl.textContent = "";
 
+  // The icon buttons scroll internally (see .action-icons-scroll) if they don't all fit; the Copy
+  // Visible select is appended to actionsEl directly afterward, OUTSIDE this scrollable wrapper, so
+  // it always stays pinned fully visible at the row's right edge instead of scrolling out of view.
+  const iconsWrap = document.createElement("div");
+  iconsWrap.className = "action-icons-scroll";
+  actionsEl.appendChild(iconsWrap);
+
   const editModeBtn = document.createElement("button");
   editModeBtn.type = "button";
   editModeBtn.className = "btn btn-sm btn-outline-secondary";
@@ -187,7 +194,7 @@ export function renderGlobalActions(toggles, handlers) {
   editModeBtn.innerHTML = '<i class="fa-solid fa-pencil"></i>';
   editModeBtn.classList.toggle("active", toggles.editModeOn);
   editModeBtn.addEventListener("click", () => handlers.onToggleEditMode());
-  actionsEl.appendChild(editModeBtn);
+  iconsWrap.appendChild(editModeBtn);
 
   const flatBtn = document.createElement("button");
   flatBtn.type = "button";
@@ -196,7 +203,7 @@ export function renderGlobalActions(toggles, handlers) {
   flatBtn.innerHTML = '<i class="fa-solid fa-align-left"></i>';
   flatBtn.classList.toggle("active", toggles.flatGroupView);
   flatBtn.addEventListener("click", () => handlers.onToggleFlatten());
-  actionsEl.appendChild(flatBtn);
+  iconsWrap.appendChild(flatBtn);
 
   const dragBtn = document.createElement("button");
   dragBtn.type = "button";
@@ -205,7 +212,7 @@ export function renderGlobalActions(toggles, handlers) {
   dragBtn.innerHTML = '<i class="fa-solid fa-arrows-up-down-left-right"></i>';
   dragBtn.classList.toggle("active", toggles.dragDropOn);
   dragBtn.addEventListener("click", () => handlers.onToggleDragDrop());
-  actionsEl.appendChild(dragBtn);
+  iconsWrap.appendChild(dragBtn);
 
   const autoExpandBtn = document.createElement("button");
   autoExpandBtn.type = "button";
@@ -214,7 +221,7 @@ export function renderGlobalActions(toggles, handlers) {
   autoExpandBtn.innerHTML = '<i class="fa-solid fa-angles-down"></i>';
   autoExpandBtn.classList.toggle("active", !!toggles.autoExpandChildrenOn);
   autoExpandBtn.addEventListener("click", () => handlers.onToggleAutoExpand());
-  actionsEl.appendChild(autoExpandBtn);
+  iconsWrap.appendChild(autoExpandBtn);
 
   const findDupesBtn = document.createElement("button");
   findDupesBtn.type = "button";
@@ -222,7 +229,7 @@ export function renderGlobalActions(toggles, handlers) {
   findDupesBtn.title = "Find Duplicates in the current filtered view";
   findDupesBtn.innerHTML = '<i class="fa-solid fa-clone"></i>';
   findDupesBtn.addEventListener("click", () => handlers.onFindDuplicates());
-  actionsEl.appendChild(findDupesBtn);
+  iconsWrap.appendChild(findDupesBtn);
 
   const formats = [
     ["plain", "Questions (plain)"],

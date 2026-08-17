@@ -217,11 +217,14 @@ body {
 .stats-dropdown-item { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; border: none; background: none; padding: 0.3rem 0.5rem; border-radius: 0.35rem; cursor: pointer; color: var(--text-faint-3); font-size: 0.9rem; }
 .stats-dropdown-item:hover { background: var(--bg-hover); }
 .stats-dropdown-count { font-weight: 600; }
-/* Shrinks and, only if it still doesn't fit, scrolls horizontally within itself — never wraps onto
-   a second line and never forces the whole page wider. Scrollbar hidden (still scrollable by touch
-   /trackpad/shift-wheel) so a tight window reads as "seamlessly fits" rather than showing a bar. */
-.global-actions-group { display: flex; gap: 0.3rem; flex-wrap: nowrap; align-items: center; min-width: 0; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
-.global-actions-group::-webkit-scrollbar { display: none; }
+.global-actions-group { display: flex; gap: 0.3rem; flex-wrap: nowrap; align-items: center; min-width: 0; }
+/* Only the icon buttons scroll internally if they don't all fit — never wraps onto a second line
+   and never forces the whole page wider. Scrollbar hidden (still scrollable by touch/trackpad
+   /shift-wheel) so a tight window reads as "seamlessly fits" rather than showing a bar. The Copy
+   Visible select is a sibling OUTSIDE this wrapper (see render/statsBadges.js), so it's never
+   scrolled out of view — it always stays fully visible, pinned at the row's right edge. */
+.action-icons-scroll { display: flex; gap: 0.3rem; flex-wrap: nowrap; align-items: center; min-width: 0; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+.action-icons-scroll::-webkit-scrollbar { display: none; }
 .global-actions-group select { flex-shrink: 0; }
 .stats-progress-toggle.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 /* Forces onto its own line below the badges/actions row (stats-row is flex-wrap) instead of
