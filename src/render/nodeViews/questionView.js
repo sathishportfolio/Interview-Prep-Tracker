@@ -10,7 +10,7 @@ import { applyOpenState } from "../accordion.js";
 
 /**
  * @typedef {Object} TreeHandlers
- * @property {(qid: string, flag: "done"|"reviewLater"|"duplicate"|"lessImportant"|"starred") => void} onToggleStatus
+ * @property {(qid: string, flag: "done"|"reviewLater"|"duplicate"|"lessImportant"|"starred"|"failed") => void} onToggleStatus
  * @property {(qid: string) => void} onEditAnswer
  * @property {(qid: string) => void} onEditQuestionText
  * @property {(qid: string) => void} onOpenMoveForm
@@ -27,13 +27,20 @@ import { applyOpenState } from "../accordion.js";
  * @property {(level: "subject"|"topic"|"subTopic", scope: any) => void} onDeleteGroup
  */
 
+// "lessImportant" is deliberately not in this list — its icon lives next to the Google Search
+// button in answerEditRow instead (see below), not in the header's status-icon-row.
 const STATUS_ICONS = [
   { flag: "done", icon: "fa-square-check", title: "Done" },
+  { flag: "failed", icon: "fa-circle-xmark", title: "Failed" },
   { flag: "reviewLater", icon: "fa-clock", title: "Review Later" },
   { flag: "duplicate", icon: "fa-clone", title: "Duplicate" },
-  { flag: "lessImportant", icon: "fa-arrow-down", title: "Less Important" },
   { flag: "starred", icon: "fa-star", title: "Starred" },
 ];
+
+/** @param {string} flag @returns {string} */
+function iconClassSuffix(flag) {
+  return flag === "reviewLater" ? "review" : flag === "lessImportant" ? "less" : flag;
+}
 
 /**
  * @param {Question} q
@@ -77,12 +84,12 @@ export function createQuestionNode(q, handlers) {
   for (const s of STATUS_ICONS) {
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = `icon-btn icon-${s.flag === "reviewLater" ? "review" : s.flag === "lessImportant" ? "less" : s.flag}`;
+    btn.className = `icon-btn icon-${iconClassSuffix(s.flag)}`;
     btn.title = s.title;
     btn.innerHTML = `<i class="fa-solid ${s.icon}"></i>`;
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      handlers.onToggleStatus(q.id, /** @type {"done"|"reviewLater"|"duplicate"|"lessImportant"|"starred"} */ (s.flag));
+      handlers.onToggleStatus(q.id, /** @type {"done"|"reviewLater"|"duplicate"|"lessImportant"|"starred"|"failed"} */ (s.flag));
     });
     statusRow.appendChild(btn);
     iconButtons[s.flag] = btn;
@@ -148,9 +155,20 @@ export function createQuestionNode(q, handlers) {
     e.stopPropagation();
     handlers.onGoogleSearch(q.id);
   });
+  const lessImportantBtn = document.createElement("button");
+  lessImportantBtn.type = "button";
+  lessImportantBtn.className = "icon-btn icon-less";
+  lessImportantBtn.title = "Less Important";
+  lessImportantBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i>';
+  lessImportantBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    handlers.onToggleStatus(q.id, "lessImportant");
+  });
+
   answerEditRow.appendChild(copyBtn);
   answerEditRow.appendChild(copySearchBtn);
   answerEditRow.appendChild(googleSearchBtn);
+  answerEditRow.appendChild(lessImportantBtn);
 
   const statusControls = document.createElement("div");
   statusControls.className = "status-controls edit-gated";
@@ -213,7 +231,7 @@ export function patchQuestionNode(el, q, handlers) {
   applyOpenState(header, body, `Q::${q.id}`);
 
   for (const s of STATUS_ICONS) {
-    const btn = header.querySelector(`.icon-${s.flag === "reviewLater" ? "review" : s.flag === "lessImportant" ? "less" : s.flag}`);
+    const btn = header.querySelector(`.icon-${iconClassSuffix(s.flag)}`);
     if (btn) {
       btn.classList.toggle("is-active", !!q[s.flag]);
       if (s.flag === "done") {
@@ -221,6 +239,9 @@ export function patchQuestionNode(el, q, handlers) {
       }
     }
   }
+
+  const lessImportantBtn = body.querySelector(".icon-less");
+  if (lessImportantBtn) lessImportantBtn.classList.toggle("is-active", !!q.lessImportant);
 
   const flagBtn = header.querySelector(".icon-flag");
   const isActive = appState.activeQuestion && appState.activeQuestion.questionId === q.id;

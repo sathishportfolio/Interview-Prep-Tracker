@@ -70,6 +70,7 @@ export function repaint() {
       done: filteredQuestions.filter((q) => q.done).length,
       starred: filteredQuestions.filter((q) => q.starred).length,
       due: filteredQuestions.filter((q) => q.srsDue && q.srsDue <= todayISO).length,
+      failed: filteredQuestions.filter((q) => q.failed).length,
     },
     statsHandlers
   );

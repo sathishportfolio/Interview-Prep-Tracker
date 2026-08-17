@@ -3,14 +3,14 @@
  * csv/bulkCsv.js — Bulk Add/Update/Copy CSV format (feature.md). Comma-separated, header row
  * required (resolved ambiguity: chosen over README-AI's tab-separated/header-less description).
  * Columns: Subject, Topic, SubTopic, Question, Answer[, Done, ReviewLater, Duplicate,
- * LessImportant, Starred]. Rows may leave Subject/Topic/SubTopic blank to inherit the previous
- * row's value, or the panel's own fixed scope. Zero DOM.
+ * LessImportant, Starred, Failed]. Rows may leave Subject/Topic/SubTopic blank to inherit the
+ * previous row's value, or the panel's own fixed scope. Zero DOM.
  * @typedef {import('../../types.js').Question} Question
  */
 import { parseCsvObjects, serializeCsvObjects } from "./csvCore.js";
 
 export const BULK_REQUIRED_COLUMNS = ["Subject", "Topic", "SubTopic", "Question", "Answer"];
-export const BULK_STATUS_COLUMNS = ["Done", "ReviewLater", "Duplicate", "LessImportant", "Starred"];
+export const BULK_STATUS_COLUMNS = ["Done", "ReviewLater", "Duplicate", "LessImportant", "Starred", "Failed"];
 export const BULK_ALL_COLUMNS = [...BULK_REQUIRED_COLUMNS, ...BULK_STATUS_COLUMNS];
 
 function toBool(v) {
@@ -29,6 +29,7 @@ function toBool(v) {
  * @property {boolean} duplicate
  * @property {boolean} lessImportant
  * @property {boolean} starred
+ * @property {boolean} failed
  * @property {number} rowIndex 1-based row index in the pasted block (for result reporting)
  */
 
@@ -78,6 +79,7 @@ export function parseBulkCsv(text, scope = {}) {
       duplicate: toBool(rec.Duplicate),
       lessImportant: toBool(rec.LessImportant),
       starred: toBool(rec.Starred),
+      failed: toBool(rec.Failed),
       rowIndex: idx + 1,
     });
   });
@@ -102,6 +104,7 @@ export function serializeBulkCsv(questions) {
     Duplicate: q.duplicate ? "true" : "false",
     LessImportant: q.lessImportant ? "true" : "false",
     Starred: q.starred ? "true" : "false",
+    Failed: q.failed ? "true" : "false",
   }));
   return serializeCsvObjects(BULK_ALL_COLUMNS, records);
 }
@@ -127,6 +130,7 @@ export function sampleBulkRow(scope = {}) {
     Duplicate: "false",
     LessImportant: "false",
     Starred: "false",
+    Failed: "false",
   };
   return serializeCsvObjects(BULK_ALL_COLUMNS, [record]);
 }

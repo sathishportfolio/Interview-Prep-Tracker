@@ -2,7 +2,7 @@
 /**
  * csv/mainCsv.js — parse/serialize the MAIN file CSV format (feature.md "CSV Upload" / "Export
  * Progress"). Required columns: Subject, Topic, SubTopic, Question, Answer, Done, ReviewLater.
- * Optional: Duplicate, LessImportant, Starred, Order, SubjectOrder, TopicOrder, SubTopicOrder.
+ * Optional: Duplicate, LessImportant, Starred, Failed, Order, SubjectOrder, TopicOrder, SubTopicOrder.
  * Empty-group placeholders round-trip as marker rows (blank Question). Duplicate-flagged rows are
  * excluded from export. Zero DOM.
  * @typedef {import('../../types.js').Question} Question
@@ -12,7 +12,7 @@ import { parseCsvObjects, serializeCsvObjects } from "./csvCore.js";
 import { newQuestionId } from "../id.js";
 
 export const REQUIRED_COLUMNS = ["Subject", "Topic", "SubTopic", "Question", "Answer", "Done", "ReviewLater"];
-export const OPTIONAL_COLUMNS = ["Duplicate", "LessImportant", "Starred", "Order", "SubjectOrder", "TopicOrder", "SubTopicOrder", "SrsDue", "SrsStreak"];
+export const OPTIONAL_COLUMNS = ["Duplicate", "LessImportant", "Starred", "Failed", "Order", "SubjectOrder", "TopicOrder", "SubTopicOrder", "SrsDue", "SrsStreak"];
 export const ALL_COLUMNS = [...REQUIRED_COLUMNS, ...OPTIONAL_COLUMNS];
 
 function toBool(v) {
@@ -71,6 +71,7 @@ export function parseMainCsv(text) {
       duplicate: toBool(rec.Duplicate),
       lessImportant: toBool(rec.LessImportant),
       starred: toBool(rec.Starred),
+      failed: toBool(rec.Failed),
       order: toNum(rec.Order, 0),
       subjectOrder: toNum(rec.SubjectOrder, 0),
       topicOrder: toNum(rec.TopicOrder, 0),
@@ -104,6 +105,7 @@ export function serializeMainCsv(rawData, emptyGroups) {
       Duplicate: q.duplicate ? "true" : "false",
       LessImportant: q.lessImportant ? "true" : "false",
       Starred: q.starred ? "true" : "false",
+      Failed: q.failed ? "true" : "false",
       Order: q.order ?? 0,
       SubjectOrder: q.subjectOrder ?? 0,
       TopicOrder: q.topicOrder ?? 0,
@@ -124,6 +126,7 @@ export function serializeMainCsv(rawData, emptyGroups) {
       Duplicate: "false",
       LessImportant: "false",
       Starred: "false",
+      Failed: "false",
       Order: 0,
       SubjectOrder: 0,
       TopicOrder: 0,

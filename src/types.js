@@ -6,9 +6,9 @@
  *
  * CSV columns (feature.md "CSV Upload"):
  *   Required: Subject, Topic, SubTopic, Question, Answer, Done, ReviewLater
- *   Optional: Duplicate, LessImportant, Starred, Order, SubjectOrder, TopicOrder, SubTopicOrder
+ *   Optional: Duplicate, LessImportant, Starred, Failed, Order, SubjectOrder, TopicOrder, SubTopicOrder
  *
- * Five status flags (feature.md "Status Flags"): Done, ReviewLater, Duplicate, LessImportant, Starred.
+ * Six status flags (feature.md "Status Flags"): Done, ReviewLater, Duplicate, LessImportant, Starred, Failed.
  */
 
 /**
@@ -24,6 +24,7 @@
  * @property {boolean} duplicate
  * @property {boolean} lessImportant
  * @property {boolean} starred
+ * @property {boolean} failed
  * @property {number} order          Position within its SubTopic (post-tiering tie-break).
  * @property {number} subjectOrder
  * @property {number} topicOrder
@@ -52,7 +53,7 @@
 /**
  * "dueForReview" is not a real boolean field on Question — it's a computed match against
  * `srsDue` vs today, handled as a special case in data/filter.js's matchesStatus.
- * @typedef {"done"|"reviewLater"|"duplicate"|"lessImportant"|"starred"|"dueForReview"} StatusFilterKey
+ * @typedef {"done"|"reviewLater"|"duplicate"|"lessImportant"|"starred"|"failed"|"dueForReview"} StatusFilterKey
  */
 
 /**

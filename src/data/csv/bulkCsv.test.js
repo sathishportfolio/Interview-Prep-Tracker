@@ -32,7 +32,7 @@ test("fixed scope (panel opened at a Subject/Topic level) overrides row values",
 
 test("serializeBulkCsv round-trips through parseBulkCsv", () => {
   const questions = [
-    { id: "a", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1", answer: "A1", done: true, reviewLater: false, duplicate: false, lessImportant: false, starred: true, order: 0, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0 },
+    { id: "a", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1", answer: "A1", done: true, reviewLater: false, duplicate: false, lessImportant: false, starred: true, failed: false, order: 0, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0 },
   ];
   const csv = serializeBulkCsv(questions);
   const reparsed = parseBulkCsv(csv);

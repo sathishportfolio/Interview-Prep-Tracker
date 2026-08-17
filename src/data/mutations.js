@@ -35,7 +35,7 @@ export function questionExists(rawData, subject, topic, subTopic, questionText) 
 /**
  * @param {DataPair} data
  * @param {{subject: string, topic: string, subTopic: string, question: string, answer?: string,
- *   done?: boolean, reviewLater?: boolean, duplicate?: boolean, lessImportant?: boolean, starred?: boolean}} input
+ *   done?: boolean, reviewLater?: boolean, duplicate?: boolean, lessImportant?: boolean, starred?: boolean, failed?: boolean}} input
  * @returns {DataPair & {question: Question}}
  */
 export function addQuestion(data, input) {
@@ -60,6 +60,7 @@ export function addQuestion(data, input) {
     duplicate: !!input.duplicate,
     lessImportant: !!input.lessImportant,
     starred: !!input.starred,
+    failed: !!input.failed,
     order,
     subjectOrder: existing ? existing.subjectOrder : subjectOrder,
     topicOrder: existing ? existing.topicOrder : topicOrder,
@@ -89,11 +90,26 @@ export function updateQuestion(rawData, questionId, patch) {
 /**
  * @param {Question[]} rawData
  * @param {string} questionId
- * @param {"done"|"reviewLater"|"duplicate"|"lessImportant"|"starred"} flag
+ * @param {"done"|"reviewLater"|"duplicate"|"lessImportant"|"starred"|"failed"} flag
  * @returns {Question[]}
  */
 export function toggleStatusFlag(rawData, questionId, flag) {
   return rawData.map((q) => (q.id === questionId ? { ...q, [flag]: !q[flag] } : q));
+}
+
+/**
+ * Sets a question's Done/Failed/Review Later to exactly one of the three (clearing the other two),
+ * or clears all three when `flag` is null. These are mutually exclusive — a question can't be "I
+ * know this" and "I got this wrong" and "I need to review this" at once.
+ * @param {Question[]} rawData
+ * @param {string} questionId
+ * @param {"done"|"failed"|"reviewLater"|null} flag
+ * @returns {Question[]}
+ */
+export function setTriStatusFlag(rawData, questionId, flag) {
+  return rawData.map((q) =>
+    q.id === questionId ? { ...q, done: flag === "done", failed: flag === "failed", reviewLater: flag === "reviewLater" } : q
+  );
 }
 
 /**
@@ -553,6 +569,7 @@ export function bulkUpdateRows(data, rows) {
         duplicate: row.duplicate,
         lessImportant: row.lessImportant,
         starred: row.starred,
+        failed: row.failed,
       };
       updated += 1;
     } else {

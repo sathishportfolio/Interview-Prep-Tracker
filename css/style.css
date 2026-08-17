@@ -6,6 +6,7 @@
   --move: #6f42c1;
   --done: #198754;
   --review: #fd7e14;
+  --failed: #dc3545;
 
   /* Theme tokens — light values here on bare :root; dark values are redefined below under
      :root[data-theme="dark"] (see features/theme.js, which sets that attribute). */
@@ -189,10 +190,39 @@ body {
 .filter-field { min-width: 160px; }
 .filter-field label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.15rem; }
 
-.stats-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
-.global-stats-badges { display: flex; gap: 0.4rem; flex-wrap: wrap; }
-.global-stats-badges .badge { cursor: pointer; font-size: 0.85rem; padding: 0.45em 0.7em; }
-.global-actions-group { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+/* No overflow on the row itself — an ancestor with overflow-x set clips ANY absolutely-positioned
+   descendant that extends past its bottom edge in most browsers (overflow-x != visible forces
+   overflow-y to compute to auto too), which was hiding .stats-dropdown-panel. Only
+   .global-actions-group (which has no such popout) scrolls internally instead — see below. */
+.stats-row { display: flex; flex-wrap: nowrap; gap: 0.5rem; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+.global-stats-badges { display: flex; gap: 0.4rem; flex-wrap: nowrap; align-items: center; flex-shrink: 0; }
+.stats-dropdown { position: relative; }
+.stats-dropdown-panel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 60;
+  min-width: 190px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  box-shadow: 0 0.5rem 1.25rem var(--shadow);
+  padding: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+/* Same resting color as .icon-btn (the per-question status icons) — Done/Review/Starred/Failed
+   rows below pick up their matching .icon-*.is-active accent color the same way. */
+.stats-dropdown-item { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; border: none; background: none; padding: 0.3rem 0.5rem; border-radius: 0.35rem; cursor: pointer; color: var(--text-faint-3); font-size: 0.9rem; }
+.stats-dropdown-item:hover { background: var(--bg-hover); }
+.stats-dropdown-count { font-weight: 600; }
+/* Shrinks and, only if it still doesn't fit, scrolls horizontally within itself — never wraps onto
+   a second line and never forces the whole page wider. Scrollbar hidden (still scrollable by touch
+   /trackpad/shift-wheel) so a tight window reads as "seamlessly fits" rather than showing a bar. */
+.global-actions-group { display: flex; gap: 0.3rem; flex-wrap: nowrap; align-items: center; min-width: 0; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+.global-actions-group::-webkit-scrollbar { display: none; }
+.global-actions-group select { flex-shrink: 0; }
 .stats-progress-toggle.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 /* Forces onto its own line below the badges/actions row (stats-row is flex-wrap) instead of
    competing for inline space next to them. */
@@ -254,6 +284,7 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .icon-duplicate.is-active { color: var(--duplicate); }
 .icon-less.is-active { color: var(--less-important); }
 .icon-starred.is-active { color: var(--starred); }
+.icon-failed.is-active { color: var(--failed); }
 .icon-flag.is-active { color: var(--done); }
 .icon-move { color: var(--move); }
 
@@ -394,4 +425,7 @@ body.bulk-bar-visible { padding-bottom: 3.5rem; }
   .header-breadcrumb.bc-mode-chain { display: none; }
   .header-breadcrumb.bc-mode-active .bc-chain-text { display: none; }
   .question-header { align-items: flex-start; }
+  /* Stats/actions stay one row (not wrap) even on a narrow phone screen — see .stats-row — so it
+     scrolls horizontally here instead of wrapping and overlapping the content below it. */
+  .stats-row { justify-content: flex-start; }
 }

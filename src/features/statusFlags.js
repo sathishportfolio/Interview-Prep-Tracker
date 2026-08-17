@@ -1,40 +1,37 @@
 // @ts-check
 /**
- * features/statusFlags.js — Status Flags (Done/ReviewLater/Duplicate/LessImportant/Starred). Thin:
- * calls data/mutations.js.toggleStatusFlag then the shared refresh pipeline. Marking Done also
- * advances the question's spaced-repetition schedule (and unmarking it, or marking Review Later,
- * resets it back to "due soon") — see data/mutations.js scheduleReview. Done and Review Later are
- * mutually exclusive: checking one automatically unchecks the other (a question shouldn't be both
- * "I know this" and "I need to review this" at once).
+ * features/statusFlags.js — Status Flags (Done/Failed/ReviewLater/Duplicate/LessImportant/Starred).
+ * Thin: calls data/mutations.js then the shared refresh pipeline. Done, Failed, and Review Later
+ * are mutually exclusive (a question can't be "I know this" and "I got this wrong" and "I need to
+ * review this" at once) — setting any one of the three clears the other two, via
+ * data/mutations.js's setTriStatusFlag. Marking Done also advances the question's
+ * spaced-repetition schedule; marking Failed or Review Later (or unmarking Done back to nothing)
+ * resets it back to "due soon" — see data/mutations.js scheduleReview.
  */
-import { toggleStatusFlag, scheduleReview } from "../data/mutations.js";
+import { toggleStatusFlag, setTriStatusFlag, scheduleReview } from "../data/mutations.js";
 import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import { flashHighlight } from "../render/highlight.js";
 import { findQuestionHeaderEl } from "../render/treeRenderer.js";
 import { setActiveQuestionQuiet } from "./activeQuestion.js";
 
+/** Done -> Failed -> Review Later -> (cleared), the order the 'd' keyboard shortcut cycles through. */
+const TRI_STATE_ORDER = /** @type {const} */ (["done", "failed", "reviewLater"]);
+
 /**
  * @param {string} questionId
- * @param {"done"|"reviewLater"|"duplicate"|"lessImportant"|"starred"} flag
+ * @param {"done"|"reviewLater"|"duplicate"|"lessImportant"|"starred"|"failed"} flag
  */
 export function toggleStatus(questionId, flag) {
-  const prev = appState.rawData.find((q) => q.id === questionId);
-  let rawData = toggleStatusFlag(appState.rawData, questionId, flag);
-  if (prev && flag === "done") {
-    const nowDone = !prev.done;
-    rawData = scheduleReview(rawData, questionId, nowDone ? "advance" : "reset");
-    // Mutual exclusion: checking Done clears Review Later.
-    if (nowDone && prev.reviewLater) {
-      rawData = rawData.map((q) => (q.id === questionId ? { ...q, reviewLater: false } : q));
-    }
-  } else if (prev && flag === "reviewLater" && !prev.reviewLater) {
-    rawData = scheduleReview(rawData, questionId, "reset");
-    // Mutual exclusion: checking Review Later clears Done.
-    if (prev.done) {
-      rawData = rawData.map((q) => (q.id === questionId ? { ...q, done: false } : q));
-    }
+  if (flag === "done" || flag === "failed" || flag === "reviewLater") {
+    const prev = appState.rawData.find((q) => q.id === questionId);
+    if (!prev) return;
+    applyTriState(questionId, prev[flag] ? null : flag);
+    return;
   }
+
+  const prev = appState.rawData.find((q) => q.id === questionId);
+  const rawData = toggleStatusFlag(appState.rawData, questionId, flag);
   // Starring while an Active Question is already set moves the resume pointer to the question just
   // BEFORE this one in its SubTopic — see setActiveQuestionQuiet's doc comment: on reload this
   // scrolls back to right before the starred question, giving context leading into it rather than
@@ -47,6 +44,39 @@ export function toggleStatus(questionId, flag) {
   applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
   // Toggling starred/lessImportant can move the question within its tier — flash it so the user
   // can find where it landed after the (keyed, so cheap) re-render.
+  const el = findQuestionHeaderEl(questionId);
+  if (el) flashHighlight(el);
+}
+
+/**
+ * Cycles a question's Done/Failed/Review Later tri-state in fixed order — none -> Done -> Failed ->
+ * Review Later -> none — for the 'd' keyboard shortcut.
+ * @param {string} questionId
+ */
+export function cycleDoneFailedReview(questionId) {
+  const prev = appState.rawData.find((q) => q.id === questionId);
+  if (!prev) return;
+  const idx = TRI_STATE_ORDER.findIndex((f) => prev[f]);
+  const next = idx === -1 ? TRI_STATE_ORDER[0] : idx === TRI_STATE_ORDER.length - 1 ? null : TRI_STATE_ORDER[idx + 1];
+  applyTriState(questionId, next);
+}
+
+/**
+ * @param {string} questionId
+ * @param {"done"|"failed"|"reviewLater"|null} flag
+ */
+function applyTriState(questionId, flag) {
+  const prev = appState.rawData.find((q) => q.id === questionId);
+  if (!prev) return;
+  let rawData = setTriStatusFlag(appState.rawData, questionId, flag);
+  if (flag === "done") {
+    rawData = scheduleReview(rawData, questionId, "advance");
+  } else if (flag === "failed" || flag === "reviewLater" || (flag === null && prev.done)) {
+    // Failed/Review Later need re-surfacing soon; leaving Done behind (including clearing to
+    // nothing) resets the schedule the same way unmarking Done directly always has.
+    rawData = scheduleReview(rawData, questionId, "reset");
+  }
+  applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
   const el = findQuestionHeaderEl(questionId);
   if (el) flashHighlight(el);
 }

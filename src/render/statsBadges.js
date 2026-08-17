@@ -1,8 +1,8 @@
 // @ts-check
 /**
- * render/statsBadges.js — Global stats badges row (Total/Filtered/Review/Done/Starred) plus the
- * global actions group (Edit Mode toggle, Flatten toggle, Drag-and-drop toggle, Auto-Expand
- * toggle, Find Duplicates, Copy Visible).
+ * render/statsBadges.js — Global stats dropdown (Total/Filtered/Review/Done/Starred/Due/Failed,
+ * click any row to filter) plus the global actions group (Edit Mode toggle, Flatten toggle,
+ * Drag-and-drop toggle, Auto-Expand toggle, Find Duplicates, Copy Visible).
  * Render-only; every click calls a handler. Deliberately NOT edit-gated (unlike per-node controls in
  * render/nodeViews/*) — these are view/read toggles and a non-destructive copy action, not edits, so
  * they stay usable whether or not Edit Mode is on.
@@ -11,8 +11,15 @@
 let badgesEl = null;
 let actionsEl = null;
 let progressBarEl = null;
-/** Separate from the Filtered badge's own click (which clears group filters) — see mkBadge call site. */
+/** Separate from the Filtered dropdown row's own click (which clears group filters). */
 let progressBarVisible = false;
+/** Preserved across repaints (badgesEl is rebuilt from scratch every render) so re-rendering to
+ *  reflect updated counts doesn't also close a dropdown the user just opened. */
+let statsDropdownOpen = false;
+/** Last args renderStatsBadges was called with, so the toggle/outside-click handlers below can
+ *  re-render with the same data after just flipping statsDropdownOpen. */
+let lastStats = null;
+let lastHandlers = null;
 
 /**
  * @param {HTMLElement} badgesContainer
@@ -23,6 +30,21 @@ export function initStatsBadges(badgesContainer, actionsContainer, progressBarCo
   badgesEl = badgesContainer;
   actionsEl = actionsContainer;
   progressBarEl = progressBarContainer || null;
+
+  document.addEventListener("click", (e) => {
+    if (!statsDropdownOpen) return;
+    const target = /** @type {Element|null} */ (e.target);
+    if (target && target.closest(".stats-dropdown")) return;
+    closeStatsDropdown();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && statsDropdownOpen) closeStatsDropdown();
+  });
+}
+
+function closeStatsDropdown() {
+  statsDropdownOpen = false;
+  if (lastStats) renderStatsBadges(lastStats, lastHandlers);
 }
 
 /**
@@ -33,6 +55,7 @@ export function initStatsBadges(badgesContainer, actionsContainer, progressBarCo
  * @property {number} done
  * @property {number} starred
  * @property {number} due
+ * @property {number} failed
  */
 
 /**
@@ -41,17 +64,58 @@ export function initStatsBadges(badgesContainer, actionsContainer, progressBarCo
  */
 export function renderStatsBadges(stats, handlers) {
   if (!badgesEl) return;
+  lastStats = stats;
+  lastHandlers = handlers;
   badgesEl.textContent = "";
 
-  badgesEl.appendChild(mkBadge("secondary", `Total: ${stats.total}`, () => handlers.onTotalClick()));
-  badgesEl.appendChild(mkBadge("primary", `Filtered: ${stats.filtered}`, () => handlers.onFilteredClick()));
-  badgesEl.appendChild(mkBadge("warning", `Review: ${stats.review}`, () => handlers.onStatusBadgeClick("reviewLater")));
-  badgesEl.appendChild(mkBadge("success", `Done: ${stats.done}`, () => handlers.onStatusBadgeClick("done")));
-  badgesEl.appendChild(mkBadge("info", `Starred: ${stats.starred}`, () => handlers.onStatusBadgeClick("starred")));
-  badgesEl.appendChild(mkBadge("danger", `Due: ${stats.due}`, () => handlers.onStatusBadgeClick("dueForReview")));
+  const dropdownWrap = document.createElement("div");
+  dropdownWrap.className = "stats-dropdown";
 
-  // Separate trigger from the Filtered badge's own click (which clears group filters) — toggles the
-  // segmented breakdown progress bar below (see renderStatsProgress).
+  const toggleBtn = document.createElement("button");
+  toggleBtn.type = "button";
+  toggleBtn.className = "btn btn-sm btn-outline-secondary stats-dropdown-toggle";
+  toggleBtn.innerHTML = `<i class="fa-solid fa-list-check"></i> Stats <i class="fa-solid fa-caret-down"></i>`;
+  toggleBtn.setAttribute("aria-expanded", String(statsDropdownOpen));
+  toggleBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    statsDropdownOpen = !statsDropdownOpen;
+    renderStatsBadges(stats, handlers);
+  });
+  dropdownWrap.appendChild(toggleBtn);
+
+  const panel = document.createElement("div");
+  panel.className = "stats-dropdown-panel";
+  panel.hidden = !statsDropdownOpen;
+
+  // `colorClass` reuses the exact same icon-* classes render/nodeViews/questionView.js's status
+  // icons use, so a dropdown row and its matching per-question icon are always the same color
+  // (see .stats-dropdown-item's CSS, mirroring .icon-btn.is-active).
+  /** @type {Array<{label: string, count: number, colorClass: string|null, onClick: () => void}>} */
+  const items = [
+    { label: "Total", count: stats.total, colorClass: null, onClick: () => handlers.onTotalClick() },
+    { label: "Filtered", count: stats.filtered, colorClass: null, onClick: () => handlers.onFilteredClick() },
+    { label: "Review", count: stats.review, colorClass: "icon-review", onClick: () => handlers.onStatusBadgeClick("reviewLater") },
+    { label: "Done", count: stats.done, colorClass: "icon-done", onClick: () => handlers.onStatusBadgeClick("done") },
+    { label: "Starred", count: stats.starred, colorClass: "icon-starred", onClick: () => handlers.onStatusBadgeClick("starred") },
+    { label: "Due", count: stats.due, colorClass: null, onClick: () => handlers.onStatusBadgeClick("dueForReview") },
+    { label: "Failed", count: stats.failed, colorClass: "icon-failed", onClick: () => handlers.onStatusBadgeClick("failed") },
+  ];
+  for (const item of items) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = `stats-dropdown-item${item.colorClass ? ` ${item.colorClass} is-active` : ""}`;
+    row.innerHTML = `<span class="stats-dropdown-label">${item.label}</span><span class="stats-dropdown-count">${item.count}</span>`;
+    row.addEventListener("click", (e) => {
+      e.stopPropagation();
+      item.onClick();
+    });
+    panel.appendChild(row);
+  }
+  dropdownWrap.appendChild(panel);
+  badgesEl.appendChild(dropdownWrap);
+
+  // Sits next to the Stats dropdown — toggles the segmented breakdown progress bar below (see
+  // renderStatsProgress), separate from any single dropdown item's own click.
   const progressToggle = document.createElement("button");
   progressToggle.type = "button";
   progressToggle.className = "btn btn-sm btn-outline-secondary stats-progress-toggle";
@@ -160,12 +224,6 @@ export function renderGlobalActions(toggles, handlers) {
   findDupesBtn.addEventListener("click", () => handlers.onFindDuplicates());
   actionsEl.appendChild(findDupesBtn);
 
-  const copyBtn = document.createElement("div");
-  copyBtn.className = "btn-group";
-  const copyMain = document.createElement("button");
-  copyMain.type = "button";
-  copyMain.className = "btn btn-sm btn-primary";
-  copyMain.innerHTML = '<i class="fa-solid fa-copy"></i> Copy Visible';
   const formats = [
     ["plain", "Questions (plain)"],
     ["structureWithAnswer", "Structure + Answer"],
@@ -173,32 +231,32 @@ export function renderGlobalActions(toggles, handlers) {
     ["structureOnly", "Structure only"],
     ["hierarchyOnly", "Hierarchy only"],
   ];
-  copyMain.addEventListener("click", () => handlers.onCopyVisible(formats[0][0]));
-  copyBtn.appendChild(copyMain);
-  actionsEl.appendChild(copyBtn);
 
   const select = document.createElement("select");
   select.className = "form-select form-select-sm";
-  select.style.maxWidth = "180px";
+  select.style.maxWidth = "200px";
+
+  // A real, always-selectable option (not a disabled placeholder) — it IS the control's resting
+  // state, and re-selecting it (even from itself) fires the default "plain" copy, same as the old
+  // standalone "Copy Visible" button did. Picking one of the real formats below copies in that
+  // format instead, then the select resets back to this so either can fire again right away.
+  const COPY_VISIBLE_VALUE = "__copyVisible__";
+  const copyOpt = document.createElement("option");
+  copyOpt.value = COPY_VISIBLE_VALUE;
+  copyOpt.textContent = "Copy Visible";
+  copyOpt.selected = true;
+  select.appendChild(copyOpt);
+
   for (const [value, label] of formats) {
     const opt = document.createElement("option");
     opt.value = value;
     opt.textContent = label;
     select.appendChild(opt);
   }
-  select.addEventListener("change", () => handlers.onCopyVisible(select.value));
+  select.addEventListener("change", () => {
+    const format = select.value === COPY_VISIBLE_VALUE ? formats[0][0] : select.value;
+    handlers.onCopyVisible(format);
+    select.value = COPY_VISIBLE_VALUE;
+  });
   actionsEl.appendChild(select);
-}
-
-/**
- * @param {string} variant
- * @param {string} text
- * @param {() => void} onClick
- */
-function mkBadge(variant, text, onClick) {
-  const span = document.createElement("span");
-  span.className = `badge bg-${variant}`;
-  span.textContent = text;
-  span.addEventListener("click", onClick);
-  return span;
 }

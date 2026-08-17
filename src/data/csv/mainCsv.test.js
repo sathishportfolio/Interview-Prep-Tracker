@@ -33,8 +33,8 @@ test("blank-Question rows become empty-group markers", () => {
 
 test("serializeMainCsv excludes Duplicate-flagged rows", () => {
   const rawData = [
-    { id: "a", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1", answer: "", done: false, reviewLater: false, duplicate: true, lessImportant: false, starred: false, order: 0, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0 },
-    { id: "b", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q2", answer: "", done: false, reviewLater: false, duplicate: false, lessImportant: false, starred: false, order: 1, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0 },
+    { id: "a", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1", answer: "", done: false, reviewLater: false, duplicate: true, lessImportant: false, starred: false, failed: false, order: 0, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0 },
+    { id: "b", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q2", answer: "", done: false, reviewLater: false, duplicate: false, lessImportant: false, starred: false, failed: false, order: 1, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0 },
   ];
   const csv = serializeMainCsv(rawData, []);
   assert.ok(!csv.includes("Q1"));
@@ -59,7 +59,7 @@ test("round-trips against the real docs fixture (parse -> serialize -> reparse g
 
 test("empty Subject/Topic/SubTopic groups round-trip through export/import", () => {
   const rawData = [
-    { id: "a", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1", answer: "", done: false, reviewLater: false, duplicate: false, lessImportant: false, starred: false, order: 0, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0 },
+    { id: "a", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1", answer: "", done: false, reviewLater: false, duplicate: false, lessImportant: false, starred: false, failed: false, order: 0, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0 },
   ];
   const emptyGroups = [{ subject: "S2", topic: null, subTopic: null, createdOrder: 0 }];
   const csv = serializeMainCsv(rawData, emptyGroups);

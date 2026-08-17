@@ -11,8 +11,9 @@
  *                    last one). Works the same in Flatten View (see render/flatRenderer.js).
  *   Shift+Tab        the mirror of Tab: previous SubTopic, its LAST question, wrapping to the last
  *                    Subject's last question before the first one.
- *   d                mark the Active Question Done
- *   r                flag the Active Question Review Later
+ *   d                cycle the Active Question's Done/Failed/Review Later tri-state, in that order
+ *                    (none -> Done -> Failed -> Review Later -> none)
+ *   r                flag the Active Question Review Later directly
  *   s or *           flag the Active Question Starred
  *   Ctrl/Cmd+Up/Down move the Active Question to the top/bottom of its SubTopic
  *   Enter            expand/collapse the Active Question's answer (opening auto-closes whichever
@@ -313,7 +314,7 @@ export function initReviewShortcuts() {
     const qid = activeQuestionId();
     if (!qid) return;
     if (e.key === "d" || e.key === "D") {
-      statusFlags.toggleStatus(qid, "done");
+      statusFlags.cycleDoneFailedReview(qid);
     } else if (e.key === "r" || e.key === "R") {
       statusFlags.toggleStatus(qid, "reviewLater");
     } else if (e.key === "s" || e.key === "S" || e.key === "*") {
