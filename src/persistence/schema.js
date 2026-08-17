@@ -25,6 +25,8 @@ export function emptySchema() {
       autoExpandChildrenOn: false,
       themeDark: true,
       autoDownloadOn: false,
+      filterCardOpen: false,
+      statsProgressVisible: false,
     },
     activeQuestion: null,
     sync: {
@@ -40,6 +42,9 @@ export function emptySchema() {
       // Auto-sync defaults ON: once a gist is connected, edits push automatically without an extra
       // opt-in step (Gist's limits are generous enough to afford this — see sync/autoPush.js).
       enabled: true,
+      // Pull Only defaults OFF — pushing works normally unless explicitly opted out of (see
+      // sync/manualPush.js and sync/autoPush.js).
+      pullOnly: false,
     },
     timer: {
       running: false,
@@ -93,5 +98,6 @@ function coerceSync(rawSync) {
     // Auto-sync defaults ON (base.enabled is true) — an explicit persisted value always wins, so a
     // user who deliberately paused it stays paused across reloads.
     enabled: rawSync.enabled ?? base.enabled,
+    pullOnly: rawSync.pullOnly ?? base.pullOnly,
   };
 }

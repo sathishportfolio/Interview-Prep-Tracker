@@ -61,7 +61,9 @@ export function createMultiSelect(mount, config) {
 
   function renderDropdown() {
     dropdown.textContent = "";
-    const filtered = options.filter((o) => o.toLowerCase().includes(filterText.toLowerCase()));
+    // Already-selected options are shown as tags in the control itself (with their own "×" to
+    // remove) — repeating them in the dropdown too is redundant and just adds noise to the list.
+    const filtered = options.filter((o) => !selected.has(o) && o.toLowerCase().includes(filterText.toLowerCase()));
     if (filtered.length === 0) {
       const empty = document.createElement("div");
       empty.className = "multiselect-option";
@@ -71,12 +73,11 @@ export function createMultiSelect(mount, config) {
     }
     for (const opt of filtered) {
       const optEl = document.createElement("div");
-      optEl.className = "multiselect-option" + (selected.has(opt) ? " selected" : "");
+      optEl.className = "multiselect-option";
       optEl.textContent = opt;
       optEl.addEventListener("mousedown", (e) => {
         e.preventDefault();
-        if (selected.has(opt)) selected.delete(opt);
-        else selected.add(opt);
+        selected.add(opt);
         renderTags();
         renderDropdown();
         config.onChange([...selected]);

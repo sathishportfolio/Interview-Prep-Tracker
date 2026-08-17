@@ -27,6 +27,19 @@ export function initSearch(input, resultsEl) {
   input.addEventListener("focus", () => {
     if (resultsEl.childElementCount > 0) resultsEl.hidden = false;
   });
+
+  // Ctrl/Cmd+S: jump to the search box instead of the browser's Save Page dialog. Listens
+  // regardless of what's currently focused (so it works from anywhere on the page, not just once
+  // already inside the search box), and always preventDefaults the key combo itself so the browser
+  // save prompt never has a chance to appear.
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) {
+      e.preventDefault();
+      input.scrollIntoView({ behavior: "smooth", block: "center" });
+      input.focus();
+      input.select();
+    }
+  });
 }
 
 function renderResults(groups, resultsEl) {

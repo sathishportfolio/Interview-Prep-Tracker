@@ -48,12 +48,19 @@
  * @property {string[]} topics
  * @property {string[]} subTopics
  * @property {StatusFilterKey[]} statuses
+ * @property {"OR"|"AND"} [statusMode] default "OR" — how multiple entries in `statuses` combine:
+ *   "OR" matches a question against ANY selected status, "AND" requires ALL of them (see
+ *   data/filter.js's matchesStatus). Missing/undefined on older persisted filters is treated as
+ *   "OR", preserving their previous behavior.
  */
 
 /**
  * "dueForReview" is not a real boolean field on Question — it's a computed match against
- * `srsDue` vs today, handled as a special case in data/filter.js's matchesStatus.
- * @typedef {"done"|"reviewLater"|"duplicate"|"lessImportant"|"starred"|"failed"|"dueForReview"} StatusFilterKey
+ * `srsDue` vs today, handled as a special case in data/filter.js's matchesStatus. "hasAnswer"/
+ * "noAnswer" are likewise computed (from whether `answer` is non-blank), not stored booleans.
+ * "unmarked" is also computed — none of the three tri-state review flags (done/failed/reviewLater)
+ * are set, i.e. a question that hasn't been reviewed at all yet.
+ * @typedef {"done"|"reviewLater"|"duplicate"|"lessImportant"|"starred"|"failed"|"dueForReview"|"hasAnswer"|"noAnswer"|"unmarked"} StatusFilterKey
  */
 
 /**
@@ -85,6 +92,11 @@
  * @property {boolean} themeDark default true — see features/theme.js.
  * @property {boolean} [autoDownloadOn] default false — periodic CSV auto-download backstop, synced
  *   like every other toggle here (see features/autoDownload.js).
+ * @property {boolean} [filterCardOpen] default false — whether the Filters card body is expanded;
+ *   synced like every other toggle here so the open/closed state carries across devices.
+ * @property {boolean} [statsProgressVisible] default false — whether the Stats dropdown's
+ *   Done/Review/Failed breakdown progress bar is shown; synced like every other toggle here so it
+ *   carries across devices (see render/statsBadges.js's renderStatsProgress).
  */
 
 /**
@@ -124,6 +136,10 @@
  * @property {boolean} enabled false = auto-push paused; Manual Push/Pull remain available
  *   regardless. Defaults true (see persistence/schema.js's emptySchema) — auto-sync is on by default
  *   once a gist is connected.
+ * @property {boolean} [pullOnly] default false — blocks ALL pushing (both the Manual Push button
+ *   and the auto-push backstop, regardless of `enabled`) while leaving Manual Pull fully working.
+ *   For orgs that block/monitor outbound writes to GitHub Gist — see sync/manualPush.js and
+ *   sync/autoPush.js, the two places this is enforced.
  */
 
 /**

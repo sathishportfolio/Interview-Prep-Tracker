@@ -25,7 +25,10 @@ import { appState, toggleNodeOpenExclusive } from "../state/appState.js";
 
 export function buildTreeHandlers() {
   return {
-    onToggleStatus: (qid, flag) => statusFlags.toggleStatus(qid, flag),
+    // flash: false — clicking a status-icon-row button is already its own visual feedback (the icon
+    // itself lights up), so the extra flash-highlight is redundant here (unlike the 'r'/'s' keyboard
+    // shortcuts in reviewShortcuts.js, which keep flashing since there's no click to see).
+    onToggleStatus: (qid, flag) => statusFlags.toggleStatus(qid, flag, { flash: false }),
     onEditAnswer: (qid) => answerEditor.openAnswerEditor(qid),
     onEditQuestionText: (qid) => editQuestionText.editQuestionTextPrompt(qid),
     onOpenMoveForm: (qid) => moveForm.openMoveForm(appState.selectedQuestionIds.has(qid) ? [...appState.selectedQuestionIds] : [qid]),

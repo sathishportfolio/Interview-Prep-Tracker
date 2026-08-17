@@ -8,7 +8,10 @@
  * visibilitychange safety-net push never fire while off, conserving API usage) but NOT the dirty
  * flag itself — the status dot still tracks "does the cloud have my latest changes?" even while
  * paused, so the user always has an honest signal regardless of the toggle. Manual Push/Pull are
- * unaffected either way.
+ * unaffected either way. `appState.sync.pullOnly` (the Sync menu's Pull Only toggle) is a stronger,
+ * separate gate on top of `enabled` — for orgs that block/monitor pushes to GitHub Gist, it blocks
+ * these same two auto-push attempts AND the Manual Push button (see sync/manualPush.js), while
+ * leaving Manual Pull fully working either way.
  *
  * "Dirty" is tracked from the "iqv:persisted" DOM event (persistence/store.js's explicit hook), but
  * that event also fires for writes that a pull/sync action itself makes (applying remote data
@@ -64,7 +67,7 @@ export function initAutoPush(pushedCallback, dirtyChangeCallback) {
     // user can always tell whether the cloud is behind — only the actual debounced push is gated by
     // sync.enabled, to conserve API usage while paused.
     setDirty(true);
-    if (!appState.sync.enabled) return;
+    if (!appState.sync.enabled || appState.sync.pullOnly) return;
     if (debounceHandle) clearTimeout(debounceHandle);
     debounceHandle = setTimeout(doPush, DEBOUNCE_MS);
   });
@@ -80,7 +83,7 @@ export function initAutoPush(pushedCallback, dirtyChangeCallback) {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "hidden") return;
     if (!dirty || pushing) return;
-    if (!appState.sync.enabled) return; // paused: dirty dot stays lit, but no push happens behind the user's back
+    if (!appState.sync.enabled || appState.sync.pullOnly) return; // paused/pull-only: dirty dot stays lit, but no push happens behind the user's back
     if (debounceHandle) {
       clearTimeout(debounceHandle);
       debounceHandle = null;

@@ -21,12 +21,17 @@ const TRI_STATE_ORDER = /** @type {const} */ (["done", "failed", "reviewLater"])
 /**
  * @param {string} questionId
  * @param {"done"|"reviewLater"|"duplicate"|"lessImportant"|"starred"|"failed"} flag
+ * @param {{flash?: boolean}} [options] `flash` defaults true (the 'r'/'s' keyboard shortcuts in
+ *   reviewShortcuts.js rely on it); the status-icon-row button click (treeHandlers.js's
+ *   onToggleStatus) passes `flash: false` — clicking a status icon is already visual feedback in
+ *   itself, so the extra flash-highlight is redundant there.
  */
-export function toggleStatus(questionId, flag) {
+export function toggleStatus(questionId, flag, options = {}) {
+  const flash = options.flash ?? true;
   if (flag === "done" || flag === "failed" || flag === "reviewLater") {
     const prev = appState.rawData.find((q) => q.id === questionId);
     if (!prev) return;
-    applyTriState(questionId, prev[flag] ? null : flag);
+    applyTriState(questionId, prev[flag] ? null : flag, { flash });
     return;
   }
 
@@ -44,13 +49,16 @@ export function toggleStatus(questionId, flag) {
   applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
   // Toggling starred/lessImportant can move the question within its tier — flash it so the user
   // can find where it landed after the (keyed, so cheap) re-render.
-  const el = findQuestionHeaderEl(questionId);
-  if (el) flashHighlight(el);
+  if (flash) {
+    const el = findQuestionHeaderEl(questionId);
+    if (el) flashHighlight(el);
+  }
 }
 
 /**
  * Cycles a question's Done/Failed/Review Later tri-state in fixed order — none -> Done -> Failed ->
- * Review Later -> none — for the 'd' keyboard shortcut.
+ * Review Later -> none — for the 'd' keyboard shortcut. Never flashes: 'd' is meant for fast
+ * repeated review-cycling, where a flash on every press would be more noise than signal.
  * @param {string} questionId
  */
 export function cycleDoneFailedReview(questionId) {
@@ -58,14 +66,16 @@ export function cycleDoneFailedReview(questionId) {
   if (!prev) return;
   const idx = TRI_STATE_ORDER.findIndex((f) => prev[f]);
   const next = idx === -1 ? TRI_STATE_ORDER[0] : idx === TRI_STATE_ORDER.length - 1 ? null : TRI_STATE_ORDER[idx + 1];
-  applyTriState(questionId, next);
+  applyTriState(questionId, next, { flash: false });
 }
 
 /**
  * @param {string} questionId
  * @param {"done"|"failed"|"reviewLater"|null} flag
+ * @param {{flash?: boolean}} [options]
  */
-function applyTriState(questionId, flag) {
+function applyTriState(questionId, flag, options = {}) {
+  const flash = options.flash ?? true;
   const prev = appState.rawData.find((q) => q.id === questionId);
   if (!prev) return;
   let rawData = setTriStatusFlag(appState.rawData, questionId, flag);
@@ -77,8 +87,10 @@ function applyTriState(questionId, flag) {
     rawData = scheduleReview(rawData, questionId, "reset");
   }
   applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
-  const el = findQuestionHeaderEl(questionId);
-  if (el) flashHighlight(el);
+  if (flash) {
+    const el = findQuestionHeaderEl(questionId);
+    if (el) flashHighlight(el);
+  }
 }
 
 /**

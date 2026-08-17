@@ -80,13 +80,20 @@ export function loadSyncConfig(schemaSync) {
 }
 
 export function clearSyncConfig() {
-  appState.sync = { githubToken: null, configGistId: null, lastPushAt: null, lastPullAt: null, lastKnownRemoteUpdatedAt: null, knownVersion: 0, lastMetaPushedHash: null, lastRemoteActiveDevice: null, lastRemoteUpdateTimestamp: null, enabled: true };
+  appState.sync = { githubToken: null, configGistId: null, lastPushAt: null, lastPullAt: null, lastKnownRemoteUpdatedAt: null, knownVersion: 0, lastMetaPushedHash: null, lastRemoteActiveDevice: null, lastRemoteUpdateTimestamp: null, enabled: true, pullOnly: false };
   store.writeSync(appState.sync);
 }
 
 /** Flips auto-push on/off without touching the token/gist id — see sync/autoPush.js. */
 export function setEnabled(on) {
   appState.sync = { ...appState.sync, enabled: on };
+  store.writeSync(appState.sync);
+}
+
+/** Flips Pull Only mode — blocks all pushing (Manual Push + auto-push) while Pull keeps working;
+ *  see sync/manualPush.js and sync/autoPush.js, the two places this is enforced. */
+export function setPullOnly(on) {
+  appState.sync = { ...appState.sync, pullOnly: on };
   store.writeSync(appState.sync);
 }
 

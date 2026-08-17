@@ -16,6 +16,10 @@ export async function manualPush() {
     showToast("Set up Cross-Device Sync first.", "error");
     return { ok: false };
   }
+  if (appState.sync.pullOnly) {
+    showToast("Pull Only is on — pushing is disabled. Turn it off in the Sync menu to push.", "error");
+    return { ok: false };
+  }
   const result = await gists.pushAllChangedFiles();
   if (!result.ok) {
     showToast(result.error || "Push failed.", "error");

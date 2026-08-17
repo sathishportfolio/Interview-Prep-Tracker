@@ -53,7 +53,7 @@ export const appState = {
   timer: { running: false, elapsedMs: 0, startedAt: null },
 
   /** @type {import('../types.js').SyncConfig} */
-  sync: { githubToken: null, configGistId: null, lastPushAt: null, lastPullAt: null, lastKnownRemoteUpdatedAt: null, knownVersion: 0, lastMetaPushedHash: null, lastRemoteActiveDevice: null, lastRemoteUpdateTimestamp: null, enabled: true },
+  sync: { githubToken: null, configGistId: null, lastPushAt: null, lastPullAt: null, lastKnownRemoteUpdatedAt: null, knownVersion: 0, lastMetaPushedHash: null, lastRemoteActiveDevice: null, lastRemoteUpdateTimestamp: null, enabled: true, pullOnly: false },
 
   // --- Transient (never persisted) UI state ---
   /** @type {Set<string>} question IDs currently bulk-selected */

@@ -78,6 +78,12 @@
                 <span class="sync-toggle-text">Auto-sync</span>
               </label>
             </div>
+            <div class="sync-menu-status">
+              <label class="sync-toggle-label" title="Block ALL pushing (Manual Push and auto-push) while keeping Pull fully working — for orgs that block/monitor pushes to GitHub Gist.">
+                <input type="checkbox" id="pullOnlyToggle" class="sync-toggle-input" />
+                <span class="sync-toggle-text">Pull Only</span>
+              </label>
+            </div>
             <div id="lastSyncedDetailLabel" class="last-synced-detail-label"></div>
             <div class="sync-menu-actions">
               <button id="manualPushBtn" type="button" class="btn btn-sm btn-outline-primary" title="Send your local changes to the cloud"><i class="fa-solid fa-cloud-arrow-up"></i> Push</button>
@@ -123,9 +129,17 @@
           <label>SubTopic</label>
           <div id="subTopicFilterMount"></div>
         </div>
-        <div class="filter-field">
+        <div class="filter-field status-filter-field">
           <label>Status</label>
-          <div id="statusFilterMount"></div>
+          <div class="status-filter-row">
+            <div id="statusFilterMount"></div>
+            <div class="status-filter-icons-scroll">
+              <button id="statusModeToggle" type="button" class="btn btn-sm btn-outline-secondary status-mode-toggle" title="Matching ANY selected status (OR) — click to require ALL instead (AND)">OR</button>
+              <button id="clearStatusFilterBtn" type="button" class="btn btn-sm btn-outline-secondary status-clear-btn" title="Clear Status filter only">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+          </div>
         </div>
         <button id="clearFiltersBtn" class="btn btn-sm btn-outline-secondary">Clear Filters</button>
       </div>

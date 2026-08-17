@@ -9,13 +9,32 @@
  */
 
 /**
+ * Exported for callers that need to test a question against a whole active status selection
+ * directly (e.g. features/refresh.js's stats-row fraction counts, which intersect a row's own
+ * single status against this same combined predicate).
  * @param {Question} q
  * @param {StatusFilterKey[]} statuses
+ * @param {"OR"|"AND"} [mode] default "OR" — see FilterState.statusMode.
  * @returns {boolean}
  */
-function matchesStatus(q, statuses) {
+export function matchesStatus(q, statuses, mode) {
   if (!statuses || statuses.length === 0) return true;
-  return statuses.some((s) => (s === "dueForReview" ? isDueForReview(q) : q[s] === true));
+  return mode === "AND" ? statuses.every((s) => matchesSingleStatus(q, s)) : statuses.some((s) => matchesSingleStatus(q, s));
+}
+
+/**
+ * Single-status match, exported for callers that need one status's own predicate directly (e.g.
+ * features/refresh.js's per-row stats counts).
+ * @param {Question} q
+ * @param {StatusFilterKey} status
+ * @returns {boolean}
+ */
+export function matchesSingleStatus(q, status) {
+  if (status === "dueForReview") return isDueForReview(q);
+  if (status === "hasAnswer") return hasAnswer(q);
+  if (status === "noAnswer") return !hasAnswer(q);
+  if (status === "unmarked") return !q.done && !q.failed && !q.reviewLater;
+  return q[status] === true;
 }
 
 /**
@@ -30,6 +49,16 @@ function isDueForReview(q) {
 }
 
 /**
+ * "hasAnswer"/"noAnswer" aren't stored booleans either — computed from whether `answer` (HTML-
+ * supporting rich text) has any non-whitespace/markup content.
+ * @param {Question} q
+ * @returns {boolean}
+ */
+export function hasAnswer(q) {
+  return !!q.answer && q.answer.replace(/<[^>]*>/g, "").trim().length > 0;
+}
+
+/**
  * Filters a GroupedTree, keeping structurally-empty groups passing through the Status filter
  * (they always pass Status, since they have no questions to test — but still respect
  * Subject/Topic/SubTopic dropdown filters), per README-AI gotcha #6.
@@ -38,7 +67,7 @@ function isDueForReview(q) {
  * @returns {GroupedTree}
  */
 export function filterGroupedData(tree, filters) {
-  const { subjects: subjF, topics: topF, subTopics: stF, statuses } = filters;
+  const { subjects: subjF, topics: topF, subTopics: stF, statuses, statusMode } = filters;
 
   const subjects = tree.subjects
     .filter((s) => subjF.length === 0 || subjF.includes(s.subject))
@@ -52,7 +81,7 @@ export function filterGroupedData(tree, filters) {
               if (st.isEmpty) {
                 return { ...st, questions: [] };
               }
-              const questions = st.questions.filter((q) => matchesStatus(q, statuses));
+              const questions = st.questions.filter((q) => matchesStatus(q, statuses, statusMode));
               return { ...st, questions, isEmpty: questions.length === 0 && st.questions.length === 0 };
             })
             .filter((st) => st.isEmpty || st.questions.length > 0);
@@ -99,5 +128,5 @@ export function computeFilterOptions(fullTree, filters) {
 
 /** @returns {FilterState} */
 export function emptyFilterState() {
-  return { subjects: [], topics: [], subTopics: [], statuses: [] };
+  return { subjects: [], topics: [], subTopics: [], statuses: [], statusMode: "OR" };
 }

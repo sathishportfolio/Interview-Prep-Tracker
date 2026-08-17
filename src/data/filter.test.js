@@ -41,6 +41,21 @@ test("computeFilterOptions narrows Topic/SubTopic options by selected Subject, n
   assert.deepEqual(opts.topics, ["T1", "T2"]); // narrowed to S1's topics only
 });
 
+test("filterGroupedData statusMode 'OR' (default) matches ANY selected status, 'AND' requires ALL", () => {
+  const both = q({ id: "e1", subject: "S1", topic: "T1", subTopic: "ST1", done: true, starred: true });
+  const doneOnly = q({ id: "e2", subject: "S1", topic: "T1", subTopic: "ST1", done: true, starred: false });
+  const starredOnly = q({ id: "e3", subject: "S1", topic: "T1", subTopic: "ST1", done: false, starred: true });
+  const tree = groupData([both, doneOnly, starredOnly], []);
+
+  const orFiltered = filterGroupedData(tree, { ...emptyFilterState(), statuses: ["done", "starred"] });
+  const orIds = orFiltered.subjects[0].topics[0].subTopics[0].questions.map((qq) => qq.id).sort();
+  assert.deepEqual(orIds, ["e1", "e2", "e3"]); // matches any of done/starred
+
+  const andFiltered = filterGroupedData(tree, { ...emptyFilterState(), statuses: ["done", "starred"], statusMode: "AND" });
+  const andIds = andFiltered.subjects[0].topics[0].subTopics[0].questions.map((qq) => qq.id);
+  assert.deepEqual(andIds, ["e1"]); // only the one matching both
+});
+
 test("filterGroupedData 'dueForReview' status matches by comparing srsDue to today, not a stored boolean", () => {
   const past = q({ id: "d1", subject: "S1", topic: "T1", subTopic: "ST1", srsDue: "2000-01-01" });
   const future = q({ id: "d2", subject: "S1", topic: "T1", subTopic: "ST1", srsDue: "2999-01-01" });

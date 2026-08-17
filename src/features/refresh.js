@@ -5,7 +5,7 @@
  * undoRedo.js wraps `applyDataChange` to capture snapshots; everything else just calls it.
  */
 import { groupData } from "../data/group.js";
-import { filterGroupedData, computeFilterOptions } from "../data/filter.js";
+import { filterGroupedData, computeFilterOptions, matchesSingleStatus, matchesStatus } from "../data/filter.js";
 import { appState } from "../state/appState.js";
 import { renderTree } from "../render/treeRenderer.js";
 import { renderFlat } from "../render/flatRenderer.js";
@@ -60,17 +60,44 @@ export function repaint() {
     }
   }
 
-  const filteredQuestions = flattenTreeQuestions(appState.grouped);
-  const todayISO = new Date().toISOString().slice(0, 10);
+  // Stats are computed against a HIERARCHY-only filtered set (Subject/Topic/SubTopic, ignoring
+  // Status) — kept separate from appState.grouped (which the tree/flat view render from, and which
+  // DOES apply the Status filter narrowing what's actually visible). `total` is that scope's size.
+  // Each row's own BASE count (`total` of its fraction) is that row's status matched within this
+  // hierarchy scope alone, ignoring whatever's currently active in the Status filter — a fixed
+  // denominator that never changes no matter which OTHER row(s) get toggled on. Once 1+ statuses
+  // are active (statusFilterMount / Stats-dropdown are multi-select/additive — see filters.js's
+  // toggleStatusFilter — combined via appState.filterState.statusMode's AND/OR), each row's
+  // numerator becomes "how many ALSO match the full active filter" (an intersection using the same
+  // matchesStatus the tree itself filters by) — e.g. clicking "Starred" turns "Review: 12" into
+  // "Review: 0/12" (0 of Review's own 12 are also Starred) and "Done: 39" into "Done: 2/39", while
+  // Starred's own row becomes "2/2".
+  const hierarchyOnlyTree = filterGroupedData(appState.groupedUnfiltered, { ...appState.filterState, statuses: [] });
+  const hierarchyQuestions = flattenTreeQuestions(hierarchyOnlyTree);
+  const { statuses, statusMode } = appState.filterState;
+  /**
+   * @param {import('../types.js').StatusFilterKey} key
+   * @returns {{count: number, total: number}}
+   */
+  const statusFraction = (key) => {
+    const own = hierarchyQuestions.filter((q) => matchesSingleStatus(q, key));
+    const total = own.length;
+    const count = statuses.length > 0 ? own.filter((q) => matchesStatus(q, statuses, statusMode)).length : total;
+    return { count, total };
+  };
   renderStatsBadges(
     {
-      total: appState.rawData.length,
-      filtered: filteredQuestions.length,
-      review: filteredQuestions.filter((q) => q.reviewLater).length,
-      done: filteredQuestions.filter((q) => q.done).length,
-      starred: filteredQuestions.filter((q) => q.starred).length,
-      due: filteredQuestions.filter((q) => q.srsDue && q.srsDue <= todayISO).length,
-      failed: filteredQuestions.filter((q) => q.failed).length,
+      total: hierarchyQuestions.length,
+      filtered: statuses.length > 0 ? hierarchyQuestions.filter((q) => matchesStatus(q, statuses, statusMode)).length : hierarchyQuestions.length,
+      activeStatuses: statuses,
+      review: statusFraction("reviewLater"),
+      done: statusFraction("done"),
+      starred: statusFraction("starred"),
+      due: statusFraction("dueForReview"),
+      failed: statusFraction("failed"),
+      withAnswer: statusFraction("hasAnswer"),
+      withoutAnswer: statusFraction("noAnswer"),
+      unmarked: statusFraction("unmarked"),
     },
     statsHandlers
   );

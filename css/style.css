@@ -117,7 +117,9 @@ body {
 }
 .export-menu-item { justify-content: flex-start; border: none; }
 .last-synced-label { font-size: 0.75rem; opacity: 0.8; }
-.last-synced-detail-label { font-size: 0.72rem; opacity: 0.65; margin-bottom: 0.5rem; }
+/* Sits between the sync-menu-status toggle group and the Push/Pull buttons — the top border reads
+   as a section divider so this line doesn't blur into either neighbor. */
+.last-synced-detail-label { font-size: 0.72rem; opacity: 0.65; padding-top: 0.55rem; border-top: 1px dashed var(--border-soft); margin: 0 0 0.7rem; }
 
 .app-footer { text-align: center; padding: 0.6rem 1rem 1rem; }
 .footer-last-synced-detail { font-size: 0.7rem; opacity: 0.5; }
@@ -147,12 +149,12 @@ body {
   top: calc(100% + 0.35rem);
   left: 0;
   z-index: 60;
-  width: 260px;
+  width: 292px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  box-shadow: 0 0.5rem 1.25rem var(--shadow);
-  padding: 0.75rem;
+  border-radius: 0.65rem;
+  box-shadow: 0 0.75rem 1.75rem var(--shadow);
+  padding: 0.85rem;
 }
 /* Distinct from .sync-status-dot (unpushed-changes) — reflects whether the Auto-sync toggle is on
    (green) or paused (muted), only shown once configured. */
@@ -161,13 +163,63 @@ body {
 .sync-status-indicator.sync-indicator-paused { background: var(--text-faint); }
 
 .sync-menu-blurb { font-size: 0.82rem; color: var(--text-muted); margin: 0 0 0.6rem; }
-.sync-menu-status { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.5rem; }
-.sync-toggle-label { display: flex; align-items: center; gap: 0.3rem; cursor: pointer; white-space: nowrap; }
-.sync-toggle-input { margin: 0; }
-.sync-toggle-text { font-size: 0.78rem; }
-.sync-menu-actions { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; }
-.sync-menu-actions .btn { flex: 1; }
-.sync-menu-manage { padding: 0; font-size: 0.8rem; }
+
+/* The two toggle rows (Auto-sync, Pull Only — one .sync-menu-status per row in the HTML) are
+   visually merged into a single grouped "settings" block via :first-of-type/:last-of-type on the
+   shared class, rather than reading as two loose, disconnected lines. */
+.sync-menu-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  background: var(--bg-surface-alt);
+  padding: 0.45rem 0.6rem;
+  margin-bottom: 0;
+}
+.sync-menu-status:first-of-type { border-radius: 0.45rem 0.45rem 0 0; }
+.sync-menu-status:not(:first-of-type) { border-top: 1px solid var(--border-soft); }
+.sync-menu-status:last-of-type { border-radius: 0 0 0.45rem 0.45rem; margin-bottom: 0.65rem; }
+
+/* Checkboxes restyled as compact pill switches — a plain checkbox reads as a form field, a switch
+   reads as a live setting, which is what these actually are. */
+.sync-toggle-label { display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; white-space: nowrap; }
+.sync-toggle-input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1.9rem;
+  height: 1.05rem;
+  flex-shrink: 0;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--border-strong);
+  position: relative;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.sync-toggle-input::before {
+  content: "";
+  position: absolute;
+  top: 0.1rem;
+  left: 0.1rem;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px var(--shadow);
+  transition: transform 0.15s ease;
+}
+.sync-toggle-input:checked { background: var(--accent); }
+.sync-toggle-input:checked::before { transform: translateX(0.85rem); }
+.sync-toggle-input:disabled { opacity: 0.5; cursor: not-allowed; }
+.sync-toggle-text { font-size: 0.78rem; font-weight: 500; }
+
+.sync-menu-actions { display: flex; gap: 0.5rem; margin-bottom: 0.6rem; }
+.sync-menu-actions .btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; }
+.sync-menu-actions .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.sync-menu-manage { display: block; width: 100%; text-align: center; padding: 0.5rem 0 0; margin: 0; font-size: 0.8rem; border-top: 1px solid var(--border-soft); }
 
 /* Duplicate Finder needs room for long question text, answer previews, and the append picker. */
 .modal-host .modal-box:has(.dup-finder) { max-width: 960px; }
@@ -186,9 +238,41 @@ body {
 
 .filter-card-body { display: none; margin-top: 0.6rem; }
 .filter-card-body.open { display: block; }
-.filter-row { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: flex-end; }
+/* flex-wrap MUST stay "wrap" (never overflow-x/nowrap) on this row: .multiselect-dropdown's popout
+   (see below) is position:absolute, and giving ANY ancestor an overflow-x other than visible forces
+   that ancestor's overflow-y to compute to auto too (CSS spec quirk — see the near-identical comment
+   on .stats-row above), which clips the popout instead of letting it float over the page. */
+.filter-row { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: flex-end; }
 .filter-field { min-width: 160px; }
 .filter-field label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.15rem; }
+/* #clearFiltersBtn is a bare trailing action with no label above it (unlike every .filter-field),
+   so .filter-row's align-items: flex-end already sits its bottom flush with the others' — this just
+   pins its own height to match their ~2rem control row exactly, so that shared bottom edge lines up
+   crisply instead of being a pixel or two off from a plain button's slightly shorter natural height. */
+#clearFiltersBtn { min-height: 2rem; }
+/* Status field: its AND/OR mode toggle + "clear only this" button sit AFTER the multiselect box,
+   in their own small icon-button row — same pattern as .action-icons-scroll (the global actions
+   row) rather than squeezed inside the multiselect itself (an inline input-group there broke
+   alignment once tags wrapped onto multiple lines — see .multiselect-control's flex-wrap).
+   align-items: stretch (rather than flex-start) is the key fix for the "everything's slightly off"
+   look: it forces the icon-button row to match the multiselect box's actual height exactly — even
+   as that height grows when several statuses are selected and their tags wrap onto more lines —
+   instead of the two approximating the same ~2rem and drifting apart by a pixel or two. Getting the
+   multiselect mount itself (not just its wrapper) to participate in that stretch takes flex-column +
+   flex:1 on its inner .multiselect-control (a plain block div doesn't fill a stretched ancestor's
+   height on its own), and the buttons get the same treatment so THEIR content stays centered rather
+   than pinned to the top once they're taller than their own text. */
+.status-filter-field { min-width: 220px; }
+.status-filter-row { display: flex; gap: 0.35rem; align-items: stretch; }
+.status-filter-row #statusFilterMount { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.status-filter-row .multiselect-control { flex: 1; }
+.status-filter-icons-scroll { display: flex; gap: 0.3rem; flex-wrap: nowrap; flex-shrink: 0; align-items: stretch; }
+.status-filter-icons-scroll .btn { display: flex; align-items: center; justify-content: center; }
+.status-mode-toggle, .status-clear-btn { padding: 0.25rem 0.45rem; }
+/* No distinct "active" look for AND vs OR — it's a mode switch, not a selection, and both states
+   are equally "on", so the button stays the same plain outline look regardless of which is picked;
+   only its own text ("OR"/"AND") communicates the current mode. */
+.status-mode-toggle { font-weight: 700; min-width: 2.6rem; }
 
 /* No overflow on the row itself — an ancestor with overflow-x set clips ANY absolutely-positioned
    descendant that extends past its bottom edge in most browsers (overflow-x != visible forces
@@ -216,6 +300,9 @@ body {
    rows below pick up their matching .icon-*.is-active accent color the same way. */
 .stats-dropdown-item { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; border: none; background: none; padding: 0.3rem 0.5rem; border-radius: 0.35rem; cursor: pointer; color: var(--text-faint-3); font-size: 0.9rem; }
 .stats-dropdown-item:hover { background: var(--bg-hover); }
+/* Currently toggled into the Status filter (appState.filterState.statuses) — multi-select, so any
+   number of rows can carry this at once. */
+.stats-dropdown-item.filter-active { background: var(--bg-tint-accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
 .stats-dropdown-count { font-weight: 600; }
 .global-actions-group { display: flex; gap: 0.3rem; flex-wrap: nowrap; align-items: center; min-width: 0; }
 /* Only the icon buttons scroll internally if they don't all fit — never wraps onto a second line
@@ -223,7 +310,7 @@ body {
    /shift-wheel) so a tight window reads as "seamlessly fits" rather than showing a bar. The Copy
    Visible select is a sibling OUTSIDE this wrapper (see render/statsBadges.js), so it's never
    scrolled out of view — it always stays fully visible, pinned at the row's right edge. */
-.action-icons-scroll { display: flex; gap: 0.3rem; flex-wrap: nowrap; align-items: center; min-width: 0; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+.action-icons-scroll { display: flex; gap: 0.3rem; flex-wrap: nowrap; align-items: center; min-width: 0; scrollbar-width: none; -ms-overflow-style: none; }
 .action-icons-scroll::-webkit-scrollbar { display: none; }
 .global-actions-group select { flex-shrink: 0; }
 .stats-progress-toggle.active { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -400,7 +487,6 @@ body.bulk-bar-visible { padding-bottom: 3.5rem; }
 .multiselect-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-surface); border: 1px solid var(--border-input); border-radius: 0.3rem; max-height: 220px; overflow: auto; z-index: 30; box-shadow: 0 4px 10px var(--shadow); }
 .multiselect-option { padding: 0.3rem 0.5rem; cursor: pointer; font-size: 0.82rem; }
 .multiselect-option:hover, .multiselect-option.active { background: var(--bg-tint-accent-soft); }
-.multiselect-option.selected { font-weight: 600; }
 
 .toast-host { position: fixed; top: 1rem; right: 1rem; z-index: 100; display: flex; flex-direction: column; gap: 0.4rem; }
 .app-toast { background: #333; color: #fff; padding: 0.5rem 0.9rem; border-radius: 0.35rem; font-size: 0.85rem; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }

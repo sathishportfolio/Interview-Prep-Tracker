@@ -81,7 +81,23 @@ function renderSyncMenuState() {
     updateSyncStatusIndicator();
     const toggle = /** @type {HTMLInputElement|null} */ ($("syncEnabledToggle"));
     if (toggle) toggle.checked = !!appState.sync.enabled;
+    const pullOnlyToggle = /** @type {HTMLInputElement|null} */ ($("pullOnlyToggle"));
+    if (pullOnlyToggle) pullOnlyToggle.checked = !!appState.sync.pullOnly;
+    updatePullOnlyState();
   }
+}
+
+/** Reflects appState.sync.pullOnly onto the Push button (disabled) and Auto-sync toggle (moot, but
+ *  grayed out for clarity — sync/autoPush.js already gates the actual auto-push attempts). */
+function updatePullOnlyState() {
+  const pullOnly = !!appState.sync.pullOnly;
+  const pushBtn = /** @type {HTMLButtonElement|null} */ ($("manualPushBtn"));
+  if (pushBtn) {
+    pushBtn.disabled = pullOnly;
+    pushBtn.title = pullOnly ? "Pull Only is on — pushing is disabled" : "Send your local changes to the cloud";
+  }
+  const enabledToggle = /** @type {HTMLInputElement|null} */ ($("syncEnabledToggle"));
+  if (enabledToggle) enabledToggle.disabled = pullOnly;
 }
 
 /** Shows/hides the small dot on the Sync button that flags unpushed local changes. */
@@ -151,14 +167,23 @@ function initDropdownMenu(btnId, panelId, onOpen) {
   return { close };
 }
 
+/** Applies appState.toggles.filterCardOpen to the Filters card body's DOM class — call at boot and
+ *  after anything that can bring in a remote value for it (a sync pull), mirroring
+ *  autoDownload.applyAutoDownloadState/theme.applyTheme. */
+function applyFilterCardOpenState() {
+  $("filterCardBody")?.classList.toggle("open", !!appState.toggles.filterCardOpen);
+}
+
 /** Shared refresh after anything that changes appState.files/filters from outside the normal edit flow (file switch, load, or a sync pull/move/copy/fetch). */
 function refreshAfterExternalDataChange() {
   renderFileSwitcher();
-  // A cross-device pull can bring in a themeDark/autoDownloadOn preference set on another device —
-  // re-apply both so this device matches immediately, not just after its own next manual toggle.
-  // (repaint(), called below via refreshView(), re-syncs the #autoDownloadToggle checkbox itself.)
+  // A cross-device pull can bring in a themeDark/autoDownloadOn/filterCardOpen preference set on
+  // another device — re-apply all so this device matches immediately, not just after its own next
+  // manual toggle. (repaint(), called below via refreshView(), re-syncs the #autoDownloadToggle
+  // checkbox itself.)
   theme.applyTheme();
   autoDownload.applyAutoDownloadState();
+  applyFilterCardOpenState();
   // refreshView() first: it recomputes appState.grouped/groupedUnfiltered from the new file's
   // rawData, which filters.syncControlsFromState()'s option lists read from — populating the
   // dropdowns before this recompute would show stale (usually empty) options.
@@ -198,6 +223,7 @@ function init() {
   tempModeFeature.initTempModeFromStorage(); // re-enters Temp/Test Mode if it was still on at last close
   theme.applyTheme(); // before first paint, so there's no light-theme flash for returning dark-theme users
   autoDownload.applyAutoDownloadState(); // resumes the auto-download timer if it was still on
+  applyFilterCardOpenState(); // restores the Filters card's open/closed state from last device
 
   // First-time-mobile-visitor default: Flatten View ON.
   if (flattenView.isMobile() && !localStorage.getItem("iqv:v1")) {
@@ -217,8 +243,6 @@ function init() {
 
   configureRefresh({
     stats: {
-      onTotalClick: () => filters.clearFilters(),
-      onFilteredClick: () => filters.clearGroupFiltersOnly(),
       onStatusBadgeClick: (status) => filters.toggleStatusFilter(status),
     },
     actions: {
@@ -242,10 +266,15 @@ function init() {
     topicMount: /** @type {HTMLElement} */ ($("topicFilterMount")),
     subTopicMount: /** @type {HTMLElement} */ ($("subTopicFilterMount")),
     statusMount: /** @type {HTMLElement} */ ($("statusFilterMount")),
+    statusModeToggleBtn: /** @type {HTMLButtonElement|null} */ ($("statusModeToggle")),
+    clearStatusBtn: $("clearStatusFilterBtn"),
   });
   $("clearFiltersBtn")?.addEventListener("click", () => filters.clearFilters());
   $("filterCardToggle")?.addEventListener("click", () => {
-    $("filterCardBody")?.classList.toggle("open");
+    const filterCardOpen = !appState.toggles.filterCardOpen;
+    appState.toggles = { ...appState.toggles, filterCardOpen };
+    store.writeGlobalToggles(appState.toggles);
+    applyFilterCardOpenState();
   });
 
   // --- File Manager ---
@@ -414,6 +443,15 @@ function init() {
     syncConfig.setEnabled(on);
     updateSyncStatusIndicator();
     showToast(on ? "Cloud sync resumed." : "Cloud sync paused — Push/Pull still work.", "info");
+  });
+  // Pull Only: for orgs that block/monitor pushes to GitHub Gist — blocks Manual Push and the
+  // auto-push backstop entirely (see sync/manualPush.js, sync/autoPush.js) while Manual Pull keeps
+  // working either way.
+  $("pullOnlyToggle")?.addEventListener("change", (e) => {
+    const on = /** @type {HTMLInputElement} */ (e.target).checked;
+    syncConfig.setPullOnly(on);
+    updatePullOnlyState();
+    showToast(on ? "Pull Only enabled — pushing is now blocked." : "Pull Only disabled — pushing is available again.", "info");
   });
   updateSyncStatusIndicator();
 
