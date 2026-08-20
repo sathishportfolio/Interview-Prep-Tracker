@@ -8,6 +8,7 @@
 import { appState } from "../../state/appState.js";
 import { applyOpenState } from "../accordion.js";
 import { isReorderTarget } from "../reorderEligibility.js";
+import { formatRelativeTime } from "../../data/relativeTime.js";
 
 /**
  * @typedef {Object} TreeHandlers
@@ -314,10 +315,18 @@ export function createQuestionNode(q, handlers) {
     else document.removeEventListener("click", onHeaderActionsDocClick);
   });
 
+  // Last-updated timestamp, desktop only (see .q-updated-header in style.css) — a small clock icon
+  // + compact age ("5 min", "2 hr", ...) sitting right before the Done icon, so it reads inline with
+  // the row without competing for attention against the actionable icons next to it.
+  const updatedAtHeader = document.createElement("span");
+  updatedAtHeader.className = "q-updated-header";
+  updatedAtHeader.innerHTML = '<i class="fa-solid fa-clock"></i><span class="q-updated-header-text"></span>';
+
   header.appendChild(dragHandle);
   header.appendChild(selectBox);
   header.appendChild(reorderBadge);
   header.appendChild(qText);
+  header.appendChild(updatedAtHeader);
   header.appendChild(doneWrap);
   header.appendChild(headerMoreBtn);
   header.appendChild(headerActionsWrap);
@@ -544,7 +553,16 @@ export function createQuestionNode(q, handlers) {
   // share one row — edit-gated hiding still applies to just the statusControls buttons.
   answerEditRow.appendChild(statusControls);
 
+  // Last-updated timestamp — always-visible small muted line (clock icon + compact age) in the
+  // answer body, both mobile and desktop (see style.css's .q-updated-body). Desktop ALSO gets a
+  // light-grey copy directly in the header, right before the Done icon (see updatedAtHeader above /
+  // .q-updated-header in style.css).
+  const updatedAtBody = document.createElement("div");
+  updatedAtBody.className = "q-updated-body text-muted small";
+  updatedAtBody.innerHTML = '<i class="fa-solid fa-clock"></i><span class="q-updated-body-text"></span>';
+
   body.appendChild(answerContent);
+  body.appendChild(updatedAtBody);
   body.appendChild(tagsDisplayRow);
   body.appendChild(answerEditRow);
 
@@ -697,6 +715,20 @@ export function patchQuestionNode(el, q, handlers) {
     reorderBadge.classList.toggle("reorder-picked", idx >= 0);
   }
   header.classList.toggle("reorder-mode-target", reorderEligible);
+
+  const updatedAtLabel = typeof q.updatedAt === "number" ? formatRelativeTime(q.updatedAt) : "";
+  const updatedAtHeader = /** @type {HTMLElement|null} */ (header.querySelector(".q-updated-header"));
+  if (updatedAtHeader) {
+    updatedAtHeader.hidden = !updatedAtLabel;
+    const text = updatedAtHeader.querySelector(".q-updated-header-text");
+    if (text) text.textContent = updatedAtLabel;
+  }
+  const updatedAtBody = /** @type {HTMLElement|null} */ (body.querySelector(".q-updated-body"));
+  if (updatedAtBody) {
+    updatedAtBody.hidden = !updatedAtLabel;
+    const text = updatedAtBody.querySelector(".q-updated-body-text");
+    if (text) text.textContent = updatedAtLabel;
+  }
 
   const answerContent = body.querySelector(".answer-content");
   if (answerContent) answerContent.innerHTML = q.answer || "<em>No answer yet.</em>";

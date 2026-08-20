@@ -415,6 +415,17 @@ body.edit-mode-off .edit-gated { display: none !important; }
    (`display: contents`) and the "more" button stays hidden — nothing changes there. */
 .header-more-btn { display: none; }
 .header-actions-wrap { display: contents; }
+
+/* Last-updated timestamp (clock icon + compact age, e.g. "5 min"/"2 hr"/"3 day") — always-visible
+   small muted line in the answer body (both mobile and desktop). Desktop also gets a light-grey copy
+   directly in the header, right before the Done icon (see .q-updated-header below); that one is
+   hidden on mobile (see the >640px override), where the header's already tight from the collapsed
+   action menu. Both use the `hidden` attribute (not an :empty selector) to disappear when a question
+   has no updatedAt yet — the icon means the element is never textually empty. */
+.q-updated-body { display: flex; align-items: center; gap: 0.3rem; margin: -0.1rem 0 0.4rem; }
+.q-updated-header { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--text-faint-3); font-size: 0.78rem; white-space: nowrap; flex: none; }
+.q-updated-body[hidden], .q-updated-header[hidden] { display: none; }
+.q-updated-header i, .q-updated-body i { font-size: 0.85em; opacity: 0.8; }
 .difficulty-dot { display: inline-block; width: 0.8rem; height: 0.8rem; border-radius: 50%; background: var(--text-faint-3); opacity: 0.4; }
 .difficulty-dot-btn.difficulty-easy .difficulty-dot { background: var(--difficulty-easy); opacity: 1; }
 .difficulty-dot-btn.difficulty-medium .difficulty-dot { background: var(--difficulty-medium); opacity: 1; }
@@ -664,4 +675,9 @@ body.bulk-bar-visible { padding-bottom: 3.5rem; }
     box-shadow: 0 4px 12px rgba(0,0,0,0.25);
   }
   .header-actions-wrap.open { display: flex; }
+
+  /* The header-based last-updated label is desktop-only — the mobile header's already tight (see
+     the collapsed .header-actions-wrap above); the answer-body copy (.q-updated-body, always shown
+     on both) is where mobile gets this text instead. */
+  .q-updated-header { display: none; }
 }
