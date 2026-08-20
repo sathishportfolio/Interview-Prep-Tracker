@@ -11,6 +11,7 @@ import { nextExportFileName } from "../data/filename.js";
 import { emptyFilterState } from "../data/filter.js";
 import { newFileId } from "../data/id.js";
 import { minifyAllAnswers } from "../data/answerFormat.js";
+import { migrateLessImportantToNotImportant } from "../data/mutations.js";
 import * as store from "../persistence/store.js";
 import { appState, loadFileIntoState } from "../state/appState.js";
 import { showToast } from "./toast.js";
@@ -49,14 +50,16 @@ export function bootstrapFromStorage() {
   appState.activeQuestion = schema.activeQuestion;
   appState.timer = schema.timer;
   appState.sync = schema.sync;
+  appState.globalTags = schema.globalTags;
 
   // Answers saved before HTML minification existed may still carry extra whitespace — normalize
   // every loaded file's answers now (not just the active one) so the very next persist/sync carries
   // the minified version instead of waiting for each question to be individually re-saved.
   let anyMinified = false;
   appState.files = appState.files.map((f) => {
-    const result = minifyAllAnswers(f.rawData);
-    if (!result.changed) return f;
+    const migrated = migrateLessImportantToNotImportant(f.rawData);
+    const result = minifyAllAnswers(migrated.rawData);
+    if (!result.changed && !migrated.changed) return f;
     anyMinified = true;
     return { ...f, rawData: result.rawData };
   });

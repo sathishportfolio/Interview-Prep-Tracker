@@ -67,7 +67,7 @@ export function buildBulkPanel(config) {
   const help = document.createElement("div");
   help.className = "text-muted";
   help.style.fontSize = "0.75rem";
-  help.textContent = "Comma-separated, header row required: Subject,Topic,SubTopic,Question,Answer[,Done,ReviewLater,Duplicate,LessImportant,Starred]";
+  help.textContent = "Comma-separated, header row required: Subject,Topic,SubTopic,Question,Answer[,Done,ReviewLater,Duplicate,NotImportant,Starred,Failed,Difficulty]";
   body.appendChild(help);
 
   if (config.showSampleLink !== false) {

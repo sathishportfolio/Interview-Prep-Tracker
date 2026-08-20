@@ -8,6 +8,7 @@ import { reconcileKeyedList } from "../keyedList.js";
 import { createTopicNode, patchTopicNode } from "./topicView.js";
 import { appState } from "../../state/appState.js";
 import { groupKey } from "../../data/selectionKeys.js";
+import { isReorderTarget } from "../reorderEligibility.js";
 
 /**
  * @param {SubjectGroup} s
@@ -35,6 +36,27 @@ export function createSubjectNode(s, handlers) {
   });
   header.insertBefore(selectBox, header.children[1]);
 
+  const reorderBadge = document.createElement("span");
+  reorderBadge.className = "reorder-badge";
+  header.insertBefore(reorderBadge, header.children[2]);
+
+  // Reorder-mode click interception — capture phase, fires before the normal expand/collapse
+  // listener bindHeader already wired inside createAccordionShell. See features/reorderMode.js.
+  header.addEventListener(
+    "click",
+    (e) => {
+      if (!isReorderTarget("subject", { subject: s.subject })) return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      handlers.onReorderSelect("subject", { subject: s.subject });
+    },
+    true
+  );
+
+  headerControls.appendChild(iconBtn("fa-ban", "Not Important", (e) => {
+    e.stopPropagation();
+    handlers.onToggleGroupNotImportant("subject", { subject: s.subject });
+  }, true));
   headerControls.appendChild(iconBtn("fa-copy", "Copy", (e) => {
     e.stopPropagation();
     handlers.onOpenCopyMenu("subject", { subject: s.subject }, e.currentTarget);
@@ -77,11 +99,17 @@ function iconBtn(iconClass, title, onClick, gated = false) {
   return btn;
 }
 
-/** @param {SubjectGroup} s @returns {number} */
+/** @param {SubjectGroup} s @returns {{total: number, notImportant: number}} */
 function countQuestions(s) {
-  let n = 0;
-  for (const t of s.topics) for (const st of t.subTopics) n += st.questions.length;
-  return n;
+  let total = 0;
+  let notImportant = 0;
+  for (const t of s.topics) {
+    for (const st of t.subTopics) {
+      total += st.questions.length;
+      notImportant += st.questions.filter((q) => q.notImportant).length;
+    }
+  }
+  return { total, notImportant };
 }
 
 /**
@@ -91,7 +119,10 @@ function countQuestions(s) {
  */
 export function patchSubjectNode(el, s, handlers) {
   const titleEl = el.querySelector(".acc-title");
-  if (titleEl) titleEl.textContent = `${s.subject}${s.isEmpty ? " (empty)" : ` (${countQuestions(s)})`}`;
+  if (titleEl) {
+    const { total, notImportant } = countQuestions(s);
+    titleEl.textContent = `${s.subject}${s.isEmpty ? " (empty)" : ` (${total - notImportant}/${total})`}`;
+  }
 
   const header = el.querySelector(":scope > .acc-header");
   const body = el.querySelector(":scope > .acc-body");
@@ -101,9 +132,20 @@ export function patchSubjectNode(el, s, handlers) {
     body.classList.toggle("open", appState.openNodeKeys.has(key));
   }
   el.classList.toggle("child-select-on", appState.childSelectModeKeys.has(groupKey("subject", { subject: s.subject })));
+  el.classList.toggle("not-important", !!s.notImportant);
 
   const selectBox = /** @type {HTMLInputElement|null} */ (el.querySelector(":scope > .acc-header > .group-select-checkbox"));
   if (selectBox) selectBox.checked = appState.selectedGroupKeys.has(groupKey("subject", { subject: s.subject }));
+
+  const reorderEligible = isReorderTarget("subject", { subject: s.subject });
+  const reorderBadge = el.querySelector(":scope > .acc-header > .reorder-badge");
+  if (reorderBadge) {
+    const idx = reorderEligible ? appState.reorderMode?.selections.indexOf(s.subject) ?? -1 : -1;
+    reorderBadge.textContent = idx >= 0 ? String(idx + 1) : "";
+    reorderBadge.classList.toggle("reorder-eligible", reorderEligible);
+    reorderBadge.classList.toggle("reorder-picked", idx >= 0);
+  }
+  if (header) header.classList.toggle("reorder-mode-target", reorderEligible);
 
   const bulkAddMount = el.querySelector(".bulk-add-mount");
   if (bulkAddMount && handlers.onMountGroupPanels) {

@@ -116,6 +116,31 @@ export function reorderSiblingsByIdList(rawData, subject, topic, subTopic, order
 }
 
 /**
+ * Renumbers a Subject/Topic/SubTopic's own order field (subjectOrder/topicOrder/subTopicOrder) to a
+ * caller-supplied name order — the group-level equivalent of reorderSiblingsByIdList, used by the
+ * click-to-number Reorder mode (see features/reorderMode.js). Only siblings that currently have real
+ * question rows are affected; a purely-empty (EmptyGroup-only) sibling has no order field here to
+ * renumber and keeps its existing "sorts after real siblings" placement (data/group.js).
+ * @param {Question[]} rawData Full unfiltered array.
+ * @param {"subject"|"topic"|"subTopic"} level
+ * @param {{subject?: string, topic?: string}} parentScope Required for "topic" (subject) and
+ *   "subTopic" (subject+topic); ignored for "subject".
+ * @param {string[]} orderedNames Sibling names in the desired final order.
+ * @returns {Question[]}
+ */
+export function reorderGroupSiblings(rawData, level, parentScope, orderedNames) {
+  const orderField = level === "subject" ? "subjectOrder" : level === "topic" ? "topicOrder" : "subTopicOrder";
+  const nameField = level;
+  const orderByName = new Map(orderedNames.map((name, i) => [name, i]));
+  return rawData.map((q) => {
+    if (level !== "subject" && q.subject !== parentScope.subject) return q;
+    if (level === "subTopic" && q.topic !== parentScope.topic) return q;
+    if (!orderByName.has(q[nameField])) return q;
+    return { ...q, [orderField]: /** @type {number} */ (orderByName.get(q[nameField])) };
+  });
+}
+
+/**
  * When multiple questions are selected and the physically-dragged one is among them, computes the
  * final sibling id order for moving the WHOLE selected group together within the same SubTopic list
  * — SortableJS itself only moves the one dragged tile in the DOM (see features/dragDrop.js's

@@ -67,12 +67,12 @@ export function repaint() {
   // hierarchy scope alone, ignoring whatever's currently active in the Status filter — a fixed
   // denominator that never changes no matter which OTHER row(s) get toggled on. Once 1+ statuses
   // are active (statusFilterMount / Stats-dropdown are multi-select/additive — see filters.js's
-  // toggleStatusFilter — combined via appState.filterState.statusMode's AND/OR), each row's
+  // toggleStatusFilter — combined via appState.filterState.statusMode's AND/OR/NOT), each row's
   // numerator becomes "how many ALSO match the full active filter" (an intersection using the same
   // matchesStatus the tree itself filters by) — e.g. clicking "Starred" turns "Review: 12" into
   // "Review: 0/12" (0 of Review's own 12 are also Starred) and "Done: 39" into "Done: 2/39", while
   // Starred's own row becomes "2/2".
-  const hierarchyOnlyTree = filterGroupedData(appState.groupedUnfiltered, { ...appState.filterState, statuses: [] });
+  const hierarchyOnlyTree = filterGroupedData(appState.groupedUnfiltered, { ...appState.filterState, statuses: [], tags: [] });
   const hierarchyQuestions = flattenTreeQuestions(hierarchyOnlyTree);
   const { statuses, statusMode } = appState.filterState;
   /**
@@ -85,6 +85,13 @@ export function repaint() {
     const count = statuses.length > 0 ? own.filter((q) => matchesStatus(q, statuses, statusMode)).length : total;
     return { count, total };
   };
+  /** @param {string} tag @returns {{count: number, total: number}} */
+  const tagFraction = (tag) => {
+    const own = hierarchyQuestions.filter((q) => q.tags?.includes(tag));
+    const total = own.length;
+    const count = statuses.length > 0 ? own.filter((q) => matchesStatus(q, statuses, statusMode)).length : total;
+    return { count, total };
+  };
   renderStatsBadges(
     {
       total: hierarchyQuestions.length,
@@ -93,11 +100,19 @@ export function repaint() {
       review: statusFraction("reviewLater"),
       done: statusFraction("done"),
       starred: statusFraction("starred"),
+      visited: statusFraction("visited"),
+      notImportant: statusFraction("notImportant"),
+      difficultyEasy: statusFraction("difficultyEasy"),
+      difficultyMedium: statusFraction("difficultyMedium"),
+      difficultyHard: statusFraction("difficultyHard"),
       due: statusFraction("dueForReview"),
       failed: statusFraction("failed"),
       withAnswer: statusFraction("hasAnswer"),
       withoutAnswer: statusFraction("noAnswer"),
       unmarked: statusFraction("unmarked"),
+      tags: appState.globalTags,
+      activeTags: appState.filterState.tags,
+      tagFractions: Object.fromEntries(appState.globalTags.map((t) => [t, tagFraction(t)])),
     },
     statsHandlers
   );

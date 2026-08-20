@@ -10,7 +10,7 @@ import {
 function q(overrides) {
   return {
     id: overrides.id, subject: "S1", topic: "T1", subTopic: "ST1", question: "Q?", answer: "A",
-    done: false, reviewLater: false, duplicate: false, lessImportant: false, starred: false,
+    done: false, reviewLater: false, duplicate: false, notImportant: false, starred: false,
     order: 0, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0, ...overrides,
   };
 }

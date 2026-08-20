@@ -33,8 +33,8 @@ test("blank-Question rows become empty-group markers", () => {
 
 test("serializeMainCsv excludes Duplicate-flagged rows", () => {
   const rawData = [
-    { id: "a", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1", answer: "", done: false, reviewLater: false, duplicate: true, lessImportant: false, starred: false, failed: false, order: 0, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0 },
-    { id: "b", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q2", answer: "", done: false, reviewLater: false, duplicate: false, lessImportant: false, starred: false, failed: false, order: 1, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0 },
+    { id: "a", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1", answer: "", done: false, reviewLater: false, duplicate: true, notImportant: false, starred: false, failed: false, order: 0, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0 },
+    { id: "b", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q2", answer: "", done: false, reviewLater: false, duplicate: false, notImportant: false, starred: false, failed: false, order: 1, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0 },
   ];
   const csv = serializeMainCsv(rawData, []);
   assert.ok(!csv.includes("Q1"));
@@ -57,9 +57,57 @@ test("round-trips against the real docs fixture (parse -> serialize -> reparse g
   assert.equal(second.rawData[0].answer, first.rawData[0].answer);
 });
 
+test("Difficulty column round-trips and rejects unrecognized values", () => {
+  const csv = "Subject,Topic,SubTopic,Question,Answer,Done,ReviewLater,Difficulty\nS1,T1,ST1,Q1,A1,false,false,Hard\nS1,T1,ST1,Q2,A2,false,false,bogus\n";
+  const result = parseMainCsv(csv);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.rawData[0].difficulty, "hard");
+  assert.equal(result.rawData[1].difficulty, null);
+
+  const serialized = serializeMainCsv(result.rawData, []);
+  assert.ok(serialized.includes("hard"));
+  const reparsed = parseMainCsv(serialized);
+  assert.equal(reparsed.ok, true);
+  if (!reparsed.ok) return;
+  assert.equal(reparsed.rawData[0].difficulty, "hard");
+});
+
+test("NotImportant column accepts the legacy LessImportant header name for backward compatibility", () => {
+  const csv = "Subject,Topic,SubTopic,Question,Answer,Done,ReviewLater,LessImportant\nS1,T1,ST1,Q1,A1,false,false,true\n";
+  const result = parseMainCsv(csv);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.rawData[0].notImportant, true);
+  // Export always writes the new column name, never the old one.
+  const serialized = serializeMainCsv(result.rawData, []);
+  assert.ok(serialized.includes("NotImportant"));
+});
+
+test("Visited/DoneCount/DoneHistory/Tags round-trip through export/import", () => {
+  const rawData = [
+    {
+      id: "a", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1", answer: "",
+      done: true, reviewLater: false, duplicate: false, notImportant: false, starred: false, failed: false, visited: true,
+      order: 0, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0,
+      doneCount: 2, doneHistory: [{ ts: 1000 }, { ts: 2000, note: "second pass" }], tags: ["java", "core"],
+    },
+  ];
+  const csv = serializeMainCsv(rawData, []);
+  assert.ok(csv.includes("Visited"));
+  const reparsed = parseMainCsv(csv);
+  assert.equal(reparsed.ok, true);
+  if (!reparsed.ok) return;
+  const q = reparsed.rawData[0];
+  assert.equal(q.visited, true);
+  assert.equal(q.doneCount, 2);
+  assert.deepEqual(q.doneHistory, [{ ts: 1000 }, { ts: 2000, note: "second pass" }]);
+  assert.deepEqual(q.tags, ["java", "core"]);
+});
+
 test("empty Subject/Topic/SubTopic groups round-trip through export/import", () => {
   const rawData = [
-    { id: "a", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1", answer: "", done: false, reviewLater: false, duplicate: false, lessImportant: false, starred: false, failed: false, order: 0, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0 },
+    { id: "a", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1", answer: "", done: false, reviewLater: false, duplicate: false, notImportant: false, starred: false, failed: false, order: 0, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0 },
   ];
   const emptyGroups = [{ subject: "S2", topic: null, subTopic: null, createdOrder: 0 }];
   const csv = serializeMainCsv(rawData, emptyGroups);

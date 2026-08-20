@@ -12,6 +12,64 @@ import { bulkCopyScope } from "./bulkCopy.js";
 import * as bulkSelection from "./bulkSelection.js";
 import { mountBulkSelectMenu } from "./bulkSelectMenu.js";
 import { quickAddQuestion } from "./quickAdd.js";
+import * as reorderModeFeature from "./reorderMode.js";
+import { appState } from "../state/appState.js";
+
+/** @param {"subject"|"topic"|"subTopic"|"root"} level @returns {"subject"|"topic"|"subTopic"|"question"} */
+function childLevelFor(level) {
+  return level === "root" ? "subject" : level === "subject" ? "topic" : level === "topic" ? "subTopic" : "question";
+}
+
+/** @param {"subject"|"topic"|"subTopic"|"root"} level @param {{subject?: string, topic?: string, subTopic?: string}} scope */
+function parentScopeFor(level, scope) {
+  if (level === "root") return {};
+  if (level === "subject") return { subject: scope.subject };
+  if (level === "topic") return { subject: scope.subject, topic: scope.topic };
+  return { subject: scope.subject, topic: scope.topic, subTopic: scope.subTopic };
+}
+
+/** @param {{subject?: string, topic?: string, subTopic?: string}} a @param {{subject?: string, topic?: string, subTopic?: string}} b */
+function sameScope(a, b) {
+  return a.subject === b.subject && a.topic === b.topic && a.subTopic === b.subTopic;
+}
+
+/**
+ * Reorder button lives inline with the rest of this level's panel controls (see mountGroupPanels)
+ * and toggles between "start a Reorder session for this level's own direct children" and, once a
+ * matching session is active, "Commit (n)" — click sequence numbering shows up as badges on the
+ * eligible child accordions themselves (see render/nodeViews/*'s reorder-badge). Runs on every call
+ * (unlike the rest of this mount, which is idempotent after first paint) so its label stays live as
+ * selections change elsewhere in the tree.
+ * @param {"subject"|"topic"|"subTopic"|"root"} level
+ * @param {{subject?: string, topic?: string, subTopic?: string}} scope
+ * @param {HTMLElement} mountEl
+ */
+function mountReorderButton(level, scope, mountEl) {
+  const childLevel = childLevelFor(level);
+  const parentScope = parentScopeFor(level, scope);
+  let btn = /** @type {HTMLButtonElement|null} */ (mountEl.querySelector(":scope > .reorder-trigger-btn"));
+  if (!btn) {
+    btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn btn-sm btn-outline-secondary reorder-trigger-btn edit-gated";
+    btn.addEventListener("click", () => {
+      const mode = appState.reorderMode;
+      const isThisSession = !!mode && mode.childLevel === childLevel && sameScope(mode.parentScope, parentScope);
+      if (isThisSession) reorderModeFeature.commitReorder();
+      else reorderModeFeature.enterReorderMode(childLevel, parentScope);
+    });
+    mountEl.appendChild(btn);
+  }
+  const mode = appState.reorderMode;
+  const isThisSession = !!mode && mode.childLevel === childLevel && sameScope(mode.parentScope, parentScope);
+  const childLabel = childLevel === "subTopic" ? "SubTopics" : childLevel === "question" ? "Questions" : childLevel === "topic" ? "Topics" : "Subjects";
+  btn.textContent = isThisSession ? `Commit Reorder (${mode.selections.length})` : `Reorder ${childLabel}`;
+  btn.title = isThisSession ? "Click the accordions below in your desired order, then click here to commit" : `Number these ${childLabel} in a new order by clicking them, then commit`;
+  btn.classList.toggle("active", isThisSession);
+  // A DIFFERENT level/scope's session is active — this button's own action would be ignored (see
+  // features/reorderMode.js's selectForReorder no-op guard), so disable it to avoid a confusing click.
+  btn.disabled = !!mode && !isThisSession;
+}
 
 /**
  * @param {"subject"|"topic"|"subTopic"|"root"} level
@@ -19,7 +77,9 @@ import { quickAddQuestion } from "./quickAdd.js";
  * @param {HTMLElement} mountEl
  */
 export function mountGroupPanels(level, scope, mountEl) {
-  if (mountEl.childElementCount > 0) return; // idempotent — don't clobber open panels on re-render
+  mountReorderButton(level, scope, mountEl);
+  if (mountEl.dataset.panelsMounted) return; // idempotent — don't clobber open panels on re-render
+  mountEl.dataset.panelsMounted = "1";
 
   const fixed = {
     fixedSubject: level === "root" ? null : scope.subject,

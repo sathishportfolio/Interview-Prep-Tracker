@@ -14,12 +14,16 @@
  * single status against this same combined predicate).
  * @param {Question} q
  * @param {StatusFilterKey[]} statuses
- * @param {"OR"|"AND"} [mode] default "OR" — see FilterState.statusMode.
+ * @param {"OR"|"AND"|"NOT"} [mode] default "OR" — see FilterState.statusMode. "NOT" excludes a
+ *   question that matches ANY selected status (the logical negation of "OR") — e.g. selecting
+ *   Starred+Failed with NOT keeps only questions that are neither.
  * @returns {boolean}
  */
 export function matchesStatus(q, statuses, mode) {
   if (!statuses || statuses.length === 0) return true;
-  return mode === "AND" ? statuses.every((s) => matchesSingleStatus(q, s)) : statuses.some((s) => matchesSingleStatus(q, s));
+  if (mode === "AND") return statuses.every((s) => matchesSingleStatus(q, s));
+  if (mode === "NOT") return !statuses.some((s) => matchesSingleStatus(q, s));
+  return statuses.some((s) => matchesSingleStatus(q, s));
 }
 
 /**
@@ -34,6 +38,9 @@ export function matchesSingleStatus(q, status) {
   if (status === "hasAnswer") return hasAnswer(q);
   if (status === "noAnswer") return !hasAnswer(q);
   if (status === "unmarked") return !q.done && !q.failed && !q.reviewLater;
+  if (status === "difficultyEasy") return q.difficulty === "easy";
+  if (status === "difficultyMedium") return q.difficulty === "medium";
+  if (status === "difficultyHard") return q.difficulty === "hard";
   return q[status] === true;
 }
 
@@ -46,6 +53,18 @@ export function matchesSingleStatus(q, status) {
  */
 function isDueForReview(q) {
   return !!q.srsDue && q.srsDue <= new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Tags filter predicate — a question passes if it carries ANY of the selected tags (OR), or always
+ * passes when no tags are selected. Exported for stats' per-tag fraction counts (mirrors
+ * matchesStatus/matchesSingleStatus's export pattern).
+ * @param {Question} q
+ * @param {string[]} tags
+ * @returns {boolean}
+ */
+export function matchesTags(q, tags) {
+  return !tags || tags.length === 0 || tags.some((t) => q.tags?.includes(t));
 }
 
 /**
@@ -67,7 +86,7 @@ export function hasAnswer(q) {
  * @returns {GroupedTree}
  */
 export function filterGroupedData(tree, filters) {
-  const { subjects: subjF, topics: topF, subTopics: stF, statuses, statusMode } = filters;
+  const { subjects: subjF, topics: topF, subTopics: stF, statuses, statusMode, tags } = filters;
 
   const subjects = tree.subjects
     .filter((s) => subjF.length === 0 || subjF.includes(s.subject))
@@ -81,7 +100,7 @@ export function filterGroupedData(tree, filters) {
               if (st.isEmpty) {
                 return { ...st, questions: [] };
               }
-              const questions = st.questions.filter((q) => matchesStatus(q, statuses, statusMode));
+              const questions = st.questions.filter((q) => matchesStatus(q, statuses, statusMode) && matchesTags(q, tags));
               return { ...st, questions, isEmpty: questions.length === 0 && st.questions.length === 0 };
             })
             .filter((st) => st.isEmpty || st.questions.length > 0);
@@ -128,5 +147,5 @@ export function computeFilterOptions(fullTree, filters) {
 
 /** @returns {FilterState} */
 export function emptyFilterState() {
-  return { subjects: [], topics: [], subTopics: [], statuses: [], statusMode: "OR" };
+  return { subjects: [], topics: [], subTopics: [], statuses: [], statusMode: "OR", tags: [] };
 }

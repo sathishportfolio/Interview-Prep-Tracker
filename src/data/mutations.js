@@ -9,7 +9,7 @@
  */
 import { newQuestionId } from "./id.js";
 import { nextQuestionOrder, nextGroupOrder } from "./order.js";
-import { markGroupEmpty, unmarkGroupEmpty, pruneEmptyGroups, renameInEmptyGroups } from "./emptyGroups.js";
+import { markGroupEmpty, unmarkGroupEmpty, pruneEmptyGroups, renameInEmptyGroups, markGroupsNotImportant } from "./emptyGroups.js";
 
 /** @typedef {{rawData: Question[], emptyGroups: EmptyGroup[]}} DataPair */
 
@@ -35,7 +35,8 @@ export function questionExists(rawData, subject, topic, subTopic, questionText) 
 /**
  * @param {DataPair} data
  * @param {{subject: string, topic: string, subTopic: string, question: string, answer?: string,
- *   done?: boolean, reviewLater?: boolean, duplicate?: boolean, lessImportant?: boolean, starred?: boolean, failed?: boolean}} input
+ *   done?: boolean, reviewLater?: boolean, duplicate?: boolean, notImportant?: boolean, starred?: boolean, failed?: boolean, visited?: boolean,
+ *   difficulty?: "easy"|"medium"|"hard"|null, tags?: string[]}} input
  * @returns {DataPair & {question: Question}}
  */
 export function addQuestion(data, input) {
@@ -58,15 +59,20 @@ export function addQuestion(data, input) {
     done: !!input.done,
     reviewLater: !!input.reviewLater,
     duplicate: !!input.duplicate,
-    lessImportant: !!input.lessImportant,
+    notImportant: !!input.notImportant,
     starred: !!input.starred,
     failed: !!input.failed,
+    visited: !!input.visited,
+    difficulty: input.difficulty ?? null,
     order,
     subjectOrder: existing ? existing.subjectOrder : subjectOrder,
     topicOrder: existing ? existing.topicOrder : topicOrder,
     subTopicOrder: existing ? existing.subTopicOrder : subTopicOrder,
     srsDue: null,
     srsStreak: 0,
+    doneCount: 0,
+    doneHistory: [],
+    tags: input.tags ?? [],
   };
 
   const rawData = [...data.rawData, newQuestion];
@@ -90,7 +96,7 @@ export function updateQuestion(rawData, questionId, patch) {
 /**
  * @param {Question[]} rawData
  * @param {string} questionId
- * @param {"done"|"reviewLater"|"duplicate"|"lessImportant"|"starred"|"failed"} flag
+ * @param {"done"|"reviewLater"|"duplicate"|"notImportant"|"starred"|"failed"|"visited"} flag
  * @returns {Question[]}
  */
 export function toggleStatusFlag(rawData, questionId, flag) {
@@ -110,6 +116,60 @@ export function setTriStatusFlag(rawData, questionId, flag) {
   return rawData.map((q) =>
     q.id === questionId ? { ...q, done: flag === "done", failed: flag === "failed", reviewLater: flag === "reviewLater" } : q
   );
+}
+
+/**
+ * Marks a question Done via the Done menu ("Mark Done"/"Mark Done with Notes"): sets the tri-state
+ * to Done (clearing Failed/Review Later, same as setTriStatusFlag), increments `doneCount`, and
+ * appends a timestamped entry to `doneHistory`. Unlike the plain tri-state toggle, this ALWAYS
+ * records a fresh entry — even if the question was already Done — so repeat review passes each get
+ * their own counted, timestamped mark.
+ * @param {Question[]} rawData
+ * @param {string} questionId
+ * @param {string} [note]
+ * @returns {Question[]}
+ */
+export function markDone(rawData, questionId, note) {
+  return rawData.map((q) =>
+    q.id === questionId
+      ? {
+          ...q,
+          done: true,
+          failed: false,
+          reviewLater: false,
+          doneCount: (q.doneCount ?? 0) + 1,
+          doneHistory: [...(q.doneHistory ?? []), { ts: Date.now(), ...(note ? { note } : {}) }],
+        }
+      : q
+  );
+}
+
+/**
+ * Resets a question's Done counter/timeline entirely, per the Ctrl+click/long-press "reset" gesture
+ * on the Done button (feature layer confirms with the user first — see features/statusFlags.js).
+ * Also clears the Done flag itself, mirroring unmarking Done today.
+ * @param {Question[]} rawData
+ * @param {string} questionId
+ * @returns {Question[]}
+ */
+export function resetDoneHistory(rawData, questionId) {
+  return rawData.map((q) => (q.id === questionId ? { ...q, done: false, doneCount: 0, doneHistory: [] } : q));
+}
+
+/**
+ * Adds or removes one tag on a single question (question-level side of the Tags feature — the
+ * global tag registry itself lives on appState.globalTags/StorageSchemaV1.globalTags, not here).
+ * @param {Question[]} rawData
+ * @param {string} questionId
+ * @param {string} tag
+ * @returns {Question[]}
+ */
+export function toggleQuestionTag(rawData, questionId, tag) {
+  return rawData.map((q) => {
+    if (q.id !== questionId) return q;
+    const tags = q.tags ?? [];
+    return { ...q, tags: tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag] };
+  });
 }
 
 /**
@@ -155,16 +215,25 @@ export function scheduleReview(rawData, questionId, outcome, referenceDate = new
 }
 
 /**
- * Resets every question's progress tracking — Done, Review Later, and spaced-repetition scheduling
- * (srsDue/srsStreak) — back to their fresh-question defaults, across the ENTIRE dataset regardless
- * of any active filter. Leaves Starred/LessImportant/Duplicate (organizational flags, not progress)
- * and every Subject/Topic/SubTopic/Question structure untouched — this only clears tracking, it
- * never deletes or moves anything.
+ * Resets progress tracking — Done, Review Later, Visited, spaced-repetition scheduling (srsDue/
+ * srsStreak), and the Done History timeline (doneCount/doneHistory, see markDone/resetDoneHistory)
+ * — back to fresh-question defaults. Leaves Starred/NotImportant/Duplicate/Difficulty (organizational
+ * flags, not progress) and every Subject/Topic/SubTopic/Question structure untouched — this only
+ * clears tracking, it never deletes or moves anything.
  * @param {Question[]} rawData
+ * @param {string[]} [questionIds] Restricts the reset to just these question ids — the currently
+ *   filtered/visible set (see app.js's Reset Progress handler, which passes
+ *   `flattenQuestions(appState.grouped).map(q => q.id)`). Omitted/undefined resets every question in
+ *   `rawData` regardless of any active filter, same as before this parameter existed.
  * @returns {Question[]}
  */
-export function resetProgress(rawData) {
-  return rawData.map((q) => ({ ...q, done: false, reviewLater: false, srsDue: null, srsStreak: 0 }));
+export function resetProgress(rawData, questionIds) {
+  const idSet = questionIds ? new Set(questionIds) : null;
+  return rawData.map((q) =>
+    !idSet || idSet.has(q.id)
+      ? { ...q, done: false, reviewLater: false, visited: false, srsDue: null, srsStreak: 0, doneCount: 0, doneHistory: [] }
+      : q
+  );
 }
 
 /**
@@ -232,6 +301,85 @@ export function renameGroup(data, level, scope, newName) {
     newName,
   });
   return { rawData, emptyGroups };
+}
+
+/**
+ * Sets Not Important on/off for a whole Subject/Topic/SubTopic, cascading onto every question
+ * underneath (and any matching empty-group placeholder) — the same scope-match cascade renameGroup
+ * uses. Never touches order/visibility, only the `notImportant` label.
+ * @param {DataPair} data
+ * @param {"subject"|"topic"|"subTopic"} level
+ * @param {{subject: string, topic?: string, subTopic?: string}} scope
+ * @param {boolean} value
+ * @returns {DataPair}
+ */
+export function setGroupNotImportant(data, level, scope, value) {
+  return applyPatchToSelection(data, [{ level, scope }], [], { notImportant: value });
+}
+
+/**
+ * Cascades a patch (e.g. `{notImportant: true}` or `{difficulty: "hard"}`) onto every question under
+ * each selected Subject/Topic/SubTopic group, plus every explicitly selected question id — the
+ * shared primitive behind setGroupNotImportant, the Difficulty bulk action, and any future bulk
+ * per-selection edit (see features/bulkSelection.js's getSelection()). `notImportant` patches also
+ * cascade onto matching EmptyGroup placeholders (see data/emptyGroups.js's markGroupsNotImportant)
+ * since a childless group has no question row to carry the flag on.
+ * @param {DataPair} data
+ * @param {{level: "subject"|"topic"|"subTopic", scope: {subject: string, topic?: string, subTopic?: string}}[]} groups
+ * @param {string[]} questionIds
+ * @param {Partial<Question>} patch
+ * @returns {DataPair}
+ */
+export function applyPatchToSelection(data, groups, questionIds, patch) {
+  const idSet = new Set(questionIds);
+  const matchesAnyGroup = (q) =>
+    groups.some(({ level, scope }) => {
+      if (level === "subject") return q.subject === scope.subject;
+      if (level === "topic") return q.subject === scope.subject && q.topic === scope.topic;
+      return q.subject === scope.subject && q.topic === scope.topic && q.subTopic === scope.subTopic;
+    });
+  const rawData = data.rawData.map((q) => (idSet.has(q.id) || matchesAnyGroup(q) ? { ...q, ...patch } : q));
+
+  let emptyGroups = data.emptyGroups;
+  if ("notImportant" in patch) {
+    for (const { level, scope } of groups) {
+      emptyGroups = markGroupsNotImportant(emptyGroups, level, scope, !!patch.notImportant);
+    }
+  }
+  return { rawData, emptyGroups };
+}
+
+/**
+ * Sets Difficulty for a batch of question ids (bulk action across a multi-selection).
+ * @param {Question[]} rawData
+ * @param {string[]} questionIds
+ * @param {"easy"|"medium"|"hard"|null} difficulty
+ * @returns {Question[]}
+ */
+export function setDifficultyForQuestions(rawData, questionIds, difficulty) {
+  const idSet = new Set(questionIds);
+  return rawData.map((q) => (idSet.has(q.id) ? { ...q, difficulty } : q));
+}
+
+/**
+ * One-time migration: older persisted data has `lessImportant` (this field's previous name) but no
+ * `notImportant` yet — copies it over so existing marks survive the rename instead of silently
+ * reading as unmarked. No-ops (returns {changed: false}, same object references) once every question
+ * already has `notImportant` set. See features/fileManager.js's bootstrapFromStorage, called the same
+ * way as data/answerFormat.js's minifyAllAnswers.
+ * @param {Question[]} rawData
+ * @returns {{rawData: Question[], changed: boolean}}
+ */
+export function migrateLessImportantToNotImportant(rawData) {
+  let changed = false;
+  const next = rawData.map((q) => {
+    const anyQ = /** @type {any} */ (q);
+    if (anyQ.notImportant !== undefined || anyQ.lessImportant === undefined) return q;
+    changed = true;
+    const { lessImportant, ...rest } = anyQ;
+    return { ...rest, notImportant: !!lessImportant };
+  });
+  return { rawData: next, changed };
 }
 
 /**
@@ -567,9 +715,11 @@ export function bulkUpdateRows(data, rows) {
         done: row.done,
         reviewLater: row.reviewLater,
         duplicate: row.duplicate,
-        lessImportant: row.lessImportant,
+        notImportant: row.notImportant,
         starred: row.starred,
         failed: row.failed,
+        visited: row.visited,
+        difficulty: row.difficulty ?? null,
       };
       updated += 1;
     } else {

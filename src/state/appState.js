@@ -44,7 +44,7 @@ export const appState = {
     dragDropOn: true,
     editModeOn: true,
     tempMode: false,
-    autoExpandChildrenOn: false,
+    autoExpandChildrenOn: true,
     themeDark: true,
     autoDownloadOn: false,
   },
@@ -54,6 +54,9 @@ export const appState = {
 
   /** @type {import('../types.js').SyncConfig} */
   sync: { githubToken: null, configGistId: null, lastPushAt: null, lastPullAt: null, lastKnownRemoteUpdatedAt: null, knownVersion: 0, lastMetaPushedHash: null, lastRemoteActiveDevice: null, lastRemoteUpdateTimestamp: null, enabled: true, pullOnly: false },
+
+  /** @type {string[]} App-wide tag registry — see types.js's StorageSchemaV1.globalTags. */
+  globalTags: [],
 
   // --- Transient (never persisted) UI state ---
   /** @type {Set<string>} question IDs currently bulk-selected */
@@ -72,6 +75,11 @@ export const appState = {
   childSelectModeKeys: new Set(),
   /** @type {string|null} */
   pendingFocusQid: null,
+  /** @type {{childLevel: "subject"|"topic"|"subTopic"|"question", parentScope: {subject?: string, topic?: string, subTopic?: string}, selections: string[]}|null}
+   *  Click-to-number Reorder mode session — see features/reorderMode.js. `selections` holds sibling
+   *  identity (Subject/Topic/SubTopic name, or Question id) in click order; null when no Reorder
+   *  session is active anywhere. */
+  reorderMode: null,
 };
 
 /**
@@ -87,6 +95,7 @@ export function loadFileIntoState(file) {
   appState.selectedQuestionIds = new Set();
   appState.selectedGroupKeys = new Set();
   appState.childSelectModeKeys = new Set();
+  appState.reorderMode = null;
 }
 
 /**

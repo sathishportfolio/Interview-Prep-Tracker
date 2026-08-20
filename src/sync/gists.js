@@ -334,6 +334,23 @@ export async function pullAllFiles() {
 }
 
 /**
+ * True if any previously-synced file (has a `gistFileName`) has local content that no longer
+ * matches its `lastPushedHash` — i.e. an edit made here hasn't made it into a successful push yet.
+ * Files that have NEVER been pushed (`gistFileName` null) are excluded: applyRemotePullResult leaves
+ * those untouched regardless (see its own doc comment), so they're never at risk from a pull.
+ * Used to guard the silent session-start pull (app.js) against discarding local edits — see that
+ * call site's comment for why this check exists independent of the Auto-sync/Pull Only toggles: a
+ * pull silently REPLACES a synced file's content with whatever's in the gist (per
+ * applyRemotePullResult), so an unpushed edit sitting here is exactly the case that must block it,
+ * regardless of why it hasn't been pushed yet (debounce still pending, Pull Only blocking all
+ * pushes, Auto-sync paused, or the last push simply failed).
+ * @returns {boolean}
+ */
+export function hasUnpushedLocalChanges() {
+  return appState.files.some((f) => f.gistFileName && hashString(serializeFileContent(f)) !== f.lastPushedHash);
+}
+
+/**
  * Fetches the sync gist and applies it ONLY if its `updated_at` is newer than what this device last
  * knew — used by the silent session-start pull (app.js), which shouldn't clobber local state with a
  * fetch that turns out to be no newer than what's already here. Costs the same single request as

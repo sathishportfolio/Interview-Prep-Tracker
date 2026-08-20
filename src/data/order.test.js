@@ -1,10 +1,10 @@
 // @ts-nocheck
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nextQuestionOrder, moveQuestionOrder, reorderSiblingsByIdList, applyGroupReorder } from "./order.js";
+import { nextQuestionOrder, moveQuestionOrder, reorderSiblingsByIdList, applyGroupReorder, reorderGroupSiblings } from "./order.js";
 
 function q(id, order) {
-  return { id, subject: "S", topic: "T", subTopic: "ST", question: "Q", answer: "", done: false, reviewLater: false, duplicate: false, lessImportant: false, starred: false, order, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0 };
+  return { id, subject: "S", topic: "T", subTopic: "ST", question: "Q", answer: "", done: false, reviewLater: false, duplicate: false, notImportant: false, starred: false, order, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0 };
 }
 
 test("nextQuestionOrder derives from full rawData, not a filtered/shorter array", () => {
@@ -62,6 +62,28 @@ test("applyGroupReorder handles a non-contiguous selection dragged to the end of
   const orderedIds = ["a", "c", "d", "e", "b"];
   const result = applyGroupReorder(rawData, "S", "T", "ST", orderedIds, ["b", "d"], "b");
   assert.deepEqual(result, ["a", "c", "e", "b", "d"]);
+});
+
+test("reorderGroupSiblings renumbers topicOrder for every question sharing a topic name, scoped to the parent subject", () => {
+  const rawData = [
+    { ...q("a", 0), topic: "T1", topicOrder: 0 },
+    { ...q("b", 0), topic: "T2", topicOrder: 1 },
+    { ...q("c", 0), subject: "OTHER", topic: "T1", topicOrder: 0 }, // different subject, untouched
+  ];
+  const out = reorderGroupSiblings(rawData, "topic", { subject: "S" }, ["T2", "T1"]);
+  assert.equal(out.find((x) => x.id === "b").topicOrder, 0);
+  assert.equal(out.find((x) => x.id === "a").topicOrder, 1);
+  assert.equal(out.find((x) => x.id === "c").topicOrder, 0); // untouched — different subject
+});
+
+test("reorderGroupSiblings at subject level ignores parentScope (every subject is a root sibling)", () => {
+  const rawData = [
+    { ...q("a", 0), subject: "S1", subjectOrder: 0 },
+    { ...q("b", 0), subject: "S2", subjectOrder: 1 },
+  ];
+  const out = reorderGroupSiblings(rawData, "subject", {}, ["S2", "S1"]);
+  assert.equal(out.find((x) => x.id === "a").subjectOrder, 1);
+  assert.equal(out.find((x) => x.id === "b").subjectOrder, 0);
 });
 
 test("applyGroupReorder dragging the group to the very front", () => {

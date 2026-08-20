@@ -2,11 +2,15 @@
   --accent: #0d6efd;
   --starred: #f0ad4e;
   --duplicate: red;
-  --less-important: orangered;
+  --not-important: orangered;
+  --visited: #0dcaf0;
   --move: #6f42c1;
   --done: #198754;
   --review: #fd7e14;
   --failed: #dc3545;
+  --difficulty-easy: #198754;
+  --difficulty-medium: #e0a800;
+  --difficulty-hard: #dc3545;
 
   /* Theme tokens — light values here on bare :root; dark values are redefined below under
      :root[data-theme="dark"] (see features/theme.js, which sets that attribute). */
@@ -304,13 +308,19 @@ body {
    number of rows can carry this at once. */
 .stats-dropdown-item.filter-active { background: var(--bg-tint-accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
 .stats-dropdown-count { font-weight: 600; }
+.stats-dropdown-divider { font-size: 0.72rem; color: var(--text-muted); padding: 0.35rem 0.5rem 0.15rem; border-top: 1px dashed var(--border-soft); margin-top: 0.2rem; }
 .global-actions-group { display: flex; gap: 0.3rem; flex-wrap: nowrap; align-items: center; min-width: 0; }
 /* Only the icon buttons scroll internally if they don't all fit — never wraps onto a second line
    and never forces the whole page wider. Scrollbar hidden (still scrollable by touch/trackpad
    /shift-wheel) so a tight window reads as "seamlessly fits" rather than showing a bar. The Copy
    Visible select is a sibling OUTSIDE this wrapper (see render/statsBadges.js), so it's never
    scrolled out of view — it always stays fully visible, pinned at the row's right edge. */
-.action-icons-scroll { display: flex; gap: 0.3rem; flex-wrap: nowrap; align-items: center; min-width: 0; scrollbar-width: none; -ms-overflow-style: none; }
+/* overflow-x: auto is the actual scroll mechanism — without it this row just spills past its own
+   box with nothing to contain it, which is what let it get covered by/hidden behind whatever sits
+   next to it (most visibly on narrow/mobile widths). flex: 1 1 auto lets it shrink to whatever
+   space global-actions-group has left (min-width: 0 alone isn't enough; a flex item's default
+   flex-basis is its content width) instead of forcing the row wider than the viewport. */
+.action-icons-scroll { display: flex; gap: 0.3rem; flex-wrap: nowrap; align-items: center; flex: 1 1 auto; min-width: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; }
 .action-icons-scroll::-webkit-scrollbar { display: none; }
 .global-actions-group select { flex-shrink: 0; }
 .stats-progress-toggle.active { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -372,11 +382,110 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .icon-done.is-active { color: var(--done); }
 .icon-review.is-active { color: var(--review); }
 .icon-duplicate.is-active { color: var(--duplicate); }
-.icon-less.is-active { color: var(--less-important); }
+.icon-notimportant.is-active { color: var(--not-important); }
 .icon-starred.is-active { color: var(--starred); }
 .icon-failed.is-active { color: var(--failed); }
+.icon-visited.is-active { color: var(--visited); }
 .icon-flag.is-active { color: var(--done); }
 .icon-move { color: var(--move); }
+.icon-difficulty-easy.is-active { color: var(--difficulty-easy); }
+.icon-difficulty-medium.is-active { color: var(--difficulty-medium); }
+.icon-difficulty-hard.is-active { color: var(--difficulty-hard); }
+.icon-tags.is-active { color: var(--accent); }
+
+/* Difficulty dot control (question header) — small colored-circle cycle button, same visual
+   language as .sync-status-dot. Grey/hollow when unset, filled with the matching difficulty color
+   once cycled. Padding/dot size match .icon-btn's own FA-icon footprint (0.25rem horizontal padding,
+   ~0.9rem font-size glyph) so this button reads as the same size as every other status-icon-row
+   button next to it. */
+.difficulty-dot-btn { display: inline-flex; align-items: center; padding: 0.1rem 0.25rem; }
+.difficulty-dot { display: inline-block; width: 0.8rem; height: 0.8rem; border-radius: 50%; background: var(--text-faint-3); opacity: 0.4; }
+.difficulty-dot-btn.difficulty-easy .difficulty-dot { background: var(--difficulty-easy); opacity: 1; }
+.difficulty-dot-btn.difficulty-medium .difficulty-dot { background: var(--difficulty-medium); opacity: 1; }
+.difficulty-dot-btn.difficulty-hard .difficulty-dot { background: var(--difficulty-hard); opacity: 1; }
+
+/* Done menu / Done History / Tags / Google Search — small "button -> popup panel" controls in the
+   question header and answer-edit-row, all sharing the same popup shell as
+   .export-menu-panel/.stats-dropdown-panel. */
+.done-dropdown-wrap, .history-dropdown-wrap, .tags-dropdown-wrap, .google-search-wrap { position: relative; display: inline-flex; }
+/* Google Search split button: main button (direct click = default query) + a narrow caret that
+   opens the query-style menu — the two visually merge into one control. */
+.google-search-wrap .btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.google-search-caret { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: none; padding-left: 0.35rem; padding-right: 0.35rem; }
+.google-search-panel { min-width: 190px; }
+.done-dropdown-panel, .history-dropdown-panel, .tags-dropdown-panel, .done-notes-panel {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  left: 0;
+  z-index: 60;
+  min-width: 170px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  box-shadow: 0 0.5rem 1.25rem var(--shadow);
+  padding: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.done-dropdown-item { display: flex; justify-content: flex-start; border: none; background: none; padding: 0.35rem 0.5rem; border-radius: 0.35rem; cursor: pointer; color: var(--text); font-size: 0.85rem; text-align: left; }
+.done-dropdown-item:hover { background: var(--bg-hover); }
+
+.history-dropdown-panel { max-height: 260px; overflow-y: auto; min-width: 220px; }
+.history-entry { font-size: 0.78rem; color: var(--text-muted); padding: 0.3rem 0.2rem; border-bottom: 1px solid var(--border-soft); }
+.history-entry:last-child { border-bottom: none; }
+.history-empty { font-size: 0.8rem; color: var(--text-faint-2); padding: 0.3rem 0.2rem; }
+
+.tags-dropdown-panel { min-width: 220px; }
+.tag-chips-list { display: flex; flex-wrap: wrap; gap: 0.3rem; max-height: 160px; overflow-y: auto; }
+.tag-chips-empty { font-size: 0.78rem; color: var(--text-faint-2); }
+.tag-new-row { display: flex; gap: 0.3rem; margin-top: 0.4rem; padding-top: 0.4rem; border-top: 1px dashed var(--border-soft); }
+.tag-new-input { flex: 1; min-width: 0; font-size: 0.82rem; padding: 0.2rem 0.4rem; border: 1px solid var(--border-input); border-radius: 0.3rem; background: var(--bg-surface); color: var(--text); }
+
+.tag-chip { display: inline-flex; align-items: center; border: 1px solid var(--border); background: var(--bg-badge); color: var(--text-badge); border-radius: 1rem; padding: 0.1rem 0.55rem; font-size: 0.75rem; cursor: pointer; }
+.tag-chip.is-active { background: var(--bg-tint-accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+/* Read-only chips (question-tags-row) are still clickable — they add the tag to the Tags filter
+   (see handlers.onFilterByTag) rather than toggling membership like the ones inside the Tags panel. */
+.tag-chip-readonly:hover { background: var(--bg-tint-accent-soft); border-color: var(--accent); }
+.question-tags-row { display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0 0.6rem; }
+
+/* Done count badge — small superscript-style number on the Done icon, only shown once doneCount>0. */
+.done-count-badge { font-size: 0.62rem; font-weight: 700; margin-left: 0.15rem; color: var(--done); vertical-align: super; }
+.icon-done.is-active .done-count-badge { color: var(--done); }
+
+/* Done History icon is always visible; its panel opens on hover of the icon (CSS-only — no click
+   needed), same popup shell as .done-dropdown-panel/.tags-dropdown-panel but shown via
+   opacity/visibility instead of the [hidden] attribute so no JS state is needed to open/close it. */
+.history-dropdown-panel { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.15s ease; }
+.history-dropdown-wrap:hover .history-dropdown-panel,
+.history-dropdown-wrap:focus-within .history-dropdown-panel { opacity: 1; visibility: visible; pointer-events: auto; }
+
+/* Done's "Mark with Notes" option — a direct click on the Done icon marks done immediately (no
+   notes); this single-item panel reveals only on hover, same mechanism as Done History above. */
+.done-notes-panel { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.15s ease; min-width: 150px; }
+.done-dropdown-wrap:hover .done-notes-panel,
+.done-dropdown-wrap:focus-within .done-notes-panel { opacity: 1; visibility: visible; pointer-events: auto; }
+/* Touch devices (no hover): the panel becomes a tap-toggled 2-item menu ("Mark as Done" / "Mark as
+   Done with Notes") instead of a hover reveal — visibility is driven entirely by the [hidden]
+   attribute (JS-toggled), so it must always be opaque/interactive whenever not hidden. */
+.done-notes-panel-touch { opacity: 1; visibility: visible; pointer-events: auto; }
+
+/* Not Important — muted, never hidden/reordered (see data/group.js's derived notImportant). Applies
+   at every level: .question-item (leaf) and .acc-item's own header (Subject/Topic/SubTopic, via the
+   "not-important" class toggled in each render/nodeViews/*'s patch function). */
+.question-item.not-important > .question-header,
+.acc-item.not-important > .acc-header { opacity: 0.55; border-left: 3px dashed var(--not-important); }
+.acc-item.not-important > .acc-header .acc-title::after,
+.question-item.not-important > .question-header .q-text::after { content: " (Not Important)"; font-size: 0.75em; font-style: italic; opacity: 0.85; }
+
+/* Reorder mode — small numbered badge shown on eligible accordions while a Reorder session (see
+   features/reorderMode.js) is active for that level/parent. Hollow/dim when eligible-but-unpicked,
+   filled once clicked. */
+.reorder-badge { display: none; min-width: 1.2rem; height: 1.2rem; border-radius: 50%; font-size: 0.7rem; align-items: center; justify-content: center; margin-right: 0.2rem; border: 1px solid var(--border); color: var(--text-muted); }
+.reorder-badge.reorder-eligible { display: inline-flex; cursor: pointer; }
+.reorder-badge.reorder-picked { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.reorder-mode-target { outline: 1px dashed var(--accent); outline-offset: -2px; }
+.reorder-trigger-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
 .question-body { display: none; padding: 0.5rem 0.6rem 0.6rem; }
 .question-body.open { display: block; }

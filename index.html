@@ -94,7 +94,7 @@
         </div>
       </div>
 
-      <button id="resetProgressBtn" class="btn btn-outline-warning btn-sm" title="Clear Done, Review Later, and spaced-repetition scheduling for every question — keeps all questions, Starred, and other flags untouched"><i class="fa-solid fa-rotate-left"></i> Reset Progress</button>
+      <button id="resetProgressBtn" class="btn btn-outline-warning btn-sm" title="Clear Done, Review Later, Visited, spaced-repetition scheduling, and Done History for the currently filtered questions (all questions if no filter is active) — keeps all questions, Starred, and other flags untouched"><i class="fa-solid fa-rotate-left"></i> Reset Progress</button>
       <button id="resetAllBtn" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-trash"></i> Reset All</button>
     </div>
     <div class="toolbar-row toolbar-row-secondary">
@@ -128,6 +128,10 @@
         <div class="filter-field">
           <label>SubTopic</label>
           <div id="subTopicFilterMount"></div>
+        </div>
+        <div class="filter-field">
+          <label>Tags</label>
+          <div id="tagFilterMount"></div>
         </div>
         <div class="filter-field status-filter-field">
           <label>Status</label>
@@ -163,6 +167,14 @@
     <span id="bulkSelectionCount"></span>
     <span>
       <button id="bulkSelectAllBtn" class="btn btn-sm btn-outline-secondary" title="Select everything in the currently active group(s); click again to clear it">Select All</button>
+      <select id="bulkDifficultySelect" class="form-select form-select-sm bulk-difficulty-select" title="Set Difficulty on the current selection">
+        <option value="">Set Difficulty…</option>
+        <option value="easy">Easy</option>
+        <option value="medium">Medium</option>
+        <option value="hard">Hard</option>
+        <option value="clear">Clear Difficulty</option>
+      </select>
+      <button id="bulkNotImportantBtn" class="btn btn-sm btn-outline-secondary" title="Mark the current selection Not Important">Mark Not Important</button>
       <button id="bulkMoveSelectedBtn" class="btn btn-sm btn-primary">Move Selected</button>
       <button id="bulkDeleteSelectedBtn" class="btn btn-sm btn-danger">Delete Selected</button>
       <button id="bulkClearSelectedBtn" class="btn btn-sm btn-light">Clear</button>

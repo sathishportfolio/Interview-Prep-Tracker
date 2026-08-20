@@ -101,3 +101,24 @@ export function renameInEmptyGroups(emptyGroups, rename) {
     return eg;
   });
 }
+
+/**
+ * Sets `notImportant` on every placeholder matching a Subject/Topic/SubTopic scope — the EmptyGroup
+ * side of data/mutations.js's setGroupNotImportant/applyPatchToSelection cascade, for groups that
+ * have no question row to carry the flag on.
+ * @param {EmptyGroup[]} emptyGroups
+ * @param {"subject"|"topic"|"subTopic"} level
+ * @param {{subject: string, topic?: string, subTopic?: string}} scope
+ * @param {boolean} value
+ * @returns {EmptyGroup[]}
+ */
+export function markGroupsNotImportant(emptyGroups, level, scope, value) {
+  return emptyGroups.map((eg) => {
+    if (level === "subject" && eg.subject === scope.subject) return { ...eg, notImportant: value };
+    if (level === "topic" && eg.subject === scope.subject && eg.topic === scope.topic) return { ...eg, notImportant: value };
+    if (level === "subTopic" && eg.subject === scope.subject && eg.topic === scope.topic && eg.subTopic === scope.subTopic) {
+      return { ...eg, notImportant: value };
+    }
+    return eg;
+  });
+}

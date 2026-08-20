@@ -32,7 +32,7 @@ test("fixed scope (panel opened at a Subject/Topic level) overrides row values",
 
 test("serializeBulkCsv round-trips through parseBulkCsv", () => {
   const questions = [
-    { id: "a", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1", answer: "A1", done: true, reviewLater: false, duplicate: false, lessImportant: false, starred: true, failed: false, order: 0, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0 },
+    { id: "a", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1", answer: "A1", done: true, reviewLater: false, duplicate: false, notImportant: false, starred: true, failed: false, order: 0, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0 },
   ];
   const csv = serializeBulkCsv(questions);
   const reparsed = parseBulkCsv(csv);
@@ -40,4 +40,21 @@ test("serializeBulkCsv round-trips through parseBulkCsv", () => {
   assert.equal(reparsed.rows[0].question, "Q1");
   assert.equal(reparsed.rows[0].done, true);
   assert.equal(reparsed.rows[0].starred, true);
+});
+
+test("Difficulty column round-trips through parseBulkCsv/serializeBulkCsv", () => {
+  const questions = [
+    { id: "a", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1", answer: "A1", done: false, reviewLater: false, duplicate: false, notImportant: false, starred: false, failed: false, difficulty: /** @type {"medium"} */ ("medium"), order: 0, subjectOrder: 0, topicOrder: 0, subTopicOrder: 0 },
+  ];
+  const csv = serializeBulkCsv(questions);
+  const reparsed = parseBulkCsv(csv);
+  assert.equal(reparsed.ok, true);
+  assert.equal(reparsed.rows[0].difficulty, "medium");
+});
+
+test("NotImportant column accepts the legacy LessImportant header name for backward compatibility", () => {
+  const csv = "Subject,Topic,SubTopic,Question,Answer,LessImportant\nS1,T1,ST1,Q1,A1,true\n";
+  const result = parseBulkCsv(csv);
+  assert.equal(result.ok, true);
+  assert.equal(result.rows[0].notImportant, true);
 });

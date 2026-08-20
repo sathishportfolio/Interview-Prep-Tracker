@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * features/statusFlags.js — Status Flags (Done/Failed/ReviewLater/Duplicate/LessImportant/Starred).
+ * features/statusFlags.js — Status Flags (Done/Failed/ReviewLater/Duplicate/NotImportant/Starred).
  * Thin: calls data/mutations.js then the shared refresh pipeline. Done, Failed, and Review Later
  * are mutually exclusive (a question can't be "I know this" and "I got this wrong" and "I need to
  * review this" at once) — setting any one of the three clears the other two, via
@@ -8,19 +8,18 @@
  * spaced-repetition schedule; marking Failed or Review Later (or unmarking Done back to nothing)
  * resets it back to "due soon" — see data/mutations.js scheduleReview.
  */
-import { toggleStatusFlag, setTriStatusFlag, scheduleReview } from "../data/mutations.js";
+import { toggleStatusFlag, setTriStatusFlag, scheduleReview, markDone, resetDoneHistory } from "../data/mutations.js";
 import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import { flashHighlight } from "../render/highlight.js";
 import { findQuestionHeaderEl } from "../render/treeRenderer.js";
-import { setActiveQuestionQuiet } from "./activeQuestion.js";
 
 /** Done -> Failed -> Review Later -> (cleared), the order the 'd' keyboard shortcut cycles through. */
 const TRI_STATE_ORDER = /** @type {const} */ (["done", "failed", "reviewLater"]);
 
 /**
  * @param {string} questionId
- * @param {"done"|"reviewLater"|"duplicate"|"lessImportant"|"starred"|"failed"} flag
+ * @param {"done"|"reviewLater"|"duplicate"|"notImportant"|"starred"|"failed"|"visited"} flag
  * @param {{flash?: boolean}} [options] `flash` defaults true (the 'r'/'s' keyboard shortcuts in
  *   reviewShortcuts.js rely on it); the status-icon-row button click (treeHandlers.js's
  *   onToggleStatus) passes `flash: false` — clicking a status icon is already visual feedback in
@@ -35,20 +34,8 @@ export function toggleStatus(questionId, flag, options = {}) {
     return;
   }
 
-  const prev = appState.rawData.find((q) => q.id === questionId);
   const rawData = toggleStatusFlag(appState.rawData, questionId, flag);
-  // Starring while an Active Question is already set moves the resume pointer to the question just
-  // BEFORE this one in its SubTopic — see setActiveQuestionQuiet's doc comment: on reload this
-  // scrolls back to right before the starred question, giving context leading into it rather than
-  // landing on the (already-seen) starred question itself. Only when there IS a previous Active
-  // Question, so starring never introduces one for users who don't use that feature at all.
-  if (prev && !prev.starred && flag === "starred" && appState.activeQuestion) {
-    const previousSibling = findPreviousSibling(appState.rawData, prev);
-    if (previousSibling) setActiveQuestionQuiet(previousSibling.id);
-  }
   applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
-  // Toggling starred/lessImportant can move the question within its tier — flash it so the user
-  // can find where it landed after the (keyed, so cheap) re-render.
   if (flash) {
     const el = findQuestionHeaderEl(questionId);
     if (el) flashHighlight(el);
@@ -94,16 +81,36 @@ function applyTriState(questionId, flag, options = {}) {
 }
 
 /**
- * The sibling immediately before `q` within its own SubTopic, by persisted order — null if `q` is
- * already first.
- * @param {import('../types.js').Question[]} rawData
- * @param {import('../types.js').Question} q
- * @returns {import('../types.js').Question|null}
+ * The status-icon-row Done button's menu: "Mark Done" (withNotes=false) or "Mark Done with Notes"
+ * (withNotes=true, prompts for an optional note via window.prompt — cancelling aborts entirely, no
+ * state change). Each call always records a fresh doneCount/doneHistory entry (see
+ * data/mutations.js markDone), even if the question was already Done, and still advances the SRS
+ * schedule exactly like the plain Done toggle does.
+ * @param {string} questionId
+ * @param {boolean} withNotes
  */
-function findPreviousSibling(rawData, q) {
-  const siblings = rawData
-    .filter((x) => x.subject === q.subject && x.topic === q.topic && x.subTopic === q.subTopic)
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  const idx = siblings.findIndex((x) => x.id === q.id);
-  return idx > 0 ? siblings[idx - 1] : null;
+export function markDoneWithMenu(questionId, withNotes) {
+  let note;
+  if (withNotes) {
+    note = window.prompt("Note for this Done entry (optional):", "");
+    if (note === null) return; // cancelled — abort, no state change
+    note = note.trim() || undefined;
+  }
+  const rawData0 = markDone(appState.rawData, questionId, note);
+  const rawData = scheduleReview(rawData0, questionId, "advance");
+  applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
+}
+
+/**
+ * Ctrl/Cmd+click or long-press on the Done button: after a confirm() warning, clears the Done flag,
+ * counter, and full history timeline for this question. Mirrors unmarking Done's SRS reset.
+ * @param {string} questionId
+ */
+export function resetDone(questionId) {
+  const q = appState.rawData.find((x) => x.id === questionId);
+  if (!q) return;
+  if (!window.confirm(`Reset Done history for this question? This clears the counter (currently ${q.doneCount ?? 0}) and its full timeline. This cannot be undone.`)) return;
+  const rawData0 = resetDoneHistory(appState.rawData, questionId);
+  const rawData = scheduleReview(rawData0, questionId, "reset");
+  applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
 }

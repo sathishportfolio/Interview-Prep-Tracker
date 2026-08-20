@@ -13,6 +13,7 @@ import { initBreadcrumb } from "./render/breadcrumb.js";
 import { buildTreeHandlers } from "./features/treeHandlers.js";
 import { configureRefresh, refreshView, repaint, setAfterRepaintHook, applyDataChange } from "./features/refresh.js";
 import { resetProgress } from "./data/mutations.js";
+import { flattenQuestions } from "./data/group.js";
 import * as activeQuestionFeature from "./features/activeQuestion.js";
 import * as filters from "./features/filters.js";
 import * as editMode from "./features/editMode.js";
@@ -31,6 +32,8 @@ import * as search from "./features/search.js";
 import * as reviewShortcuts from "./features/reviewShortcuts.js";
 import { openShortcutsHelp } from "./features/keyboardShortcutsHelp.js";
 import * as bulkSelection from "./features/bulkSelection.js";
+import * as difficulty from "./features/difficulty.js";
+import { applyPatchToSelection } from "./data/mutations.js";
 import * as tempModeFeature from "./features/tempModeFeature.js";
 import * as autoDownload from "./features/autoDownload.js";
 import * as groupPanels from "./features/groupPanels.js";
@@ -244,6 +247,7 @@ function init() {
   configureRefresh({
     stats: {
       onStatusBadgeClick: (status) => filters.toggleStatusFilter(status),
+      onTagBadgeClick: (tag) => filters.toggleTagFilter(tag),
     },
     actions: {
       onToggleEditMode: () => editMode.toggleEditMode(),
@@ -256,7 +260,14 @@ function init() {
     breadcrumb: () => activeQuestionFeature.computeBreadcrumbData(),
   });
 
-  setAfterRepaintHook(() => dragDrop.refreshSortables());
+  setAfterRepaintHook(() => {
+    dragDrop.refreshSortables();
+    // The root Reorder-Subjects button isn't part of the render engine's own repaint (it's mounted
+    // once at startup, see below) — re-run its idempotent mount here so its "Reorder"/"Commit (n)"
+    // label stays live as a Reorder session opens/changes elsewhere in the tree.
+    const rootWrap = $("bulkAddRootWrap");
+    if (rootWrap) groupPanels.mountGroupPanels("root", {}, /** @type {HTMLElement} */ (rootWrap));
+  });
 
   undoRedo.initUndoRedo();
 
@@ -266,6 +277,7 @@ function init() {
     topicMount: /** @type {HTMLElement} */ ($("topicFilterMount")),
     subTopicMount: /** @type {HTMLElement} */ ($("subTopicFilterMount")),
     statusMount: /** @type {HTMLElement} */ ($("statusFilterMount")),
+    tagMount: /** @type {HTMLElement} */ ($("tagFilterMount")),
     statusModeToggleBtn: /** @type {HTMLButtonElement|null} */ ($("statusModeToggle")),
     clearStatusBtn: $("clearStatusFilterBtn"),
   });
@@ -311,10 +323,20 @@ function init() {
   });
 
   $("resetProgressBtn")?.addEventListener("click", () => {
-    if (!confirmAction("Reset progress for every question in this file? This clears Done, Review Later, spaced-repetition scheduling (Due), and the Active Question flag — Starred/LessImportant/Duplicate flags and the question structure itself are untouched. This cannot be undone here, but Undo will still work.")) return;
-    activeQuestionFeature.clearActiveQuestion();
-    applyDataChange({ rawData: resetProgress(appState.rawData), emptyGroups: appState.emptyGroups });
-    showToast("Progress reset for all questions.", "success");
+    // Scoped to whatever's currently visible under the active Subject/Topic/SubTopic/Status/Tags
+    // filters (appState.grouped already reflects all of them) — not the whole file. With no filters
+    // active, appState.grouped IS the full tree, so this is a no-op behavior change in that case.
+    const filteredIds = flattenQuestions(appState.grouped).map((q) => q.id);
+    const filtered = filteredIds.length < appState.rawData.length;
+    const scopeText = filtered ? `the ${filteredIds.length} filtered question(s)` : "every question in this file";
+    if (!confirmAction(`Reset progress for ${scopeText}? This clears Done, Review Later, Visited, spaced-repetition scheduling (Due), the Done History timeline/counter, and the Active Question flag (if it's within scope) — Starred/NotImportant/Duplicate/Difficulty flags and the question structure itself are untouched. This cannot be undone here, but Undo will still work.`))
+      return;
+    const idSet = new Set(filteredIds);
+    if (appState.activeQuestion && idSet.has(appState.activeQuestion.questionId)) {
+      activeQuestionFeature.clearActiveQuestion();
+    }
+    applyDataChange({ rawData: resetProgress(appState.rawData, filteredIds), emptyGroups: appState.emptyGroups });
+    showToast(`Progress reset for ${filteredIds.length} question(s).`, "success");
   });
 
   $("resetAllBtn")?.addEventListener("click", () => {
@@ -376,6 +398,19 @@ function init() {
     if (selection.groups.length === 0 && selection.questionIds.length === 0) return;
     const { openMoveForm } = await import("./features/moveForm.js");
     openMoveForm(selection);
+  });
+  const bulkDifficultySelect = /** @type {HTMLSelectElement|null} */ ($("bulkDifficultySelect"));
+  bulkDifficultySelect?.addEventListener("change", () => {
+    const value = bulkDifficultySelect.value;
+    bulkDifficultySelect.value = "";
+    if (!value) return;
+    difficulty.bulkSetDifficulty(bulkSelection.getSelection(), value === "clear" ? null : /** @type {"easy"|"medium"|"hard"} */ (value));
+  });
+  $("bulkNotImportantBtn")?.addEventListener("click", () => {
+    const selection = bulkSelection.getSelection();
+    if (selection.groups.length === 0 && selection.questionIds.length === 0) return;
+    const data = applyPatchToSelection({ rawData: appState.rawData, emptyGroups: appState.emptyGroups }, selection.groups, selection.questionIds, { notImportant: true });
+    applyDataChange(data);
   });
 
   // --- Timer ---
@@ -472,10 +507,7 @@ function init() {
 
   // --- Session-start pull ---
   // A silent, one-time pull right after the local paint above, not gated behind the manual Pull
-  // button's confirm dialog: at this point in the session nothing local has changed yet, so there's
-  // nothing of this device's to lose by taking the cloud's version — but pulling mid-session (once
-  // edits exist) would risk clobbering unpushed local work with stale cloud data, which is exactly
-  // why pull otherwise stays manual-only. Paired with autoPush's push-on-backgrounded/close (see
+  // button's confirm dialog. Paired with autoPush's push-on-backgrounded/close (see
   // sync/autoPush.js) as the "push at end of session" half.
   //
   // Auto-Pull on Login: only actually applies the pull if the sync gist's real `updated_at` is newer
@@ -486,27 +518,38 @@ function init() {
   // sync/device.js) before pulling. gists.pullIfRemoteNewer() does the whole check-then-maybe-apply in
   // one request — there's no cheaper "metadata only" endpoint to peek with first.
   //
-  // Deliberately NOT gated behind appState.sync.enabled (the Auto-sync/push toggle) — pausing
-  // auto-push shouldn't also silence "check for the latest data on load," since pulling never writes
-  // anything remote. A paused device should still open showing whatever's newest.
-  if (syncConfig.isSyncConfigured() && !appState.toggles.tempMode) {
-    gists.pullIfRemoteNewer().then((result) => {
-      if (!result.ok) {
-        showToast(`Session-start pull failed: ${result.error || "unknown error"}`, "error");
-        return;
-      }
-      if (!result.applied) return;
-      if (result.activeDevice && result.updateTimestamp) {
-        showToast(`Found update from last active session from ${result.activeDevice} on ${result.updateTimestamp} - Pulled`, "info");
-      }
-      if (result.failures && result.failures.length > 0) {
-        showToast(`Pulled with ${result.failures.length} file(s) failing — see console for details.`, "error");
-      }
-      autoPush.markSynced(); // this pull's own writes aren't a new local edit needing a push
-      fileManager.bootstrapFromStorage();
-      refreshAfterExternalDataChange();
-      updateSyncStatusLabel();
-    });
+  // Gated behind appState.sync.enabled (the Auto-sync toggle): when a user has paused sync, opening
+  // the app must never silently pull and overwrite local state out from under them.
+  //
+  // ALSO gated behind gists.hasUnpushedLocalChanges(): a pull silently REPLACES a previously-synced
+  // file's content with whatever's in the gist (see applyRemotePullResult), so if this device still
+  // has local edits that never made it into a successful push — the debounce didn't finish before
+  // the tab closed last time, a push failed, or Pull Only has been blocking every push all along —
+  // this must NOT silently pull over them, regardless of the Auto-sync/Pull Only toggle states. The
+  // local edits stay exactly as they are in localStorage; the user can Push (if push is available)
+  // or Pull manually once they've decided which side should win.
+  if (syncConfig.isSyncConfigured() && appState.sync.enabled && !appState.toggles.tempMode) {
+    if (gists.hasUnpushedLocalChanges()) {
+      showToast("Skipped auto-pull — you have local changes not pushed yet. Push or Pull manually to resolve.", "info");
+    } else {
+      gists.pullIfRemoteNewer().then((result) => {
+        if (!result.ok) {
+          showToast(`Session-start pull failed: ${result.error || "unknown error"}`, "error");
+          return;
+        }
+        if (!result.applied) return;
+        if (result.activeDevice && result.updateTimestamp) {
+          showToast(`Found update from last active session from ${result.activeDevice} on ${result.updateTimestamp} - Pulled`, "info");
+        }
+        if (result.failures && result.failures.length > 0) {
+          showToast(`Pulled with ${result.failures.length} file(s) failing — see console for details.`, "error");
+        }
+        autoPush.markSynced(); // this pull's own writes aren't a new local edit needing a push
+        fileManager.bootstrapFromStorage();
+        refreshAfterExternalDataChange();
+        updateSyncStatusLabel();
+      });
+    }
   }
 }
 

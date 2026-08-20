@@ -22,7 +22,7 @@ export function emptySchema() {
       dragDropOn: true,
       editModeOn: true,
       tempMode: false,
-      autoExpandChildrenOn: false,
+      autoExpandChildrenOn: true,
       themeDark: true,
       autoDownloadOn: false,
       filterCardOpen: false,
@@ -51,6 +51,7 @@ export function emptySchema() {
       elapsedMs: 0,
       startedAt: null,
     },
+    globalTags: [],
   };
 }
 
@@ -71,6 +72,7 @@ export function coerceSchema(raw) {
     activeQuestion: raw.activeQuestion ?? base.activeQuestion,
     sync: coerceSync(raw.sync),
     timer: { ...base.timer, ...(raw.timer || {}) },
+    globalTags: Array.isArray(raw.globalTags) ? raw.globalTags : base.globalTags,
   };
 }
 

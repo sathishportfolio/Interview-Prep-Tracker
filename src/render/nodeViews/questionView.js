@@ -7,40 +7,60 @@
  */
 import { appState } from "../../state/appState.js";
 import { applyOpenState } from "../accordion.js";
+import { isReorderTarget } from "../reorderEligibility.js";
 
 /**
  * @typedef {Object} TreeHandlers
- * @property {(qid: string, flag: "done"|"reviewLater"|"duplicate"|"lessImportant"|"starred"|"failed") => void} onToggleStatus
+ * @property {(qid: string, flag: "done"|"reviewLater"|"duplicate"|"notImportant"|"starred"|"failed"|"visited") => void} onToggleStatus
+ * @property {(qid: string, withNotes: boolean) => void} onMarkDone
+ * @property {(qid: string) => void} onResetDone
+ * @property {(qid: string, tag: string) => void} onToggleQuestionTag
+ * @property {(qid: string, tag: string) => void} onCreateTag
+ * @property {(tag: string) => void} onFilterByTag
+ * @property {(qid: string) => void} onCycleDifficulty
  * @property {(qid: string) => void} onEditAnswer
  * @property {(qid: string) => void} onEditQuestionText
  * @property {(qid: string) => void} onOpenMoveForm
  * @property {(qid: string) => void} onDeleteQuestion
  * @property {(qid: string) => void} onCopyQuestion
  * @property {(qid: string) => void} onCopyAndSearch
- * @property {(qid: string) => void} onGoogleSearch
+ * @property {(qid: string, mode?: "codeExample"|"plain"|"subject"|"topic"|"subTopic") => void} onGoogleSearch
  * @property {(qid: string, dir: "up"|"down"|"top"|"bottom") => void} onMoveQuestionOrder
  * @property {(qid: string) => void} onToggleActiveQuestion
  * @property {(qid: string) => void} onToggleQuestionOpen
  * @property {(qid: string) => void} onToggleSelectQuestion
+ * @property {(level: "subject"|"topic"|"subTopic"|"question", scope: any) => void} onReorderSelect
  * @property {(subject: string, topic: string, subTopic: string, level: "subject"|"topic"|"subTopic", name: string) => void} onCopyMenu
  * @property {(level: "subject"|"topic"|"subTopic", scope: any) => void} onRenameGroup
  * @property {(level: "subject"|"topic"|"subTopic", scope: any) => void} onDeleteGroup
+ * @property {(level: "subject"|"topic"|"subTopic", scope: any) => void} onToggleGroupNotImportant
  */
 
-// "lessImportant" is deliberately not in this list — its icon lives next to the Google Search
-// button in answerEditRow instead (see below), not in the header's status-icon-row.
+// "notImportant" is deliberately not in this list — its icon lives next to the Google Search
+// button in answerEditRow instead (see below), not in the header's status-icon-row. "done" is
+// ALSO excluded — it gets its own special dropdown-menu treatment (see doneWrap below) instead of
+// the plain toggle button every other entry here gets. "duplicate" has no accordion icon at all
+// (removed per user request) — the field/filter/CSV/stats support for it stays untouched elsewhere.
 const STATUS_ICONS = [
-  { flag: "done", icon: "fa-square-check", title: "Done" },
   { flag: "failed", icon: "fa-circle-xmark", title: "Failed" },
   { flag: "reviewLater", icon: "fa-clock", title: "Review Later" },
-  { flag: "duplicate", icon: "fa-clone", title: "Duplicate" },
   { flag: "starred", icon: "fa-star", title: "Starred" },
+  { flag: "visited", icon: "fa-eye", title: "Visited" },
 ];
+
+/** @param {"easy"|"medium"|"hard"|null|undefined} difficulty @returns {string} */
+function difficultyTitle(difficulty) {
+  if (difficulty === "easy") return "Difficulty: Easy (click to cycle)";
+  if (difficulty === "medium") return "Difficulty: Medium (click to cycle)";
+  if (difficulty === "hard") return "Difficulty: Hard (click to cycle)";
+  return "Difficulty: not set (click to cycle)";
+}
 
 /** @param {string} flag @returns {string} */
 function iconClassSuffix(flag) {
-  return flag === "reviewLater" ? "review" : flag === "lessImportant" ? "less" : flag;
+  return flag === "reviewLater" ? "review" : flag === "notImportant" ? "notimportant" : flag;
 }
+
 
 /**
  * @param {Question} q
@@ -73,14 +93,163 @@ export function createQuestionNode(q, handlers) {
   // qText specifically toggles collapse; clicking elsewhere in the header (empty space) sets the
   // Active Question instead (feature.md "Active Question (Pin/Flag)"). stopPropagation here keeps
   // the two behaviors from firing together.
+  // Ctrl/Cmd+click is a shortcut straight to Google Search (same action as the search button in the
+  // answer row) instead of toggling open/closed.
   qText.addEventListener("click", (e) => {
     e.stopPropagation();
+    if (e.ctrlKey || e.metaKey) {
+      handlers.onGoogleSearch(q.id);
+      return;
+    }
     handlers.onToggleQuestionOpen(q.id);
+  });
+
+  // Touch equivalent of Ctrl+click: double-tap or long-press on the question text triggers Google
+  // Search. preventDefault on the qualifying touchend stops the browser's synthesized click from
+  // also firing (which would otherwise toggle open/closed on the same interaction).
+  let lastTapAt = 0;
+  let longPressTimer = /** @type {ReturnType<typeof setTimeout>|null} */ (null);
+  let longPressFired = false;
+  const LONG_PRESS_MS = 500;
+  const DOUBLE_TAP_MS = 350;
+  const clearLongPressTimer = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+  };
+  qText.addEventListener(
+    "touchstart",
+    () => {
+      longPressFired = false;
+      clearLongPressTimer();
+      longPressTimer = setTimeout(() => {
+        longPressFired = true;
+        handlers.onGoogleSearch(q.id);
+      }, LONG_PRESS_MS);
+    },
+    { passive: true }
+  );
+  qText.addEventListener("touchmove", clearLongPressTimer, { passive: true });
+  qText.addEventListener("touchcancel", clearLongPressTimer, { passive: true });
+  qText.addEventListener("touchend", (e) => {
+    clearLongPressTimer();
+    if (longPressFired) {
+      e.preventDefault();
+      return;
+    }
+    const now = Date.now();
+    if (now - lastTapAt < DOUBLE_TAP_MS) {
+      lastTapAt = 0;
+      e.preventDefault();
+      handlers.onGoogleSearch(q.id);
+    } else {
+      lastTapAt = now;
+    }
   });
 
   const statusRow = document.createElement("div");
   statusRow.className = "status-icon-row";
-  const iconButtons = {};
+
+  // Done: on a desktop/mouse (hover-capable) device, a direct click marks done immediately (no
+  // notes) — see features/statusFlags.js's markDoneWithMenu(qid, false) — and hovering the button
+  // reveals a "Mark with Notes" option (CSS-only) for the with-notes variant. On a touch device
+  // (no hover), there's no way to reveal that hover option, so a tap instead opens a small 2-item
+  // menu ("Mark as Done" / "Mark as Done with Notes") the same way the pre-hover-redesign UI did.
+  // Ctrl/Cmd+click (desktop) or long-press (touch, mirroring the qText long-press pattern above)
+  // resets the counter/history either way.
+  const isCoarsePointer = () => window.matchMedia("(hover: none)").matches;
+  const doneWrap = document.createElement("div");
+  doneWrap.className = "done-dropdown-wrap";
+  const doneBtn = document.createElement("button");
+  doneBtn.type = "button";
+  doneBtn.className = "icon-btn icon-done";
+  doneBtn.title = "Done (click to mark; hover for notes option; Ctrl/Cmd+click or long-press to reset)";
+  doneBtn.innerHTML = '<i class="fa-solid fa-square-check"></i><span class="done-count-badge"></span>';
+  const doneNotesPanel = document.createElement("div");
+  const touchMode = isCoarsePointer();
+  doneNotesPanel.className = touchMode ? "done-notes-panel done-notes-panel-touch" : "done-notes-panel";
+  const closeDoneMenu = () => {
+    doneNotesPanel.hidden = true;
+    document.removeEventListener("click", onDoneMenuDocClick);
+  };
+  const onDoneMenuDocClick = (e) => {
+    if (!doneWrap.contains(/** @type {Node} */ (e.target))) closeDoneMenu();
+  };
+  if (touchMode) {
+    doneNotesPanel.hidden = true;
+    for (const { withNotes, label } of [
+      { withNotes: false, label: "Mark as Done" },
+      { withNotes: true, label: "Mark as Done with Notes" },
+    ]) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "done-dropdown-item";
+      item.textContent = label;
+      item.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeDoneMenu();
+        handlers.onMarkDone(q.id, withNotes);
+      });
+      doneNotesPanel.appendChild(item);
+    }
+  } else {
+    const doneNotesItem = document.createElement("button");
+    doneNotesItem.type = "button";
+    doneNotesItem.className = "done-dropdown-item";
+    doneNotesItem.textContent = "Mark with Notes";
+    doneNotesItem.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handlers.onMarkDone(q.id, true);
+    });
+    doneNotesPanel.appendChild(doneNotesItem);
+  }
+  let doneLongPressTimer = /** @type {ReturnType<typeof setTimeout>|null} */ (null);
+  let doneLongPressFired = false;
+  doneBtn.addEventListener(
+    "touchstart",
+    () => {
+      doneLongPressFired = false;
+      doneLongPressTimer = setTimeout(() => {
+        doneLongPressFired = true;
+        handlers.onResetDone(q.id);
+      }, 500);
+    },
+    { passive: true }
+  );
+  doneBtn.addEventListener("touchend", () => {
+    if (doneLongPressTimer) clearTimeout(doneLongPressTimer);
+  });
+  doneBtn.addEventListener(
+    "touchmove",
+    () => {
+      if (doneLongPressTimer) clearTimeout(doneLongPressTimer);
+    },
+    { passive: true }
+  );
+  doneBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (doneLongPressFired) {
+      doneLongPressFired = false;
+      return;
+    }
+    if (e.ctrlKey || e.metaKey) {
+      handlers.onResetDone(q.id);
+      return;
+    }
+    if (touchMode) {
+      const opening = doneNotesPanel.hidden;
+      doneNotesPanel.hidden = !opening;
+      if (opening) document.addEventListener("click", onDoneMenuDocClick);
+      else document.removeEventListener("click", onDoneMenuDocClick);
+      return;
+    }
+    handlers.onMarkDone(q.id, false);
+  });
+  doneWrap.appendChild(doneBtn);
+  doneWrap.appendChild(doneNotesPanel);
+  statusRow.appendChild(doneWrap);
+
   for (const s of STATUS_ICONS) {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -89,11 +258,19 @@ export function createQuestionNode(q, handlers) {
     btn.innerHTML = `<i class="fa-solid ${s.icon}"></i>`;
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      handlers.onToggleStatus(q.id, /** @type {"done"|"reviewLater"|"duplicate"|"lessImportant"|"starred"|"failed"} */ (s.flag));
+      handlers.onToggleStatus(q.id, /** @type {"done"|"reviewLater"|"duplicate"|"notImportant"|"starred"|"failed"|"visited"} */ (s.flag));
     });
     statusRow.appendChild(btn);
-    iconButtons[s.flag] = btn;
   }
+
+  const difficultyDot = document.createElement("button");
+  difficultyDot.type = "button";
+  difficultyDot.className = "icon-btn difficulty-dot-btn";
+  difficultyDot.innerHTML = '<span class="difficulty-dot"></span>';
+  difficultyDot.addEventListener("click", (e) => {
+    e.stopPropagation();
+    handlers.onCycleDifficulty(q.id);
+  });
 
   const flagBtn = document.createElement("button");
   flagBtn.type = "button";
@@ -105,11 +282,30 @@ export function createQuestionNode(q, handlers) {
     handlers.onToggleActiveQuestion(q.id);
   });
 
+  const reorderBadge = document.createElement("span");
+  reorderBadge.className = "reorder-badge";
+
   header.appendChild(dragHandle);
   header.appendChild(selectBox);
+  header.appendChild(reorderBadge);
   header.appendChild(qText);
+  header.appendChild(difficultyDot);
   header.appendChild(statusRow);
   header.appendChild(flagBtn);
+
+  // Reorder-mode click interception — capture phase, added AFTER this header's normal listeners are
+  // wired below, so it runs first and (via stopImmediatePropagation) can pre-empt them entirely when
+  // this exact question is an eligible reorder target. See features/reorderMode.js.
+  header.addEventListener(
+    "click",
+    (e) => {
+      if (!isReorderTarget("question", { subject: q.subject, topic: q.topic, subTopic: q.subTopic })) return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      handlers.onReorderSelect("question", { subject: q.subject, topic: q.topic, subTopic: q.subTopic, id: q.id });
+    },
+    true
+  );
 
   const body = document.createElement("div");
   body.className = "question-body";
@@ -146,29 +342,162 @@ export function createQuestionNode(q, handlers) {
     e.stopPropagation();
     handlers.onCopyAndSearch(q.id);
   });
+  // Google Search — a split button: clicking the main button directly runs the default query (Topic
+  // scope + "with example code snippet"); the caret opens a menu of other query styles.
+  const googleSearchWrap = document.createElement("div");
+  googleSearchWrap.className = "google-search-wrap";
   const googleSearchBtn = document.createElement("button");
   googleSearchBtn.type = "button";
   googleSearchBtn.className = "btn btn-sm btn-outline-secondary";
-  googleSearchBtn.title = "Search this question on Google";
+  googleSearchBtn.title = "Search this question on Google (In <Topic>, ... with example code snippet)";
   googleSearchBtn.innerHTML = '<i class="fa-brands fa-google"></i>';
   googleSearchBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     handlers.onGoogleSearch(q.id);
   });
-  const lessImportantBtn = document.createElement("button");
-  lessImportantBtn.type = "button";
-  lessImportantBtn.className = "icon-btn icon-less";
-  lessImportantBtn.title = "Less Important";
-  lessImportantBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i>';
-  lessImportantBtn.addEventListener("click", (e) => {
+  const googleSearchCaret = document.createElement("button");
+  googleSearchCaret.type = "button";
+  googleSearchCaret.className = "btn btn-sm btn-outline-secondary google-search-caret";
+  googleSearchCaret.title = "More search styles";
+  googleSearchCaret.innerHTML = '<i class="fa-solid fa-caret-down"></i>';
+  const googleSearchPanel = document.createElement("div");
+  googleSearchPanel.className = "done-dropdown-panel google-search-panel";
+  googleSearchPanel.hidden = true;
+  const closeGoogleSearchMenu = () => {
+    googleSearchPanel.hidden = true;
+    document.removeEventListener("click", onGoogleSearchDocClick);
+  };
+  const onGoogleSearchDocClick = (e) => {
+    if (!googleSearchWrap.contains(/** @type {Node} */ (e.target))) closeGoogleSearchMenu();
+  };
+  googleSearchCaret.addEventListener("click", (e) => {
     e.stopPropagation();
-    handlers.onToggleStatus(q.id, "lessImportant");
+    const opening = googleSearchPanel.hidden;
+    googleSearchPanel.hidden = !opening;
+    if (opening) document.addEventListener("click", onGoogleSearchDocClick);
+    else document.removeEventListener("click", onGoogleSearchDocClick);
   });
+  for (const [mode, label] of [
+    ["plain", "Plain Question"],
+    ["codeExample", "Ask for Code Example"],
+    ["subject", `As ${q.subject}`],
+    ["topic", `As ${q.topic}`],
+    ["subTopic", `As ${q.subTopic}`],
+  ]) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "done-dropdown-item";
+    item.dataset.mode = mode;
+    item.textContent = label;
+    item.addEventListener("click", (e) => {
+      e.stopPropagation();
+      closeGoogleSearchMenu();
+      handlers.onGoogleSearch(q.id, mode);
+    });
+    googleSearchPanel.appendChild(item);
+  }
+  googleSearchWrap.appendChild(googleSearchBtn);
+  googleSearchWrap.appendChild(googleSearchCaret);
+  googleSearchWrap.appendChild(googleSearchPanel);
+
+  const notImportantBtn = document.createElement("button");
+  notImportantBtn.type = "button";
+  notImportantBtn.className = "btn btn-sm btn-outline-secondary icon-notimportant";
+  notImportantBtn.title = "Not Important";
+  notImportantBtn.innerHTML = '<i class="fa-solid fa-ban"></i>';
+  notImportantBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    handlers.onToggleStatus(q.id, "notImportant");
+  });
+
+  // Done History viewer — timeline of every Mark Done/Mark Done with Notes click (see
+  // features/statusFlags.js's markDoneWithMenu). Content is rebuilt from q.doneHistory on every
+  // patchQuestionNode call, not just at creation. Always-visible icon; the panel itself opens on
+  // hover (CSS-only, see .history-dropdown-wrap:hover .history-dropdown-panel) rather than click.
+  const historyWrap = document.createElement("div");
+  historyWrap.className = "history-dropdown-wrap";
+  const historyBtn = document.createElement("button");
+  historyBtn.type = "button";
+  historyBtn.className = "btn btn-sm btn-outline-secondary icon-history";
+  historyBtn.title = "Done History";
+  historyBtn.innerHTML = '<i class="fa-solid fa-clock-rotate-left"></i>';
+  historyBtn.addEventListener("click", (e) => e.stopPropagation());
+  const historyPanel = document.createElement("div");
+  historyPanel.className = "history-dropdown-panel";
+  historyWrap.appendChild(historyBtn);
+  historyWrap.appendChild(historyPanel);
+
+  // Tags — toggle any existing global tag on/off, or create+add a brand new one. Chip list and the
+  // input's "already exists" state are rebuilt from appState.globalTags/q.tags on every
+  // patchQuestionNode call.
+  const tagsWrap = document.createElement("div");
+  tagsWrap.className = "tags-dropdown-wrap";
+  const tagsBtn = document.createElement("button");
+  tagsBtn.type = "button";
+  tagsBtn.className = "btn btn-sm btn-outline-secondary icon-tags";
+  tagsBtn.title = "Tags";
+  tagsBtn.innerHTML = '<i class="fa-solid fa-tags"></i>';
+  const tagsPanel = document.createElement("div");
+  tagsPanel.className = "tags-dropdown-panel";
+  tagsPanel.hidden = true;
+  const tagChipsList = document.createElement("div");
+  tagChipsList.className = "tag-chips-list";
+  const tagNewRow = document.createElement("div");
+  tagNewRow.className = "tag-new-row";
+  const tagNewInput = document.createElement("input");
+  tagNewInput.type = "text";
+  tagNewInput.className = "tag-new-input";
+  tagNewInput.placeholder = "New tag…";
+  const tagAddBtn = document.createElement("button");
+  tagAddBtn.type = "button";
+  tagAddBtn.className = "btn btn-sm btn-outline-secondary";
+  tagAddBtn.textContent = "Add";
+  const submitNewTag = () => {
+    const value = tagNewInput.value;
+    tagNewInput.value = "";
+    if (value.trim()) handlers.onCreateTag(q.id, value);
+  };
+  tagAddBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    submitNewTag();
+  });
+  tagNewInput.addEventListener("click", (e) => e.stopPropagation());
+  tagNewInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.stopPropagation();
+      submitNewTag();
+    }
+  });
+  tagNewRow.appendChild(tagNewInput);
+  tagNewRow.appendChild(tagAddBtn);
+  tagsPanel.appendChild(tagChipsList);
+  tagsPanel.appendChild(tagNewRow);
+  const onTagsDocClick = (e) => {
+    if (!tagsWrap.contains(/** @type {Node} */ (e.target))) closeTagsPanel();
+  };
+  const closeTagsPanel = () => {
+    tagsPanel.hidden = true;
+    document.removeEventListener("click", onTagsDocClick);
+  };
+  tagsBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const opening = tagsPanel.hidden;
+    tagsPanel.hidden = !opening;
+    if (opening) document.addEventListener("click", onTagsDocClick);
+    else document.removeEventListener("click", onTagsDocClick);
+  });
+  tagsWrap.appendChild(tagsBtn);
+  tagsWrap.appendChild(tagsPanel);
+
+  const tagsDisplayRow = document.createElement("div");
+  tagsDisplayRow.className = "question-tags-row";
 
   answerEditRow.appendChild(copyBtn);
   answerEditRow.appendChild(copySearchBtn);
-  answerEditRow.appendChild(googleSearchBtn);
-  answerEditRow.appendChild(lessImportantBtn);
+  answerEditRow.appendChild(googleSearchWrap);
+  answerEditRow.appendChild(notImportantBtn);
+  answerEditRow.appendChild(historyWrap);
+  answerEditRow.appendChild(tagsWrap);
 
   const statusControls = document.createElement("div");
   statusControls.className = "status-controls edit-gated";
@@ -187,6 +516,7 @@ export function createQuestionNode(q, handlers) {
   answerEditRow.appendChild(statusControls);
 
   body.appendChild(answerContent);
+  body.appendChild(tagsDisplayRow);
   body.appendChild(answerEditRow);
 
   item.appendChild(header);
@@ -232,16 +562,95 @@ export function patchQuestionNode(el, q, handlers) {
 
   for (const s of STATUS_ICONS) {
     const btn = header.querySelector(`.icon-${iconClassSuffix(s.flag)}`);
-    if (btn) {
-      btn.classList.toggle("is-active", !!q[s.flag]);
-      if (s.flag === "done") {
-        btn.setAttribute("title", q.srsDue ? `Done — next review due ${q.srsDue}` : s.title);
+    if (btn) btn.classList.toggle("is-active", !!q[s.flag]);
+  }
+
+  const doneBtn = header.querySelector(".icon-done");
+  if (doneBtn) {
+    doneBtn.classList.toggle("is-active", !!q.done);
+    const doneCount = q.doneCount ?? 0;
+    doneBtn.setAttribute(
+      "title",
+      `Done${doneCount > 0 ? ` — marked ${doneCount} time${doneCount === 1 ? "" : "s"}` : ""}${q.srsDue ? ` — next review due ${q.srsDue}` : ""}`
+    );
+    const doneCountBadge = doneBtn.querySelector(".done-count-badge");
+    if (doneCountBadge) doneCountBadge.textContent = doneCount > 0 ? String(doneCount) : "";
+  }
+
+  const historyPanel = body.querySelector(".history-dropdown-panel");
+  if (historyPanel) {
+    historyPanel.textContent = "";
+    const history = q.doneHistory ?? [];
+    if (history.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "history-empty";
+      empty.textContent = "No history yet.";
+      historyPanel.appendChild(empty);
+    } else {
+      for (let i = history.length - 1; i >= 0; i--) {
+        const entry = history[i];
+        const row = document.createElement("div");
+        row.className = "history-entry";
+        row.textContent = `#${i + 1} — ${new Date(entry.ts).toLocaleString()}${entry.note ? ` — ${entry.note}` : ""}`;
+        historyPanel.appendChild(row);
       }
     }
   }
 
-  const lessImportantBtn = body.querySelector(".icon-less");
-  if (lessImportantBtn) lessImportantBtn.classList.toggle("is-active", !!q.lessImportant);
+  const tagChipsList = body.querySelector(".tag-chips-list");
+  if (tagChipsList) {
+    tagChipsList.textContent = "";
+    const qTags = q.tags ?? [];
+    if (appState.globalTags.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "tag-chips-empty";
+      empty.textContent = "No tags yet — create one below.";
+      tagChipsList.appendChild(empty);
+    }
+    for (const tag of appState.globalTags) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = `tag-chip${qTags.includes(tag) ? " is-active" : ""}`;
+      chip.textContent = tag;
+      chip.addEventListener("click", (e) => {
+        e.stopPropagation();
+        handlers.onToggleQuestionTag(q.id, tag);
+      });
+      tagChipsList.appendChild(chip);
+    }
+  }
+
+  const tagsBtn = body.querySelector(".icon-tags");
+  if (tagsBtn) tagsBtn.classList.toggle("is-active", (q.tags ?? []).length > 0);
+
+  const tagsDisplayRow = /** @type {HTMLElement|null} */ (body.querySelector(".question-tags-row"));
+  if (tagsDisplayRow) {
+    tagsDisplayRow.textContent = "";
+    const qTags = q.tags ?? [];
+    tagsDisplayRow.hidden = qTags.length === 0;
+    for (const tag of qTags) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "tag-chip tag-chip-readonly";
+      chip.title = `Add "${tag}" to the Tags filter`;
+      chip.textContent = tag;
+      chip.addEventListener("click", (e) => {
+        e.stopPropagation();
+        handlers.onFilterByTag(tag);
+      });
+      tagsDisplayRow.appendChild(chip);
+    }
+  }
+
+  const notImportantBtn = body.querySelector(".icon-notimportant");
+  if (notImportantBtn) notImportantBtn.classList.toggle("is-active", !!q.notImportant);
+  el.classList.toggle("not-important", !!q.notImportant);
+
+  const difficultyDot = header.querySelector(".difficulty-dot-btn");
+  if (difficultyDot) {
+    difficultyDot.className = `icon-btn difficulty-dot-btn${q.difficulty ? ` difficulty-${q.difficulty}` : ""}`;
+    difficultyDot.setAttribute("title", difficultyTitle(q.difficulty));
+  }
 
   const flagBtn = header.querySelector(".icon-flag");
   const isActive = appState.activeQuestion && appState.activeQuestion.questionId === q.id;
@@ -250,11 +659,28 @@ export function patchQuestionNode(el, q, handlers) {
   const selectBox = /** @type {HTMLInputElement} */ (header.querySelector(".question-select-checkbox"));
   if (selectBox) selectBox.checked = appState.selectedQuestionIds.has(q.id);
 
+  const reorderEligible = isReorderTarget("question", { subject: q.subject, topic: q.topic, subTopic: q.subTopic });
+  const reorderBadge = header.querySelector(".reorder-badge");
+  if (reorderBadge) {
+    const idx = reorderEligible ? appState.reorderMode?.selections.indexOf(q.id) ?? -1 : -1;
+    reorderBadge.textContent = idx >= 0 ? String(idx + 1) : "";
+    reorderBadge.classList.toggle("reorder-eligible", reorderEligible);
+    reorderBadge.classList.toggle("reorder-picked", idx >= 0);
+  }
+  header.classList.toggle("reorder-mode-target", reorderEligible);
+
   const answerContent = body.querySelector(".answer-content");
   if (answerContent) answerContent.innerHTML = q.answer || "<em>No answer yet.</em>";
 
   const editBtn = body.querySelector(".answer-edit-row button");
   if (editBtn) editBtn.textContent = q.answer ? "Edit Answer" : "Add Answer";
+
+  const subjectSearchItem = body.querySelector('.google-search-panel [data-mode="subject"]');
+  if (subjectSearchItem) subjectSearchItem.textContent = `As ${q.subject}`;
+  const topicSearchItem = body.querySelector('.google-search-panel [data-mode="topic"]');
+  if (topicSearchItem) topicSearchItem.textContent = `As ${q.topic}`;
+  const subTopicSearchItem = body.querySelector('.google-search-panel [data-mode="subTopic"]');
+  if (subTopicSearchItem) subTopicSearchItem.textContent = `As ${q.subTopic}`;
 
   el.classList.toggle("no-answer", !q.answer);
 }

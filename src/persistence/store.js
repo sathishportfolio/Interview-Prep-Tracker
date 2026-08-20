@@ -115,6 +115,12 @@ export function writeTimer(timer) {
   writeSchema({ ...schema, timer });
 }
 
+/** @param {string[]} globalTags */
+export function writeGlobalTags(globalTags) {
+  const schema = readSchema();
+  writeSchema({ ...schema, globalTags });
+}
+
 /** Wipes all persisted data (Reset All Data). */
 export function clearAll() {
   writeSchema(emptySchema());

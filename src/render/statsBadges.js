@@ -3,7 +3,7 @@
  * render/statsBadges.js — Global stats dropdown (Total, plus Review/Done/Starred/Due/Failed/With
  * Answer/Without Answer — click any row to toggle it in/out of the Status filter, additive/multi-
  * select just like statusFilterMount, both sharing appState.filterState.statuses, combined via
- * appState.filterState.statusMode's AND/OR — see filters.js's toggleStatusFilter). Each row shows
+ * appState.filterState.statusMode's AND/OR/NOT — see filters.js's toggleStatusFilter). Each row shows
  * its own plain count by default; once 1+ statuses are active, every row switches to a
  * "count/total" fraction where `total` is THAT ROW'S OWN fixed count (unaffected by which row(s)
  * are active) and `count` is how many also match the full active filter (see features/refresh.js's
@@ -76,11 +76,20 @@ function closeStatsDropdown() {
  * @property {StatusFraction} review
  * @property {StatusFraction} done
  * @property {StatusFraction} starred
+ * @property {StatusFraction} visited
+ * @property {StatusFraction} notImportant
+ * @property {StatusFraction} difficultyEasy
+ * @property {StatusFraction} difficultyMedium
+ * @property {StatusFraction} difficultyHard
  * @property {StatusFraction} due
  * @property {StatusFraction} failed
  * @property {StatusFraction} withAnswer
  * @property {StatusFraction} withoutAnswer
  * @property {StatusFraction} unmarked Questions with none of Done/Failed/Review Later set.
+ * @property {string[]} tags appState.globalTags — every known tag, rendered as its own section below
+ *   the fixed rows above (see features/tags.js).
+ * @property {string[]} activeTags appState.filterState.tags — which tag rows to mark selected.
+ * @property {Record<string, StatusFraction>} tagFractions Per-tag counts, keyed by tag name.
  */
 
 /**
@@ -106,6 +115,11 @@ export function renderStatsBadges(stats, handlers) {
     { statusKey: "failed", label: "Failed", fraction: stats.failed, colorClass: "icon-failed", onClick: () => handlers.onStatusBadgeClick("failed") },
     { statusKey: "reviewLater", label: "Review", fraction: stats.review, colorClass: "icon-review", onClick: () => handlers.onStatusBadgeClick("reviewLater") },
     { statusKey: "starred", label: "Starred", fraction: stats.starred, colorClass: "icon-starred", onClick: () => handlers.onStatusBadgeClick("starred") },
+    { statusKey: "visited", label: "Visited", fraction: stats.visited, colorClass: "icon-visited", onClick: () => handlers.onStatusBadgeClick("visited") },
+    { statusKey: "notImportant", label: "Not Important", fraction: stats.notImportant, colorClass: "icon-notimportant", onClick: () => handlers.onStatusBadgeClick("notImportant") },
+    { statusKey: "difficultyEasy", label: "Easy", fraction: stats.difficultyEasy, colorClass: "icon-difficulty-easy", onClick: () => handlers.onStatusBadgeClick("difficultyEasy") },
+    { statusKey: "difficultyMedium", label: "Medium", fraction: stats.difficultyMedium, colorClass: "icon-difficulty-medium", onClick: () => handlers.onStatusBadgeClick("difficultyMedium") },
+    { statusKey: "difficultyHard", label: "Hard", fraction: stats.difficultyHard, colorClass: "icon-difficulty-hard", onClick: () => handlers.onStatusBadgeClick("difficultyHard") },
     { statusKey: "hasAnswer", label: "With Answer", fraction: stats.withAnswer, colorClass: null, onClick: () => handlers.onStatusBadgeClick("hasAnswer") },
     { statusKey: "noAnswer", label: "Without Answer", fraction: stats.withoutAnswer, colorClass: null, onClick: () => handlers.onStatusBadgeClick("noAnswer") },
     { statusKey: "dueForReview", label: "Due", fraction: stats.due, colorClass: null, onClick: () => handlers.onStatusBadgeClick("dueForReview") },
@@ -151,6 +165,30 @@ export function renderStatsBadges(stats, handlers) {
     });
     panel.appendChild(row);
   }
+
+  if (stats.tags && stats.tags.length > 0) {
+    const divider = document.createElement("div");
+    divider.className = "stats-dropdown-divider";
+    divider.textContent = "Tags";
+    panel.appendChild(divider);
+
+    const activeTags = new Set(stats.activeTags || []);
+    for (const tag of stats.tags) {
+      const row = document.createElement("button");
+      row.type = "button";
+      const isActive = activeTags.has(tag);
+      row.className = `stats-dropdown-item${isActive ? " filter-active" : ""}`;
+      row.setAttribute("aria-pressed", String(isActive));
+      const fraction = stats.tagFractions[tag] || { count: 0, total: 0 };
+      row.innerHTML = `<span class="stats-dropdown-label">${tag}</span><span class="stats-dropdown-count">${fractionText(fraction)}</span>`;
+      row.addEventListener("click", (e) => {
+        e.stopPropagation();
+        handlers.onTagBadgeClick(tag);
+      });
+      panel.appendChild(row);
+    }
+  }
+
   dropdownWrap.appendChild(panel);
   badgesEl.appendChild(dropdownWrap);
 

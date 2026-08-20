@@ -34,11 +34,36 @@ export async function copyAndSearch(questionId) {
   showDuplicateResultsModal(questionId, q.question);
 }
 
-/** @param {string} questionId Opens a new tab Google-searching a prompt asking how to best answer this question. */
-export function googleSearchQuestion(questionId) {
+const CODE_EXAMPLE_ASK = "provide a one-liner answer with an example code snippet if applicable";
+
+/**
+ * Builds the Google search query for a question. `mode` picks the query style (see
+ * questionView.js's Google-search split button); omitted/unrecognized falls back to the default —
+ * scoped to the question's Topic, asking for a code example — used by the main button's direct
+ * click and every other Google-search shortcut (Ctrl+click/double-tap/long-press on the question
+ * text, the answer row's main button). Every scoped mode (subject/topic/subTopic) asks for the
+ * code example too — only "plain" (raw question, no scope, no ask) opts out of it.
+ * @param {import('../types.js').Question} q
+ * @param {"codeExample"|"plain"|"subject"|"topic"|"subTopic"} [mode]
+ * @returns {string}
+ */
+function buildGoogleSearchQuery(q, mode) {
+  if (mode === "codeExample") return `${q.question} ${CODE_EXAMPLE_ASK}`;
+  if (mode === "plain") return q.question;
+  if (mode === "subject") return `In ${q.subject}, ${q.question} ${CODE_EXAMPLE_ASK}`;
+  if (mode === "subTopic") return `In ${q.subTopic}, ${q.question} ${CODE_EXAMPLE_ASK}`;
+  return `In ${q.topic}, ${q.question} ${CODE_EXAMPLE_ASK}`; // default, and "topic" mode
+}
+
+/**
+ * Opens a new tab Google-searching a prompt asking how to best answer this question.
+ * @param {string} questionId
+ * @param {"codeExample"|"plain"|"subject"|"topic"|"subTopic"} [mode]
+ */
+export function googleSearchQuestion(questionId, mode) {
   const q = appState.rawData.find((x) => x.id === questionId);
   if (!q) return;
-  const query = `Could you suggest a punchy, single-sentence answer to this Java interview question ${q.question} ?`;
+  const query = buildGoogleSearchQuery(q, mode);
   const url = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
   window.open(url, "_blank", "noopener,noreferrer");
 }

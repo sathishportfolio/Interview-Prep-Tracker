@@ -2,9 +2,12 @@
 /**
  * csv/mainCsv.js — parse/serialize the MAIN file CSV format (feature.md "CSV Upload" / "Export
  * Progress"). Required columns: Subject, Topic, SubTopic, Question, Answer, Done, ReviewLater.
- * Optional: Duplicate, LessImportant, Starred, Failed, Order, SubjectOrder, TopicOrder, SubTopicOrder.
- * Empty-group placeholders round-trip as marker rows (blank Question). Duplicate-flagged rows are
- * excluded from export. Zero DOM.
+ * Optional: Duplicate, NotImportant, Starred, Failed, Visited, Difficulty, Order, SubjectOrder,
+ * TopicOrder, SubTopicOrder, SrsDue, SrsStreak, DoneCount, DoneHistory (JSON array), Tags (JSON
+ * array). `NotImportant` was previously `LessImportant` — parsing accepts either column name
+ * (whichever is present; `NotImportant` wins if both are) for backward compatibility with older
+ * exports, but export always writes `NotImportant`. Empty-group placeholders round-trip as marker
+ * rows (blank Question). Duplicate-flagged rows are excluded from export. Zero DOM.
  * @typedef {import('../../types.js').Question} Question
  * @typedef {import('../../types.js').EmptyGroup} EmptyGroup
  */
@@ -12,7 +15,10 @@ import { parseCsvObjects, serializeCsvObjects } from "./csvCore.js";
 import { newQuestionId } from "../id.js";
 
 export const REQUIRED_COLUMNS = ["Subject", "Topic", "SubTopic", "Question", "Answer", "Done", "ReviewLater"];
-export const OPTIONAL_COLUMNS = ["Duplicate", "LessImportant", "Starred", "Failed", "Order", "SubjectOrder", "TopicOrder", "SubTopicOrder", "SrsDue", "SrsStreak"];
+export const OPTIONAL_COLUMNS = [
+  "Duplicate", "NotImportant", "Starred", "Failed", "Visited", "Difficulty", "Order", "SubjectOrder", "TopicOrder", "SubTopicOrder",
+  "SrsDue", "SrsStreak", "DoneCount", "DoneHistory", "Tags",
+];
 export const ALL_COLUMNS = [...REQUIRED_COLUMNS, ...OPTIONAL_COLUMNS];
 
 function toBool(v) {
@@ -21,6 +27,21 @@ function toBool(v) {
 function toNum(v, fallback = 0) {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
+}
+/** @param {string|undefined} v @returns {"easy"|"medium"|"hard"|null} */
+function toDifficulty(v) {
+  const norm = String(v || "").trim().toLowerCase();
+  return norm === "easy" || norm === "medium" || norm === "hard" ? norm : null;
+}
+/** JSON-array columns (DoneHistory, Tags) — malformed/blank cells fall back to []. @param {string|undefined} v @returns {any[]} */
+function toJsonArray(v) {
+  if (!v) return [];
+  try {
+    const parsed = JSON.parse(v);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -55,6 +76,7 @@ export function parseMainCsv(text) {
         topic: topic || null,
         subTopic: topic && subTopic ? subTopic : null,
         createdOrder: emptyOrderCounter++,
+        notImportant: toBool(rec.NotImportant ?? rec.LessImportant),
       });
       continue;
     }
@@ -69,15 +91,20 @@ export function parseMainCsv(text) {
       done: toBool(rec.Done),
       reviewLater: toBool(rec.ReviewLater),
       duplicate: toBool(rec.Duplicate),
-      lessImportant: toBool(rec.LessImportant),
+      notImportant: toBool(rec.NotImportant ?? rec.LessImportant),
       starred: toBool(rec.Starred),
       failed: toBool(rec.Failed),
+      visited: toBool(rec.Visited),
+      difficulty: toDifficulty(rec.Difficulty),
       order: toNum(rec.Order, 0),
       subjectOrder: toNum(rec.SubjectOrder, 0),
       topicOrder: toNum(rec.TopicOrder, 0),
       subTopicOrder: toNum(rec.SubTopicOrder, 0),
       srsDue: rec.SrsDue ? rec.SrsDue.trim() || null : null,
       srsStreak: toNum(rec.SrsStreak, 0),
+      doneCount: toNum(rec.DoneCount, 0),
+      doneHistory: toJsonArray(rec.DoneHistory),
+      tags: toJsonArray(rec.Tags),
     });
   }
 
@@ -103,15 +130,20 @@ export function serializeMainCsv(rawData, emptyGroups) {
       Done: q.done ? "true" : "false",
       ReviewLater: q.reviewLater ? "true" : "false",
       Duplicate: q.duplicate ? "true" : "false",
-      LessImportant: q.lessImportant ? "true" : "false",
+      NotImportant: q.notImportant ? "true" : "false",
       Starred: q.starred ? "true" : "false",
       Failed: q.failed ? "true" : "false",
+      Visited: q.visited ? "true" : "false",
+      Difficulty: q.difficulty ?? "",
       Order: q.order ?? 0,
       SubjectOrder: q.subjectOrder ?? 0,
       TopicOrder: q.topicOrder ?? 0,
       SubTopicOrder: q.subTopicOrder ?? 0,
       SrsDue: q.srsDue ?? "",
       SrsStreak: q.srsStreak ?? 0,
+      DoneCount: q.doneCount ?? 0,
+      DoneHistory: q.doneHistory && q.doneHistory.length > 0 ? JSON.stringify(q.doneHistory) : "",
+      Tags: q.tags && q.tags.length > 0 ? JSON.stringify(q.tags) : "",
     });
   }
   for (const eg of emptyGroups) {
@@ -124,15 +156,20 @@ export function serializeMainCsv(rawData, emptyGroups) {
       Done: "false",
       ReviewLater: "false",
       Duplicate: "false",
-      LessImportant: "false",
+      NotImportant: eg.notImportant ? "true" : "false",
       Starred: "false",
       Failed: "false",
+      Visited: "false",
+      Difficulty: "",
       Order: 0,
       SubjectOrder: 0,
       TopicOrder: 0,
       SubTopicOrder: 0,
       SrsDue: "",
       SrsStreak: 0,
+      DoneCount: 0,
+      DoneHistory: "",
+      Tags: "",
     });
   }
   return serializeCsvObjects(ALL_COLUMNS, records);

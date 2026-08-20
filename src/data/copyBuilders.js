@@ -62,7 +62,7 @@ export function buildPlainCopyText(node) {
  */
 export function buildStructureWithAnswerCopyText(node) {
   const questions = collectQuestions(toWalkNode(node));
-  return questions.map((q) => [q.subject, q.topic, q.subTopic, q.question, q.answer].join("\t")).join("\n");
+  return questions.map((q) => [q.subject, q.topic, q.subTopic, q.question, q.answer, q.difficulty ?? ""].join("\t")).join("\n");
 }
 
 /**
