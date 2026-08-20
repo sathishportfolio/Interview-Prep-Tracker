@@ -6,12 +6,27 @@
  * to render's patch API and persistence's store.
  * @typedef {import('../types.js').Question} Question
  * @typedef {import('../types.js').EmptyGroup} EmptyGroup
+ * @typedef {import('../types.js').Tombstone} Tombstone
  */
 import { newQuestionId } from "./id.js";
 import { nextQuestionOrder, nextGroupOrder } from "./order.js";
 import { markGroupEmpty, unmarkGroupEmpty, pruneEmptyGroups, renameInEmptyGroups, markGroupsNotImportant } from "./emptyGroups.js";
+import { toTitleCase } from "./textCase.js";
 
 /** @typedef {{rawData: Question[], emptyGroups: EmptyGroup[]}} DataPair */
+/** @typedef {{rawData: Question[], emptyGroups: EmptyGroup[], tombstones: Tombstone[]}} DataPairWithTombstones */
+
+/**
+ * Upserts a tombstone for `id` into `tombstones` — replaces an existing entry for the same id
+ * (e.g. a re-delete after an undo/redo round-trip) rather than accumulating duplicates.
+ * @param {Tombstone[]} tombstones
+ * @param {string} id
+ * @param {number} deletedAt
+ * @returns {Tombstone[]}
+ */
+function upsertTombstone(tombstones, id, deletedAt) {
+  return [...tombstones.filter((t) => t.id !== id), { id, deletedAt }];
+}
 
 /**
  * @param {Question[]} rawData
@@ -40,20 +55,23 @@ export function questionExists(rawData, subject, topic, subTopic, questionText) 
  * @returns {DataPair & {question: Question}}
  */
 export function addQuestion(data, input) {
-  const order = nextQuestionOrder(data.rawData, input.subject, input.topic, input.subTopic);
+  const subject = toTitleCase(input.subject);
+  const topic = toTitleCase(input.topic);
+  const subTopic = toTitleCase(input.subTopic);
+  const order = nextQuestionOrder(data.rawData, subject, topic, subTopic);
   const subjectOrder = nextGroupOrder(data.rawData, "subject");
-  const topicOrder = nextGroupOrder(data.rawData, "topic", { subject: input.subject });
-  const subTopicOrder = nextGroupOrder(data.rawData, "subTopic", { subject: input.subject, topic: input.topic });
+  const topicOrder = nextGroupOrder(data.rawData, "topic", { subject });
+  const subTopicOrder = nextGroupOrder(data.rawData, "subTopic", { subject, topic });
 
   const existing = data.rawData.find(
-    (q) => q.subject === input.subject && q.topic === input.topic && q.subTopic === input.subTopic
+    (q) => q.subject === subject && q.topic === topic && q.subTopic === subTopic
   );
 
   const newQuestion = {
     id: newQuestionId(),
-    subject: input.subject,
-    topic: input.topic,
-    subTopic: input.subTopic,
+    subject,
+    topic,
+    subTopic,
     question: input.question,
     answer: input.answer || "",
     done: !!input.done,
@@ -73,12 +91,13 @@ export function addQuestion(data, input) {
     doneCount: 0,
     doneHistory: [],
     tags: input.tags ?? [],
+    updatedAt: Date.now(),
   };
 
   const rawData = [...data.rawData, newQuestion];
-  let emptyGroups = unmarkGroupEmpty(data.emptyGroups, input.subject, input.topic, input.subTopic);
-  emptyGroups = unmarkGroupEmpty(emptyGroups, input.subject, input.topic, null);
-  emptyGroups = unmarkGroupEmpty(emptyGroups, input.subject, null, null);
+  let emptyGroups = unmarkGroupEmpty(data.emptyGroups, subject, topic, subTopic);
+  emptyGroups = unmarkGroupEmpty(emptyGroups, subject, topic, null);
+  emptyGroups = unmarkGroupEmpty(emptyGroups, subject, null, null);
   emptyGroups = pruneEmptyGroups(emptyGroups, rawData);
   return { rawData, emptyGroups, question: newQuestion };
 }
@@ -90,7 +109,7 @@ export function addQuestion(data, input) {
  * @returns {Question[]}
  */
 export function updateQuestion(rawData, questionId, patch) {
-  return rawData.map((q) => (q.id === questionId ? { ...q, ...patch } : q));
+  return rawData.map((q) => (q.id === questionId ? { ...q, ...patch, updatedAt: Date.now() } : q));
 }
 
 /**
@@ -100,7 +119,7 @@ export function updateQuestion(rawData, questionId, patch) {
  * @returns {Question[]}
  */
 export function toggleStatusFlag(rawData, questionId, flag) {
-  return rawData.map((q) => (q.id === questionId ? { ...q, [flag]: !q[flag] } : q));
+  return rawData.map((q) => (q.id === questionId ? { ...q, [flag]: !q[flag], updatedAt: Date.now() } : q));
 }
 
 /**
@@ -114,7 +133,9 @@ export function toggleStatusFlag(rawData, questionId, flag) {
  */
 export function setTriStatusFlag(rawData, questionId, flag) {
   return rawData.map((q) =>
-    q.id === questionId ? { ...q, done: flag === "done", failed: flag === "failed", reviewLater: flag === "reviewLater" } : q
+    q.id === questionId
+      ? { ...q, done: flag === "done", failed: flag === "failed", reviewLater: flag === "reviewLater", updatedAt: Date.now() }
+      : q
   );
 }
 
@@ -139,6 +160,7 @@ export function markDone(rawData, questionId, note) {
           reviewLater: false,
           doneCount: (q.doneCount ?? 0) + 1,
           doneHistory: [...(q.doneHistory ?? []), { ts: Date.now(), ...(note ? { note } : {}) }],
+          updatedAt: Date.now(),
         }
       : q
   );
@@ -153,7 +175,7 @@ export function markDone(rawData, questionId, note) {
  * @returns {Question[]}
  */
 export function resetDoneHistory(rawData, questionId) {
-  return rawData.map((q) => (q.id === questionId ? { ...q, done: false, doneCount: 0, doneHistory: [] } : q));
+  return rawData.map((q) => (q.id === questionId ? { ...q, done: false, doneCount: 0, doneHistory: [], updatedAt: Date.now() } : q));
 }
 
 /**
@@ -168,7 +190,7 @@ export function toggleQuestionTag(rawData, questionId, tag) {
   return rawData.map((q) => {
     if (q.id !== questionId) return q;
     const tags = q.tags ?? [];
-    return { ...q, tags: tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag] };
+    return { ...q, tags: tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag], updatedAt: Date.now() };
   });
 }
 
@@ -208,9 +230,9 @@ export function scheduleReview(rawData, questionId, outcome, referenceDate = new
     if (outcome === "advance") {
       const streak = (q.srsStreak || 0) + 1;
       const days = SRS_INTERVAL_DAYS[Math.min(streak - 1, SRS_INTERVAL_DAYS.length - 1)];
-      return { ...q, srsStreak: streak, srsDue: addDaysISO(todayISO, days) };
+      return { ...q, srsStreak: streak, srsDue: addDaysISO(todayISO, days), updatedAt: Date.now() };
     }
-    return { ...q, srsStreak: 0, srsDue: addDaysISO(todayISO, 1) };
+    return { ...q, srsStreak: 0, srsDue: addDaysISO(todayISO, 1), updatedAt: Date.now() };
   });
 }
 
@@ -231,16 +253,18 @@ export function resetProgress(rawData, questionIds) {
   const idSet = questionIds ? new Set(questionIds) : null;
   return rawData.map((q) =>
     !idSet || idSet.has(q.id)
-      ? { ...q, done: false, reviewLater: false, visited: false, srsDue: null, srsStreak: 0, doneCount: 0, doneHistory: [] }
+      ? { ...q, done: false, reviewLater: false, visited: false, srsDue: null, srsStreak: 0, doneCount: 0, doneHistory: [], updatedAt: Date.now() }
       : q
   );
 }
 
 /**
- * Deletes a single question, marking its SubTopic empty if it was the last question there.
- * @param {DataPair} data
+ * Deletes a single question, marking its SubTopic empty if it was the last question there, and
+ * recording a tombstone (see data/syncMerge.js) so a pull-merge from a device that never saw this
+ * delete doesn't resurrect the question.
+ * @param {DataPairWithTombstones} data
  * @param {string} questionId
- * @returns {DataPair}
+ * @returns {DataPairWithTombstones}
  */
 export function deleteQuestion(data, questionId) {
   const target = data.rawData.find((q) => q.id === questionId);
@@ -253,14 +277,15 @@ export function deleteQuestion(data, questionId) {
   if (!stillHasSiblings) {
     emptyGroups = markGroupEmpty(emptyGroups, target.subject, target.topic, target.subTopic);
   }
-  return { rawData, emptyGroups };
+  const tombstones = upsertTombstone(data.tombstones, questionId, Date.now());
+  return { rawData, emptyGroups, tombstones };
 }
 
 /**
  * Deletes multiple questions in one pass (bulk delete of a selection).
- * @param {DataPair} data
+ * @param {DataPairWithTombstones} data
  * @param {string[]} questionIds
- * @returns {DataPair}
+ * @returns {DataPairWithTombstones}
  */
 export function deleteQuestions(data, questionIds) {
   return questionIds.reduce((acc, id) => deleteQuestion(acc, id), data);
@@ -276,12 +301,14 @@ export function deleteQuestions(data, questionIds) {
  * @returns {DataPair}
  */
 export function renameGroup(data, level, scope, newName) {
+  newName = toTitleCase(newName);
+  const now = Date.now();
   const rawData = data.rawData.map((q) => {
     if (level === "subject" && q.subject === scope.subject) {
-      return { ...q, subject: newName };
+      return { ...q, subject: newName, updatedAt: now };
     }
     if (level === "topic" && q.subject === scope.subject && q.topic === scope.topic) {
-      return { ...q, topic: newName };
+      return { ...q, topic: newName, updatedAt: now };
     }
     if (
       level === "subTopic" &&
@@ -289,7 +316,7 @@ export function renameGroup(data, level, scope, newName) {
       q.topic === scope.topic &&
       q.subTopic === scope.subTopic
     ) {
-      return { ...q, subTopic: newName };
+      return { ...q, subTopic: newName, updatedAt: now };
     }
     return q;
   });
@@ -338,7 +365,7 @@ export function applyPatchToSelection(data, groups, questionIds, patch) {
       if (level === "topic") return q.subject === scope.subject && q.topic === scope.topic;
       return q.subject === scope.subject && q.topic === scope.topic && q.subTopic === scope.subTopic;
     });
-  const rawData = data.rawData.map((q) => (idSet.has(q.id) || matchesAnyGroup(q) ? { ...q, ...patch } : q));
+  const rawData = data.rawData.map((q) => (idSet.has(q.id) || matchesAnyGroup(q) ? { ...q, ...patch, updatedAt: Date.now() } : q));
 
   let emptyGroups = data.emptyGroups;
   if ("notImportant" in patch) {
@@ -358,7 +385,7 @@ export function applyPatchToSelection(data, groups, questionIds, patch) {
  */
 export function setDifficultyForQuestions(rawData, questionIds, difficulty) {
   const idSet = new Set(questionIds);
-  return rawData.map((q) => (idSet.has(q.id) ? { ...q, difficulty } : q));
+  return rawData.map((q) => (idSet.has(q.id) ? { ...q, difficulty, updatedAt: Date.now() } : q));
 }
 
 /**
@@ -378,6 +405,78 @@ export function migrateLessImportantToNotImportant(rawData) {
     changed = true;
     const { lessImportant, ...rest } = anyQ;
     return { ...rest, notImportant: !!lessImportant };
+  });
+  return { rawData: next, changed };
+}
+
+/**
+ * One-time migration: normalizes every Subject/Topic/SubTopic name (on both questions and
+ * empty-group placeholders) to Title Case, so data imported/typed before this normalization
+ * existed reads consistently with everything created afterward. No-ops (same object references)
+ * once every name is already title-cased.
+ * @param {Question[]} rawData
+ * @param {EmptyGroup[]} emptyGroups
+ * @returns {{rawData: Question[], emptyGroups: EmptyGroup[], changed: boolean}}
+ */
+export function migrateGroupNamesToTitleCase(rawData, emptyGroups) {
+  let changed = false;
+  const next = rawData.map((q) => {
+    const subject = toTitleCase(q.subject);
+    const topic = toTitleCase(q.topic);
+    const subTopic = toTitleCase(q.subTopic);
+    if (subject === q.subject && topic === q.topic && subTopic === q.subTopic) return q;
+    changed = true;
+    return { ...q, subject, topic, subTopic };
+  });
+  const nextEmptyGroups = emptyGroups.map((eg) => {
+    const subject = toTitleCase(eg.subject);
+    const topic = eg.topic != null ? toTitleCase(eg.topic) : eg.topic;
+    const subTopic = eg.subTopic != null ? toTitleCase(eg.subTopic) : eg.subTopic;
+    if (subject === eg.subject && topic === eg.topic && subTopic === eg.subTopic) return eg;
+    changed = true;
+    return { ...eg, subject, topic, subTopic };
+  });
+  return { rawData: next, emptyGroups: nextEmptyGroups, changed };
+}
+
+/**
+ * One-time migration/backfill: a question already marked Done before per-review-pass tracking
+ * (doneCount/doneHistory) existed has done=true but doneCount=0 and no history entry — this stamps
+ * exactly one "today" entry onto it, matching what a fresh Mark Done would have recorded, rather
+ * than leaving it looking like it's never been reviewed. No-ops (same object references) once every
+ * Done question already has at least one doneHistory entry.
+ * @param {Question[]} rawData
+ * @param {Date} [referenceDate] Injectable for tests; defaults to now.
+ * @returns {{rawData: Question[], changed: boolean}}
+ */
+export function backfillDoneTracking(rawData, referenceDate = new Date()) {
+  let changed = false;
+  const next = rawData.map((q) => {
+    if (!q.done || (q.doneHistory && q.doneHistory.length > 0)) return q;
+    changed = true;
+    return { ...q, doneCount: q.doneCount && q.doneCount > 0 ? q.doneCount : 1, doneHistory: [{ ts: referenceDate.getTime() }] };
+  });
+  return { rawData: next, changed };
+}
+
+/**
+ * One-time migration/backfill: a question persisted before per-question `updatedAt` existed has no
+ * timestamp at all — stamps it with "now" (NOT a backdated/zero value). Backdating would make every
+ * pre-migration question always LOSE any future sync-merge comparison (data/syncMerge.js) against
+ * literally any edit made anywhere after upgrade, even a trivial no-op re-save — silently discarding
+ * pre-existing data on the very first post-upgrade sync on any device. Stamping "now" is the
+ * conservative, non-destructive default. No-ops (same object references) once every question already
+ * has `updatedAt`.
+ * @param {Question[]} rawData
+ * @param {Date} [referenceDate] Injectable for tests; defaults to now.
+ * @returns {{rawData: Question[], changed: boolean}}
+ */
+export function backfillUpdatedAt(rawData, referenceDate = new Date()) {
+  let changed = false;
+  const next = rawData.map((q) => {
+    if (typeof q.updatedAt === "number") return q;
+    changed = true;
+    return { ...q, updatedAt: referenceDate.getTime() };
   });
   return { rawData: next, changed };
 }
@@ -426,18 +525,25 @@ export function deleteGroup(data, level, scope) {
  * Deletes a Subject/Topic/SubTopic AND every question nested underneath it, bypassing deleteGroup's
  * non-empty guard entirely — used by bulk "Delete Selected" when the user has explicitly selected a
  * whole accordion (see features/bulkSelection.js, which confirms the nested question count with the
- * user first, since unlike deleteGroup this is never blocked).
- * @param {DataPair} data
+ * user first, since unlike deleteGroup this is never blocked). Records a tombstone for every deleted
+ * question id (see deleteQuestion).
+ * @param {DataPairWithTombstones} data
  * @param {"subject"|"topic"|"subTopic"} level
  * @param {{subject: string, topic?: string, subTopic?: string}} scope
- * @returns {DataPair}
+ * @returns {DataPairWithTombstones}
  */
 export function deleteGroupCascade(data, level, scope) {
-  const rawData = data.rawData.filter((q) => {
-    if (level === "subject") return q.subject !== scope.subject;
-    if (level === "topic") return !(q.subject === scope.subject && q.topic === scope.topic);
-    return !(q.subject === scope.subject && q.topic === scope.topic && q.subTopic === scope.subTopic);
-  });
+  const matches = (q) => {
+    if (level === "subject") return q.subject === scope.subject;
+    if (level === "topic") return q.subject === scope.subject && q.topic === scope.topic;
+    return q.subject === scope.subject && q.topic === scope.topic && q.subTopic === scope.subTopic;
+  };
+  const now = Date.now();
+  let tombstones = data.tombstones;
+  for (const q of data.rawData) {
+    if (matches(q)) tombstones = upsertTombstone(tombstones, q.id, now);
+  }
+  const rawData = data.rawData.filter((q) => !matches(q));
   let emptyGroups;
   if (level === "subject") {
     emptyGroups = data.emptyGroups.filter((eg) => eg.subject !== scope.subject);
@@ -448,7 +554,7 @@ export function deleteGroupCascade(data, level, scope) {
       (eg) => !(eg.subject === scope.subject && eg.topic === scope.topic && eg.subTopic === scope.subTopic)
     );
   }
-  return { rawData, emptyGroups };
+  return { rawData, emptyGroups, tombstones };
 }
 
 /**
@@ -467,9 +573,10 @@ export function moveQuestions(data, questionIds, destination) {
   });
 
   let nextOrder = nextQuestionOrder(data.rawData, destination.subject, destination.topic, destination.subTopic);
+  const now = Date.now();
   const rawData = data.rawData.map((q) => {
     if (!idSet.has(q.id)) return q;
-    const updated = { ...q, subject: destination.subject, topic: destination.topic, subTopic: destination.subTopic, order: nextOrder };
+    const updated = { ...q, subject: destination.subject, topic: destination.topic, subTopic: destination.subTopic, order: nextOrder, updatedAt: now };
     nextOrder += 1;
     return updated;
   });
@@ -642,9 +749,9 @@ export function moveGroup(data, level, scope, destination) {
 export function createEmptyGroup(data, level, scope) {
   const emptyGroups = markGroupEmpty(
     data.emptyGroups,
-    scope.subject,
-    level === "subject" ? null : scope.topic,
-    level === "subTopic" ? scope.subTopic : null
+    toTitleCase(scope.subject),
+    level === "subject" ? null : toTitleCase(scope.topic),
+    level === "subTopic" ? toTitleCase(scope.subTopic) : null
   );
   return { rawData: data.rawData, emptyGroups };
 }
@@ -720,6 +827,7 @@ export function bulkUpdateRows(data, rows) {
         failed: row.failed,
         visited: row.visited,
         difficulty: row.difficulty ?? null,
+        updatedAt: Date.now(),
       };
       updated += 1;
     } else {

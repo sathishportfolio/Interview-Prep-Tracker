@@ -5,14 +5,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  addQuestion, deleteQuestion, deleteGroup, deleteGroupCascade, renameGroup, moveQuestions, moveGroup,
+  addQuestion, deleteQuestion, deleteQuestions, deleteGroup, deleteGroupCascade, renameGroup, moveQuestions, moveGroup,
   bulkAddRows, bulkUpdateRows, questionExists, scheduleReview, resetProgress,
   setGroupNotImportant, applyPatchToSelection, setDifficultyForQuestions, migrateLessImportantToNotImportant,
-  markDone, resetDoneHistory, toggleQuestionTag,
+  markDone, resetDoneHistory, toggleQuestionTag, updateQuestion, toggleStatusFlag, backfillUpdatedAt,
 } from "./mutations.js";
 
 function emptyData() {
-  return { rawData: [], emptyGroups: [] };
+  return { rawData: [], emptyGroups: [], tombstones: [] };
 }
 
 test("addQuestion appends and consumes a matching empty-group marker", () => {
@@ -116,10 +116,11 @@ test("toggleQuestionTag adds then removes a tag, leaving other questions untouch
 test("deleteQuestion marks the SubTopic empty when it was the last question", () => {
   let data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
   const q = data.question;
-  const result = deleteQuestion({ rawData: data.rawData, emptyGroups: data.emptyGroups }, q.id);
+  const result = deleteQuestion({ rawData: data.rawData, emptyGroups: data.emptyGroups, tombstones: [] }, q.id);
   assert.equal(result.rawData.length, 0);
   assert.equal(result.emptyGroups.length, 1);
   assert.equal(result.emptyGroups[0].subTopic, "ST1");
+  assert.deepEqual(result.tombstones, [{ id: q.id, deletedAt: result.tombstones[0].deletedAt }]);
 });
 
 test("deleteGroup is blocked while the group still has questions", () => {
@@ -233,11 +234,12 @@ test("moveGroup(subject) into itself is a no-op", () => {
 test("deleteGroupCascade removes a non-empty Topic and every question/placeholder nested under it", () => {
   let data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
   data = addQuestion(data, { subject: "S1", topic: "T2", subTopic: "STx", question: "Q2" }); // sibling, untouched
-  data = { rawData: data.rawData, emptyGroups: [{ subject: "S1", topic: "T1", subTopic: "ST2", createdOrder: 0 }, ...data.emptyGroups] };
+  data = { rawData: data.rawData, emptyGroups: [{ subject: "S1", topic: "T1", subTopic: "ST2", createdOrder: 0 }, ...data.emptyGroups], tombstones: [] };
   const result = deleteGroupCascade(data, "topic", { subject: "S1", topic: "T1" });
   assert.equal(result.rawData.some((q) => q.topic === "T1"), false);
   assert.equal(result.rawData.some((q) => q.topic === "T2"), true); // sibling untouched
   assert.equal(result.emptyGroups.some((e) => e.topic === "T1"), false);
+  assert.equal(result.tombstones.length, 1); // one question ("Q1") deleted under the T1 cascade
 });
 
 test("bulkAddRows skips case-insensitive duplicates and invalid rows, reports counts", () => {
@@ -326,4 +328,74 @@ test("resetProgress(rawData, questionIds) restricts the reset to just those ids,
   assert.equal(qa.done, false);
   assert.equal(qa.reviewLater, false);
   assert.equal(qb.done, true); // outside the given id scope, untouched
+});
+
+test("addQuestion stamps a fresh updatedAt on the new question", () => {
+  const before = Date.now();
+  const result = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
+  assert.equal(typeof result.question.updatedAt, "number");
+  assert.ok(result.question.updatedAt >= before);
+});
+
+test("updateQuestion/toggleStatusFlag/markDone/resetDoneHistory/toggleQuestionTag/scheduleReview/resetProgress/setDifficultyForQuestions/applyPatchToSelection/renameGroup/moveQuestions all bump updatedAt", () => {
+  let data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
+  const id = data.question.id;
+  const original = data.question.updatedAt;
+
+  const bumpedBy = (rawData) => {
+    const q = rawData.find((x) => x.id === id);
+    assert.equal(typeof q.updatedAt, "number");
+    assert.ok(q.updatedAt >= original);
+    return q;
+  };
+
+  bumpedBy(updateQuestion(data.rawData, id, { answer: "a" }));
+  bumpedBy(toggleStatusFlag(data.rawData, id, "starred"));
+  bumpedBy(markDone(data.rawData, id));
+  bumpedBy(resetDoneHistory(data.rawData, id));
+  bumpedBy(toggleQuestionTag(data.rawData, id, "java"));
+  bumpedBy(scheduleReview(data.rawData, id, "advance"));
+  bumpedBy(resetProgress(data.rawData, [id]));
+  bumpedBy(setDifficultyForQuestions(data.rawData, [id], "hard"));
+  bumpedBy(applyPatchToSelection({ rawData: data.rawData, emptyGroups: data.emptyGroups }, [], [id], { starred: true }).rawData);
+  bumpedBy(renameGroup({ rawData: data.rawData, emptyGroups: data.emptyGroups }, "subject", { subject: "S1" }, "S2").rawData);
+  bumpedBy(moveQuestions({ rawData: data.rawData, emptyGroups: data.emptyGroups }, [id], { subject: "S1", topic: "T1", subTopic: "ST2" }).rawData);
+});
+
+test("deleteQuestion records a tombstone; a re-delete after undo updates (not duplicates) it", () => {
+  let data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
+  const id = data.question.id;
+  let result = deleteQuestion({ rawData: data.rawData, emptyGroups: data.emptyGroups, tombstones: [] }, id);
+  assert.equal(result.tombstones.length, 1);
+  assert.equal(result.tombstones[0].id, id);
+  const firstDeletedAt = result.tombstones[0].deletedAt;
+
+  // Simulate undo (question comes back) then re-delete — must replace, not duplicate, the tombstone.
+  const undone = { rawData: data.rawData, emptyGroups: data.emptyGroups, tombstones: result.tombstones };
+  result = deleteQuestion(undone, id);
+  assert.equal(result.tombstones.length, 1);
+  assert.ok(result.tombstones[0].deletedAt >= firstDeletedAt);
+});
+
+test("deleteQuestions records a tombstone per deleted id", () => {
+  const a = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
+  const b = addQuestion({ rawData: a.rawData, emptyGroups: a.emptyGroups }, { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q2" });
+  const result = deleteQuestions({ rawData: b.rawData, emptyGroups: b.emptyGroups, tombstones: [] }, [a.question.id, b.question.id]);
+  assert.equal(result.tombstones.length, 2);
+  assert.deepEqual(result.tombstones.map((t) => t.id).sort(), [a.question.id, b.question.id].sort());
+});
+
+test("backfillUpdatedAt no-ops once every question already has updatedAt", () => {
+  const data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
+  const result = backfillUpdatedAt(data.rawData);
+  assert.equal(result.changed, false);
+  assert.equal(result.rawData[0], data.rawData[0]); // same question object reference, untouched
+});
+
+test("backfillUpdatedAt stamps missing updatedAt with the injected referenceDate", () => {
+  const rawData = [{ id: "a", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1", answer: "" }];
+  const ref = new Date("2026-08-08T00:00:00Z");
+  const result = backfillUpdatedAt(rawData, ref);
+  assert.equal(result.changed, true);
+  assert.equal(result.rawData[0].updatedAt, ref.getTime());
 });

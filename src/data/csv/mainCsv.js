@@ -4,7 +4,9 @@
  * Progress"). Required columns: Subject, Topic, SubTopic, Question, Answer, Done, ReviewLater.
  * Optional: Duplicate, NotImportant, Starred, Failed, Visited, Difficulty, Order, SubjectOrder,
  * TopicOrder, SubTopicOrder, SrsDue, SrsStreak, DoneCount, DoneHistory (JSON array), Tags (JSON
- * array). `NotImportant` was previously `LessImportant` — parsing accepts either column name
+ * array), UpdatedAt (per-question last-modified timestamp — see types.js's Question.updatedAt,
+ * used only by sync/gists.js's per-question merge; missing/blank on import defaults to "now").
+ * `NotImportant` was previously `LessImportant` — parsing accepts either column name
  * (whichever is present; `NotImportant` wins if both are) for backward compatibility with older
  * exports, but export always writes `NotImportant`. Empty-group placeholders round-trip as marker
  * rows (blank Question). Duplicate-flagged rows are excluded from export. Zero DOM.
@@ -13,11 +15,12 @@
  */
 import { parseCsvObjects, serializeCsvObjects } from "./csvCore.js";
 import { newQuestionId } from "../id.js";
+import { toTitleCase } from "../textCase.js";
 
 export const REQUIRED_COLUMNS = ["Subject", "Topic", "SubTopic", "Question", "Answer", "Done", "ReviewLater"];
 export const OPTIONAL_COLUMNS = [
   "Duplicate", "NotImportant", "Starred", "Failed", "Visited", "Difficulty", "Order", "SubjectOrder", "TopicOrder", "SubTopicOrder",
-  "SrsDue", "SrsStreak", "DoneCount", "DoneHistory", "Tags",
+  "SrsDue", "SrsStreak", "DoneCount", "DoneHistory", "Tags", "UpdatedAt",
 ];
 export const ALL_COLUMNS = [...REQUIRED_COLUMNS, ...OPTIONAL_COLUMNS];
 
@@ -62,9 +65,9 @@ export function parseMainCsv(text) {
   let emptyOrderCounter = 0;
 
   for (const rec of records) {
-    const subject = (rec.Subject || "").trim();
-    const topic = (rec.Topic || "").trim();
-    const subTopic = (rec.SubTopic || "").trim();
+    const subject = toTitleCase((rec.Subject || "").trim());
+    const topic = toTitleCase((rec.Topic || "").trim());
+    const subTopic = toTitleCase((rec.SubTopic || "").trim());
     const question = (rec.Question || "").trim();
 
     if (!subject) continue; // fully blank row, skip
@@ -105,6 +108,7 @@ export function parseMainCsv(text) {
       doneCount: toNum(rec.DoneCount, 0),
       doneHistory: toJsonArray(rec.DoneHistory),
       tags: toJsonArray(rec.Tags),
+      updatedAt: rec.UpdatedAt && rec.UpdatedAt.trim() ? toNum(rec.UpdatedAt, Date.now()) : Date.now(),
     });
   }
 
@@ -144,6 +148,7 @@ export function serializeMainCsv(rawData, emptyGroups) {
       DoneCount: q.doneCount ?? 0,
       DoneHistory: q.doneHistory && q.doneHistory.length > 0 ? JSON.stringify(q.doneHistory) : "",
       Tags: q.tags && q.tags.length > 0 ? JSON.stringify(q.tags) : "",
+      UpdatedAt: q.updatedAt ?? "",
     });
   }
   for (const eg of emptyGroups) {
@@ -170,6 +175,7 @@ export function serializeMainCsv(rawData, emptyGroups) {
       DoneCount: 0,
       DoneHistory: "",
       Tags: "",
+      UpdatedAt: "",
     });
   }
   return serializeCsvObjects(ALL_COLUMNS, records);

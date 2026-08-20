@@ -66,7 +66,7 @@ export function coerceSchema(raw) {
   if (!raw || typeof raw !== "object") return base;
   return {
     schemaVersion: SCHEMA_VERSION,
-    files: Array.isArray(raw.files) ? raw.files.map((f) => ({ gistFileName: null, lastPushedHash: null, ...f })) : base.files,
+    files: Array.isArray(raw.files) ? raw.files.map((f) => ({ gistFileName: null, lastPushedHash: null, tombstones: [], ...f })) : base.files,
     activeFileId: raw.activeFileId ?? base.activeFileId,
     globalToggles: { ...base.globalToggles, ...(raw.globalToggles || {}) },
     activeQuestion: raw.activeQuestion ?? base.activeQuestion,

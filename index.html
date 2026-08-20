@@ -95,7 +95,8 @@
       </div>
 
       <button id="resetProgressBtn" class="btn btn-outline-warning btn-sm" title="Clear Done, Review Later, Visited, spaced-repetition scheduling, and Done History for the currently filtered questions (all questions if no filter is active) — keeps all questions, Starred, and other flags untouched"><i class="fa-solid fa-rotate-left"></i> Reset Progress</button>
-      <button id="resetAllBtn" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-trash"></i> Reset All</button>
+      <button id="resetAllBtn" class="btn btn-outline-danger btn-sm" title="Wipe every file, all progress, and every setting — including Cross-Device Sync"><i class="fa-solid fa-trash"></i> Reset All</button>
+      <button id="resetAllKeepSyncBtn" class="btn btn-outline-danger btn-sm" title="Wipe every file, all progress, and every setting — but keep the Cross-Device Sync connection so you don't have to reconnect it"><i class="fa-solid fa-trash-can"></i> Reset (Keep Sync)</button>
     </div>
     <div class="toolbar-row toolbar-row-secondary">
       <div class="temp-mode-wrap" title="Temp/Test Mode">
@@ -131,7 +132,12 @@
         </div>
         <div class="filter-field">
           <label>Tags</label>
-          <div id="tagFilterMount"></div>
+          <div class="tag-filter-row">
+            <div id="tagFilterMount"></div>
+            <button id="addGlobalTagBtn" type="button" class="btn btn-sm btn-outline-secondary tag-add-btn" title="Add a new tag">
+              <i class="fa-solid fa-plus"></i>
+            </button>
+          </div>
         </div>
         <div class="filter-field status-filter-field">
           <label>Status</label>

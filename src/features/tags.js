@@ -10,6 +10,7 @@ import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import * as store from "../persistence/store.js";
 import { refreshTagOptions } from "./filters.js";
+import { promptAction, showToast } from "./toast.js";
 
 /**
  * @param {string} questionId
@@ -35,4 +36,22 @@ export function createAndAddTag(questionId, rawTag) {
     refreshTagOptions();
   }
   toggleTagOnQuestion(questionId, tag);
+}
+
+/**
+ * Filter card's "+ Add Tag" button: a plain `prompt()` to create a new tag in the global registry
+ * without attaching it to any question — for pre-seeding a tag before any question uses it yet.
+ */
+export function addGlobalTagPrompt() {
+  const rawTag = promptAction("New tag name:");
+  const tag = (rawTag || "").trim();
+  if (!tag) return;
+  if (appState.globalTags.some((t) => t.toLowerCase() === tag.toLowerCase())) {
+    showToast(`Tag "${tag}" already exists.`, "error");
+    return;
+  }
+  appState.globalTags = [...appState.globalTags, tag];
+  store.writeGlobalTags(appState.globalTags);
+  refreshTagOptions();
+  showToast(`Tag "${tag}" added.`, "success");
 }

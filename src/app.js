@@ -44,6 +44,7 @@ import * as manualPush from "./sync/manualPush.js";
 import * as autoPush from "./sync/autoPush.js";
 import * as gists from "./sync/gists.js";
 import * as store from "./persistence/store.js";
+import { addGlobalTagPrompt } from "./features/tags.js";
 import { STORAGE_KEY } from "./persistence/schema.js";
 
 function $(id) {
@@ -282,6 +283,7 @@ function init() {
     clearStatusBtn: $("clearStatusFilterBtn"),
   });
   $("clearFiltersBtn")?.addEventListener("click", () => filters.clearFilters());
+  $("addGlobalTagBtn")?.addEventListener("click", () => addGlobalTagPrompt());
   $("filterCardToggle")?.addEventListener("click", () => {
     const filterCardOpen = !appState.toggles.filterCardOpen;
     appState.toggles = { ...appState.toggles, filterCardOpen };
@@ -345,6 +347,12 @@ function init() {
     // A full reload (rather than re-running the refresh pipeline in place) guarantees every bit of
     // in-memory state boots fresh from the now-empty persisted schema, instead of relying on every
     // feature module's own state to have been hand-reset correctly.
+    window.location.reload();
+  });
+
+  $("resetAllKeepSyncBtn")?.addEventListener("click", () => {
+    if (!confirmAction("Reset ALL data except Cross-Device Sync? This deletes every uploaded CSV, progress, and setting from this browser, but keeps your Cross-Device Sync connection so you won't need to reconnect it. This cannot be undone.")) return;
+    fileManager.resetAllDataKeepSync();
     window.location.reload();
   });
 

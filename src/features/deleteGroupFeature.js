@@ -32,6 +32,6 @@ export function deleteQuestionWithConfirm(questionId) {
   const q = appState.rawData.find((x) => x.id === questionId);
   if (!q) return;
   if (!confirmAction(`Delete this question?\n\n"${q.question}"`)) return;
-  const result = deleteQuestion({ rawData: appState.rawData, emptyGroups: appState.emptyGroups }, questionId);
+  const result = deleteQuestion({ rawData: appState.rawData, emptyGroups: appState.emptyGroups, tombstones: appState.tombstones }, questionId);
   applyDataChange(result);
 }

@@ -278,6 +278,15 @@ body {
    only its own text ("OR"/"AND") communicates the current mode. */
 .status-mode-toggle { font-weight: 700; min-width: 2.6rem; }
 
+/* Tags field: the "+ Add Tag" button sits after the multiselect, same pattern/reasoning as
+   .status-filter-row above — align-items: stretch + flex:1 on the mount (and its inner
+   .multiselect-control) so the button's height always matches the multiselect box exactly, even as
+   that box grows to a second line once several tags are selected, instead of the two drifting apart. */
+.tag-filter-row { display: flex; gap: 0.35rem; align-items: stretch; }
+.tag-filter-row #tagFilterMount { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.tag-filter-row .multiselect-control { flex: 1; }
+.tag-add-btn { flex-shrink: 0; display: flex; align-items: center; justify-content: center; padding: 0.25rem 0.5rem; }
+
 /* No overflow on the row itself — an ancestor with overflow-x set clips ANY absolutely-positioned
    descendant that extends past its bottom edge in most browsers (overflow-x != visible forces
    overflow-y to compute to auto too), which was hiding .stats-dropdown-panel. Only
@@ -378,7 +387,7 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .status-icon-row { display: flex; gap: 0.3rem; align-items: center; }
 /* Not scoped to .status-icon-row — .icon-flag (Active Question) sits as its own sibling in the
    question header, not inside that row, but must look like the same family of icon buttons. */
-.icon-btn { border: none; background: none; padding: 0.1rem 0.25rem; cursor: pointer; color: var(--text-faint-3); font-size: 0.9rem; }
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; border: none; background: none; padding: 0.1rem 0.25rem; cursor: pointer; color: var(--text-faint-3); font-size: 0.9rem; line-height: 1; }
 .icon-done.is-active { color: var(--done); }
 .icon-review.is-active { color: var(--review); }
 .icon-duplicate.is-active { color: var(--duplicate); }
@@ -398,7 +407,14 @@ body.edit-mode-off .edit-gated { display: none !important; }
    once cycled. Padding/dot size match .icon-btn's own FA-icon footprint (0.25rem horizontal padding,
    ~0.9rem font-size glyph) so this button reads as the same size as every other status-icon-row
    button next to it. */
-.difficulty-dot-btn { display: inline-flex; align-items: center; padding: 0.1rem 0.25rem; }
+.difficulty-dot-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.1rem 0.25rem; }
+
+/* Header action icons (difficulty dot, status-icon-row, Active Question flag) collapse behind a
+   single "more actions" button on narrow/mobile screens (see the >640px override below) so the
+   question text isn't squeezed by 6+ inline icons. On desktop this wrapper is invisible to layout
+   (`display: contents`) and the "more" button stays hidden — nothing changes there. */
+.header-more-btn { display: none; }
+.header-actions-wrap { display: contents; }
 .difficulty-dot { display: inline-block; width: 0.8rem; height: 0.8rem; border-radius: 50%; background: var(--text-faint-3); opacity: 0.4; }
 .difficulty-dot-btn.difficulty-easy .difficulty-dot { background: var(--difficulty-easy); opacity: 1; }
 .difficulty-dot-btn.difficulty-medium .difficulty-dot { background: var(--difficulty-medium); opacity: 1; }
@@ -626,4 +642,26 @@ body.bulk-bar-visible { padding-bottom: 3.5rem; }
   /* Stats/actions stay one row (not wrap) even on a narrow phone screen — see .stats-row — so it
      scrolls horizontally here instead of wrapping and overlapping the content below it. */
   .stats-row { justify-content: flex-start; }
+
+  /* Collapse the per-question header icons (difficulty dot, Failed/Review/Starred/Visited, Active
+     Question flag — Done stays visible, it's the single most-used action) behind one "more actions"
+     button, so qText keeps most of the row's width instead of sharing it with 6+ icon buttons. */
+  .header-more-btn { display: inline-flex; flex: none; }
+  .header-actions-wrap {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0.4rem;
+    z-index: 20;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-soft);
+    border-radius: 0.4rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  }
+  .header-actions-wrap.open { display: flex; }
 }

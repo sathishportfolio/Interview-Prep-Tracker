@@ -10,14 +10,14 @@ import { applyDataChange, setBeforeChangeHook } from "./refresh.js";
 
 const MAX_HISTORY = 50;
 
-/** @type {Array<{rawData: any[], emptyGroups: any[]}>} */
+/** @type {Array<{rawData: any[], emptyGroups: any[], tombstones: any[]}>} */
 let undoStack = [];
-/** @type {Array<{rawData: any[], emptyGroups: any[]}>} */
+/** @type {Array<{rawData: any[], emptyGroups: any[], tombstones: any[]}>} */
 let redoStack = [];
 
 export function initUndoRedo() {
-  setBeforeChangeHook((prevRawData, prevEmptyGroups) => {
-    undoStack.push({ rawData: prevRawData, emptyGroups: prevEmptyGroups });
+  setBeforeChangeHook((prevRawData, prevEmptyGroups, prevTombstones) => {
+    undoStack.push({ rawData: prevRawData, emptyGroups: prevEmptyGroups, tombstones: prevTombstones });
     if (undoStack.length > MAX_HISTORY) undoStack.shift();
     redoStack = [];
   });
@@ -25,15 +25,15 @@ export function initUndoRedo() {
 
 export function undo() {
   if (undoStack.length === 0) return;
-  const prev = /** @type {{rawData: any[], emptyGroups: any[]}} */ (undoStack.pop());
-  redoStack.push({ rawData: appState.rawData, emptyGroups: appState.emptyGroups });
+  const prev = /** @type {{rawData: any[], emptyGroups: any[], tombstones: any[]}} */ (undoStack.pop());
+  redoStack.push({ rawData: appState.rawData, emptyGroups: appState.emptyGroups, tombstones: appState.tombstones });
   applyDataChange(prev, { skipUndoSnapshot: true });
 }
 
 export function redo() {
   if (redoStack.length === 0) return;
-  const next = /** @type {{rawData: any[], emptyGroups: any[]}} */ (redoStack.pop());
-  undoStack.push({ rawData: appState.rawData, emptyGroups: appState.emptyGroups });
+  const next = /** @type {{rawData: any[], emptyGroups: any[], tombstones: any[]}} */ (redoStack.pop());
+  undoStack.push({ rawData: appState.rawData, emptyGroups: appState.emptyGroups, tombstones: appState.tombstones });
   applyDataChange(next, { skipUndoSnapshot: true });
 }
 

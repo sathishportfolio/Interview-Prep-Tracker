@@ -11,7 +11,7 @@ import { nextExportFileName } from "../data/filename.js";
 import { emptyFilterState } from "../data/filter.js";
 import { newFileId } from "../data/id.js";
 import { minifyAllAnswers } from "../data/answerFormat.js";
-import { migrateLessImportantToNotImportant } from "../data/mutations.js";
+import { migrateLessImportantToNotImportant, migrateGroupNamesToTitleCase, backfillDoneTracking, backfillUpdatedAt } from "../data/mutations.js";
 import * as store from "../persistence/store.js";
 import { appState, loadFileIntoState } from "../state/appState.js";
 import { showToast } from "./toast.js";
@@ -58,10 +58,14 @@ export function bootstrapFromStorage() {
   let anyMinified = false;
   appState.files = appState.files.map((f) => {
     const migrated = migrateLessImportantToNotImportant(f.rawData);
-    const result = minifyAllAnswers(migrated.rawData);
-    if (!result.changed && !migrated.changed) return f;
+    const doneBackfilled = backfillDoneTracking(migrated.rawData);
+    const updatedAtBackfilled = backfillUpdatedAt(doneBackfilled.rawData);
+    const titleCased = migrateGroupNamesToTitleCase(updatedAtBackfilled.rawData, f.emptyGroups);
+    const result = minifyAllAnswers(titleCased.rawData);
+    const tombstones = f.tombstones ?? [];
+    if (!result.changed && !migrated.changed && !doneBackfilled.changed && !updatedAtBackfilled.changed && !titleCased.changed && f.tombstones) return f;
     anyMinified = true;
-    return { ...f, rawData: result.rawData };
+    return { ...f, rawData: result.rawData, emptyGroups: titleCased.emptyGroups, tombstones };
   });
   if (anyMinified) store.writeFiles(appState.files);
 
@@ -72,6 +76,7 @@ export function bootstrapFromStorage() {
     appState.activeFileId = null;
     appState.rawData = [];
     appState.emptyGroups = [];
+    appState.tombstones = [];
     appState.filterState = emptyFilterState();
   }
 }
@@ -105,6 +110,7 @@ export function loadCsvAsNewFile(fileName, csvText) {
     lastExportDate: null,
     gistFileName: null,
     lastPushedHash: null,
+    tombstones: [],
   };
   appState.files = [...appState.files, file];
   appState.activeFileId = file.id;
@@ -166,6 +172,7 @@ export function clearActiveFile() {
   appState.activeFileId = null;
   appState.rawData = [];
   appState.emptyGroups = [];
+  appState.tombstones = [];
   appState.filterState = emptyFilterState();
   persistFiles();
 }
@@ -176,6 +183,7 @@ export function syncActiveFileBackIntoRecord() {
   if (!file) return;
   file.rawData = appState.rawData;
   file.emptyGroups = appState.emptyGroups;
+  file.tombstones = appState.tombstones;
   file.filters = appState.filterState;
 }
 
@@ -260,6 +268,7 @@ export function deleteFile(fileId) {
       appState.activeFileId = null;
       appState.rawData = [];
       appState.emptyGroups = [];
+      appState.tombstones = [];
       appState.filterState = emptyFilterState();
     }
   }
@@ -293,6 +302,21 @@ export async function copyProgressCsvToClipboard() {
  */
 export function resetAllData() {
   store.clearAll();
+  bootstrapFromStorage();
+  if (onFilesChanged) onFilesChanged();
+}
+
+/**
+ * Same full wipe as resetAllData, but preserves the Cross-Device Sync connection (GitHub token +
+ * gist id) across the reset — for the common case of "wipe my local progress but don't make me
+ * reconnect sync". Reads the current sync config BEFORE clearing, then writes it back onto the
+ * freshly-cleared schema before bootstrapping from it, so bootstrapFromStorage's own read-back
+ * naturally picks it up like everything else.
+ */
+export function resetAllDataKeepSync() {
+  const currentSync = store.readSchema().sync;
+  store.clearAll();
+  store.writeSync(currentSync);
   bootstrapFromStorage();
   if (onFilesChanged) onFilesChanged();
 }

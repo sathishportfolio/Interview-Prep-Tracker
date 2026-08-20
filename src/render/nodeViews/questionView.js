@@ -248,7 +248,6 @@ export function createQuestionNode(q, handlers) {
   });
   doneWrap.appendChild(doneBtn);
   doneWrap.appendChild(doneNotesPanel);
-  statusRow.appendChild(doneWrap);
 
   for (const s of STATUS_ICONS) {
     const btn = document.createElement("button");
@@ -285,13 +284,43 @@ export function createQuestionNode(q, handlers) {
   const reorderBadge = document.createElement("span");
   reorderBadge.className = "reorder-badge";
 
+  // Header actions collapse behind a single "more" button on narrow/mobile screens (see
+  // .header-more-btn / .header-actions-wrap in style.css) so the question text keeps most of the
+  // row's width instead of being squeezed by 6+ inline icon buttons. On desktop this wrapper is
+  // `display: contents`, so difficultyDot/statusRow/flagBtn lay out exactly as if unwrapped.
+  const headerActionsWrap = document.createElement("div");
+  headerActionsWrap.className = "header-actions-wrap";
+  headerActionsWrap.appendChild(difficultyDot);
+  headerActionsWrap.appendChild(statusRow);
+  headerActionsWrap.appendChild(flagBtn);
+
+  const headerMoreBtn = document.createElement("button");
+  headerMoreBtn.type = "button";
+  headerMoreBtn.className = "icon-btn header-more-btn";
+  headerMoreBtn.title = "More actions";
+  headerMoreBtn.innerHTML = '<i class="fa-solid fa-ellipsis-vertical"></i>';
+  const closeHeaderActions = () => {
+    headerActionsWrap.classList.remove("open");
+    document.removeEventListener("click", onHeaderActionsDocClick);
+  };
+  const onHeaderActionsDocClick = (e) => {
+    if (!headerActionsWrap.contains(/** @type {Node} */ (e.target)) && e.target !== headerMoreBtn) closeHeaderActions();
+  };
+  headerMoreBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const opening = !headerActionsWrap.classList.contains("open");
+    headerActionsWrap.classList.toggle("open", opening);
+    if (opening) document.addEventListener("click", onHeaderActionsDocClick);
+    else document.removeEventListener("click", onHeaderActionsDocClick);
+  });
+
   header.appendChild(dragHandle);
   header.appendChild(selectBox);
   header.appendChild(reorderBadge);
   header.appendChild(qText);
-  header.appendChild(difficultyDot);
-  header.appendChild(statusRow);
-  header.appendChild(flagBtn);
+  header.appendChild(doneWrap);
+  header.appendChild(headerMoreBtn);
+  header.appendChild(headerActionsWrap);
 
   // Reorder-mode click interception — capture phase, added AFTER this header's normal listeners are
   // wired below, so it runs first and (via stopImmediatePropagation) can pre-empt them entirely when

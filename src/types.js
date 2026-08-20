@@ -44,6 +44,21 @@
  *   "Mark Done with Notes" click, most-recent last — see data/mutations.js markDone/resetDoneHistory.
  * @property {string[]} [tags]          Names from the app-wide tag registry (StorageSchemaV1.globalTags)
  *   this question has been tagged with — see data/mutations.js toggleQuestionTag.
+ * @property {number} [updatedAt]        Date.now()-based, bumped by every data/mutations.js call that
+ *   changes this question's fields. Used ONLY by sync/gists.js's per-question merge (data/syncMerge.js)
+ *   to decide which side of a pull wins on conflicting edits — never rendered/exported as a
+ *   user-facing field beyond the CSV UpdatedAt column (see data/csv/mainCsv.js). Optional so older
+ *   in-memory/test objects still typecheck; data/mutations.js's backfillUpdatedAt migration
+ *   guarantees every persisted question has one after the first load post-upgrade.
+ */
+
+/**
+ * A per-file record of a deleted question id, so a pull-merge can distinguish "never existed on
+ * this device" from "existed here but was deleted elsewhere" — without this, a device that never
+ * saw the delete would resurrect the question on its next sync. See data/syncMerge.js.
+ * @typedef {Object} Tombstone
+ * @property {string} id          The deleted question's former id.
+ * @property {number} deletedAt   Date.now() at time of deletion.
  */
 
 /**
@@ -98,6 +113,9 @@
  * @property {string|null} lastPushedHash   Hash of this file's content as of its last successful
  *   push (sync/gists.js's pushAllChangedFiles) — lets an unchanged file be skipped on the next push
  *   instead of burning a Gist API request on a no-op PATCH.
+ * @property {Tombstone[]} tombstones   Deleted question ids for this file, each with a deletedAt
+ *   timestamp — see data/mutations.js's deleteQuestion/deleteQuestions/deleteGroupCascade (the only
+ *   writers) and data/syncMerge.js (the only reader, on pull-merge).
  */
 
 /**

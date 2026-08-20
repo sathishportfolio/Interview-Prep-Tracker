@@ -6,6 +6,7 @@
  * sets) that never touches localStorage at all.
  * @typedef {import('../types.js').Question} Question
  * @typedef {import('../types.js').EmptyGroup} EmptyGroup
+ * @typedef {import('../types.js').Tombstone} Tombstone
  * @typedef {import('../types.js').FilterState} FilterState
  * @typedef {import('../types.js').GroupedTree} GroupedTree
  * @typedef {import('../types.js').FileRecord} FileRecord
@@ -25,6 +26,8 @@ export const appState = {
   rawData: [],
   /** @type {EmptyGroup[]} */
   emptyGroups: [],
+  /** @type {Tombstone[]} tombstones of the active file (mirrors the active FileRecord.tombstones) — see data/syncMerge.js */
+  tombstones: [],
   /** @type {FilterState} */
   filterState: emptyFilterState(),
   /** @type {GroupedTree} last computed grouped+filtered tree (render engine reads this) */
@@ -90,6 +93,7 @@ export function loadFileIntoState(file) {
   appState.activeFileId = file.id;
   appState.rawData = file.rawData;
   appState.emptyGroups = file.emptyGroups;
+  appState.tombstones = file.tombstones ?? [];
   appState.filterState = file.filters;
   appState.openNodeKeys = new Set();
   appState.selectedQuestionIds = new Set();
