@@ -34,8 +34,8 @@ export function buildTreeHandlers() {
     // itself lights up), so the extra flash-highlight is redundant here (unlike the 'r'/'s' keyboard
     // shortcuts in reviewShortcuts.js, which keep flashing since there's no click to see).
     onToggleStatus: (qid, flag) => statusFlags.toggleStatus(qid, flag, { flash: false }),
-    onMarkDone: (qid, withNotes) => statusFlags.markDoneWithMenu(qid, withNotes),
-    onResetDone: (qid) => statusFlags.resetDone(qid),
+    onMarkStatus: (qid, status, withNotes) => statusFlags.markStatusWithMenu(qid, status, withNotes),
+    onResetTriState: (qid) => statusFlags.resetTriState(qid),
     onToggleQuestionTag: (qid, tag) => tags.toggleTagOnQuestion(qid, tag),
     onCreateTag: (qid, tag) => tags.createAndAddTag(qid, tag),
     onFilterByTag: (tag) => filters.toggleTagFilter(tag),

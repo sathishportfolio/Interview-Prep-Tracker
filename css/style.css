@@ -383,7 +383,10 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .question-item.no-answer { border-left: 5px solid #dc354585; }
 .question-header { position: relative; display: flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.6rem; cursor: pointer; }
 .question-header:hover { background: var(--bg-row-hover); }
-.q-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* q-text-wrap (not q-text itself) is the flex:1 item — it holds the question text plus, on mobile
+   only, the last-updated line stacked directly under it (see .q-updated-inline below). */
+.q-text-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.q-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .status-icon-row { display: flex; gap: 0.3rem; align-items: center; }
 /* Not scoped to .status-icon-row — .icon-flag (Active Question) sits as its own sibling in the
    question header, not inside that row, but must look like the same family of icon buttons. */
@@ -416,16 +419,17 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .header-more-btn { display: none; }
 .header-actions-wrap { display: contents; }
 
-/* Last-updated timestamp (clock icon + compact age, e.g. "5 min"/"2 hr"/"3 day") — always-visible
-   small muted line in the answer body (both mobile and desktop). Desktop also gets a light-grey copy
-   directly in the header, right before the Done icon (see .q-updated-header below); that one is
-   hidden on mobile (see the >640px override), where the header's already tight from the collapsed
-   action menu. Both use the `hidden` attribute (not an :empty selector) to disappear when a question
-   has no updatedAt yet — the icon means the element is never textually empty. */
-.q-updated-body { display: flex; align-items: center; gap: 0.3rem; margin: -0.1rem 0 0.4rem; }
+/* Last-updated timestamp (clock icon + compact age, e.g. "5 min"/"2 hr"/"3 day") — lives in the
+   accordion header itself (visible whether collapsed or expanded), never the answer body. Desktop:
+   a light-grey copy sits inline right before the Done icon (.q-updated-header). Mobile: that copy
+   hides (see the >640px override) and .q-updated-inline — nested under the question text inside
+   .q-text-wrap — takes over instead, appearing directly below it. Both use the `hidden` attribute
+   (not an :empty selector) to disappear when a question has no updatedAt yet — the icon means the
+   element is never textually empty. */
 .q-updated-header { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--text-faint-3); font-size: 0.78rem; white-space: nowrap; flex: none; }
-.q-updated-body[hidden], .q-updated-header[hidden] { display: none; }
-.q-updated-header i, .q-updated-body i { font-size: 0.85em; opacity: 0.8; }
+.q-updated-inline { display: none; }
+.q-updated-header[hidden], .q-updated-inline[hidden] { display: none; }
+.q-updated-header i, .q-updated-inline i { font-size: 0.85em; opacity: 0.8; }
 .difficulty-dot { display: inline-block; width: 0.8rem; height: 0.8rem; border-radius: 50%; background: var(--text-faint-3); opacity: 0.4; }
 .difficulty-dot-btn.difficulty-easy .difficulty-dot { background: var(--difficulty-easy); opacity: 1; }
 .difficulty-dot-btn.difficulty-medium .difficulty-dot { background: var(--difficulty-medium); opacity: 1; }
@@ -461,6 +465,12 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .history-dropdown-panel { max-height: 260px; overflow-y: auto; min-width: 220px; }
 .history-entry { font-size: 0.78rem; color: var(--text-muted); padding: 0.3rem 0.2rem; border-bottom: 1px solid var(--border-soft); }
 .history-entry:last-child { border-bottom: none; }
+/* Status History merges Done/Failed/Review Later entries into one chronological timeline (see
+   questionView.js's patchQuestionNode) — each entry's text is colored by which status it came from
+   so the merged list stays scannable at a glance. */
+.history-entry-done { color: var(--done); }
+.history-entry-failed { color: var(--failed); }
+.history-entry-review { color: var(--review); }
 .history-empty { font-size: 0.8rem; color: var(--text-faint-2); padding: 0.3rem 0.2rem; }
 
 .tags-dropdown-panel { min-width: 220px; }
@@ -476,9 +486,13 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .tag-chip-readonly:hover { background: var(--bg-tint-accent-soft); border-color: var(--accent); }
 .question-tags-row { display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0 0.6rem; }
 
-/* Done count badge — small superscript-style number on the Done icon, only shown once doneCount>0. */
+/* Tri-state count badge — small superscript-style number on the Done/Failed/Review Later icon, only
+   shown once that status's own count > 0. Same badge class on all three; color follows whichever
+   icon it's nested in (.icon-done/.icon-failed/.icon-review), not active/inactive state, so the
+   count stays legible even once a question has moved on to a different status. */
 .done-count-badge { font-size: 0.62rem; font-weight: 700; margin-left: 0.15rem; color: var(--done); vertical-align: super; }
-.icon-done.is-active .done-count-badge { color: var(--done); }
+.icon-failed .done-count-badge { color: var(--failed); }
+.icon-review .done-count-badge { color: var(--review); }
 
 /* Done History icon is always visible; its panel opens on hover of the icon (CSS-only — no click
    needed), same popup shell as .done-dropdown-panel/.tags-dropdown-panel but shown via
@@ -676,8 +690,9 @@ body.bulk-bar-visible { padding-bottom: 3.5rem; }
   }
   .header-actions-wrap.open { display: flex; }
 
-  /* The header-based last-updated label is desktop-only — the mobile header's already tight (see
-     the collapsed .header-actions-wrap above); the answer-body copy (.q-updated-body, always shown
-     on both) is where mobile gets this text instead. */
+  /* The inline header-based last-updated label (before the Done icon) is desktop-only — the mobile
+     header's already tight (see the collapsed .header-actions-wrap above). Mobile instead shows
+     .q-updated-inline, stacked directly under the question text within .q-text-wrap. */
   .q-updated-header { display: none; }
+  .q-updated-inline { display: flex; align-items: center; gap: 0.3rem; color: var(--text-faint-3); font-size: 0.78rem; margin-top: 0.15rem; }
 }

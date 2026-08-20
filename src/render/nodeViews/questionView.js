@@ -13,8 +13,8 @@ import { formatRelativeTime } from "../../data/relativeTime.js";
 /**
  * @typedef {Object} TreeHandlers
  * @property {(qid: string, flag: "done"|"reviewLater"|"duplicate"|"notImportant"|"starred"|"failed"|"visited") => void} onToggleStatus
- * @property {(qid: string, withNotes: boolean) => void} onMarkDone
- * @property {(qid: string) => void} onResetDone
+ * @property {(qid: string, status: "done"|"failed"|"reviewLater", withNotes: boolean) => void} onMarkStatus
+ * @property {(qid: string) => void} onResetTriState
  * @property {(qid: string, tag: string) => void} onToggleQuestionTag
  * @property {(qid: string, tag: string) => void} onCreateTag
  * @property {(tag: string) => void} onFilterByTag
@@ -38,16 +38,37 @@ import { formatRelativeTime } from "../../data/relativeTime.js";
  */
 
 // "notImportant" is deliberately not in this list — its icon lives next to the Google Search
-// button in answerEditRow instead (see below), not in the header's status-icon-row. "done" is
-// ALSO excluded — it gets its own special dropdown-menu treatment (see doneWrap below) instead of
-// the plain toggle button every other entry here gets. "duplicate" has no accordion icon at all
-// (removed per user request) — the field/filter/CSV/stats support for it stays untouched elsewhere.
+// button in answerEditRow instead (see below), not in the header's status-icon-row. "done",
+// "failed", and "reviewLater" are ALSO excluded — all three get the same special dropdown-menu
+// treatment (see buildTriStateButton below) instead of the plain toggle button every other entry
+// here gets. "duplicate" has no accordion icon at all (removed per user request) — the
+// field/filter/CSV/stats support for it stays untouched elsewhere.
 const STATUS_ICONS = [
-  { flag: "failed", icon: "fa-circle-xmark", title: "Failed" },
-  { flag: "reviewLater", icon: "fa-clock", title: "Review Later" },
   { flag: "starred", icon: "fa-star", title: "Starred" },
   { flag: "visited", icon: "fa-eye", title: "Visited" },
 ];
+
+/** @type {Record<"done"|"failed"|"reviewLater", {iconClass: string, label: string}>} */
+const TRI_STATE_META = {
+  done: { iconClass: "fa-square-check", label: "Done" },
+  failed: { iconClass: "fa-circle-xmark", label: "Failed" },
+  reviewLater: { iconClass: "fa-clock", label: "Review Later" },
+};
+
+/** @param {Question} q @param {"done"|"failed"|"reviewLater"} status @returns {boolean} */
+function triStateActive(q, status) {
+  return status === "done" ? !!q.done : status === "failed" ? !!q.failed : !!q.reviewLater;
+}
+
+/** @param {Question} q @param {"done"|"failed"|"reviewLater"} status @returns {number} */
+function triStateCount(q, status) {
+  return status === "done" ? q.doneCount ?? 0 : status === "failed" ? q.failedCount ?? 0 : q.reviewLaterCount ?? 0;
+}
+
+/** @param {Question} q @param {"done"|"failed"|"reviewLater"} status @returns {{ts: number, note?: string}[]} */
+function triStateHistory(q, status) {
+  return (status === "done" ? q.doneHistory : status === "failed" ? q.failedHistory : q.reviewLaterHistory) ?? [];
+}
 
 /** @param {"easy"|"medium"|"hard"|null|undefined} difficulty @returns {string} */
 function difficultyTitle(difficulty) {
@@ -62,6 +83,110 @@ function iconClassSuffix(flag) {
   return flag === "reviewLater" ? "review" : flag === "notImportant" ? "notimportant" : flag;
 }
 
+/**
+ * Builds one Done/Failed/Review Later button — icon + count badge, a "Mark with Notes" dropdown
+ * (hover-revealed on desktop, tap-revealed 2-item menu on touch), and Ctrl/Cmd+click or long-press
+ * to reset ALL THREE statuses at once (see features/statusFlags.js's resetTriState). All three
+ * buttons across the row share this exact same structure/behavior — only the status/icon/label
+ * differ (see TRI_STATE_META).
+ * @param {"done"|"failed"|"reviewLater"} status
+ * @param {Question} q
+ * @param {Record<string, any>} handlers
+ * @returns {HTMLElement}
+ */
+function buildTriStateButton(status, q, handlers) {
+  const { iconClass, label } = TRI_STATE_META[status];
+  const isCoarsePointer = () => window.matchMedia("(hover: none)").matches;
+  const wrap = document.createElement("div");
+  wrap.className = "done-dropdown-wrap";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = `icon-btn icon-${iconClassSuffix(status)}`;
+  btn.innerHTML = `<i class="fa-solid ${iconClass}"></i><span class="done-count-badge"></span>`;
+  const notesPanel = document.createElement("div");
+  const touchMode = isCoarsePointer();
+  notesPanel.className = touchMode ? "done-notes-panel done-notes-panel-touch" : "done-notes-panel";
+  const closeMenu = () => {
+    notesPanel.hidden = true;
+    document.removeEventListener("click", onMenuDocClick);
+  };
+  const onMenuDocClick = (e) => {
+    if (!wrap.contains(/** @type {Node} */ (e.target))) closeMenu();
+  };
+  if (touchMode) {
+    notesPanel.hidden = true;
+    for (const { withNotes, itemLabel } of [
+      { withNotes: false, itemLabel: `Mark as ${label}` },
+      { withNotes: true, itemLabel: `Mark as ${label} with Notes` },
+    ]) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "done-dropdown-item";
+      item.textContent = itemLabel;
+      item.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeMenu();
+        handlers.onMarkStatus(q.id, status, withNotes);
+      });
+      notesPanel.appendChild(item);
+    }
+  } else {
+    const notesItem = document.createElement("button");
+    notesItem.type = "button";
+    notesItem.className = "done-dropdown-item";
+    notesItem.textContent = "Mark with Notes";
+    notesItem.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handlers.onMarkStatus(q.id, status, true);
+    });
+    notesPanel.appendChild(notesItem);
+  }
+  let longPressTimer = /** @type {ReturnType<typeof setTimeout>|null} */ (null);
+  let longPressFired = false;
+  btn.addEventListener(
+    "touchstart",
+    () => {
+      longPressFired = false;
+      longPressTimer = setTimeout(() => {
+        longPressFired = true;
+        handlers.onResetTriState(q.id);
+      }, 500);
+    },
+    { passive: true }
+  );
+  btn.addEventListener("touchend", () => {
+    if (longPressTimer) clearTimeout(longPressTimer);
+  });
+  btn.addEventListener(
+    "touchmove",
+    () => {
+      if (longPressTimer) clearTimeout(longPressTimer);
+    },
+    { passive: true }
+  );
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (longPressFired) {
+      longPressFired = false;
+      return;
+    }
+    if (e.ctrlKey || e.metaKey) {
+      handlers.onResetTriState(q.id);
+      return;
+    }
+    if (touchMode) {
+      const opening = notesPanel.hidden;
+      notesPanel.hidden = !opening;
+      if (opening) document.addEventListener("click", onMenuDocClick);
+      else document.removeEventListener("click", onMenuDocClick);
+      return;
+    }
+    handlers.onMarkStatus(q.id, status, false);
+  });
+  wrap.appendChild(btn);
+  wrap.appendChild(notesPanel);
+  return wrap;
+}
 
 /**
  * @param {Question} q
@@ -88,6 +213,13 @@ export function createQuestionNode(q, handlers) {
     e.stopPropagation();
     handlers.onToggleSelectQuestion(q.id);
   });
+
+  // qText + its mobile-only "last updated" line live together in one wrapper so the timestamp
+  // stacks directly under the question text on mobile (see .q-updated-inline in style.css) without
+  // disturbing qText's own desktop ellipsis-truncation layout — the wrapper, not qText itself, is
+  // the flex:1 item that claims the header row's remaining width.
+  const qTextWrap = document.createElement("div");
+  qTextWrap.className = "q-text-wrap";
 
   const qText = document.createElement("span");
   qText.className = "q-text";
@@ -149,106 +281,33 @@ export function createQuestionNode(q, handlers) {
     }
   });
 
+  // Last-updated timestamp, mobile only (see .q-updated-inline in style.css) — clock icon + compact
+  // age ("5 min", "2 hr", ...) directly under the question text, inside the accordion header itself
+  // (not the expandable answer body) so it's visible even while collapsed.
+  const updatedAtInline = document.createElement("div");
+  updatedAtInline.className = "q-updated-inline";
+  updatedAtInline.innerHTML = '<i class="fa-solid fa-clock"></i><span class="q-updated-inline-text"></span>';
+
+  qTextWrap.appendChild(qText);
+  qTextWrap.appendChild(updatedAtInline);
+
   const statusRow = document.createElement("div");
   statusRow.className = "status-icon-row";
 
-  // Done: on a desktop/mouse (hover-capable) device, a direct click marks done immediately (no
-  // notes) — see features/statusFlags.js's markDoneWithMenu(qid, false) — and hovering the button
-  // reveals a "Mark with Notes" option (CSS-only) for the with-notes variant. On a touch device
-  // (no hover), there's no way to reveal that hover option, so a tap instead opens a small 2-item
-  // menu ("Mark as Done" / "Mark as Done with Notes") the same way the pre-hover-redesign UI did.
-  // Ctrl/Cmd+click (desktop) or long-press (touch, mirroring the qText long-press pattern above)
-  // resets the counter/history either way.
-  const isCoarsePointer = () => window.matchMedia("(hover: none)").matches;
-  const doneWrap = document.createElement("div");
-  doneWrap.className = "done-dropdown-wrap";
-  const doneBtn = document.createElement("button");
-  doneBtn.type = "button";
-  doneBtn.className = "icon-btn icon-done";
-  doneBtn.title = "Done (click to mark; hover for notes option; Ctrl/Cmd+click or long-press to reset)";
-  doneBtn.innerHTML = '<i class="fa-solid fa-square-check"></i><span class="done-count-badge"></span>';
-  const doneNotesPanel = document.createElement("div");
-  const touchMode = isCoarsePointer();
-  doneNotesPanel.className = touchMode ? "done-notes-panel done-notes-panel-touch" : "done-notes-panel";
-  const closeDoneMenu = () => {
-    doneNotesPanel.hidden = true;
-    document.removeEventListener("click", onDoneMenuDocClick);
-  };
-  const onDoneMenuDocClick = (e) => {
-    if (!doneWrap.contains(/** @type {Node} */ (e.target))) closeDoneMenu();
-  };
-  if (touchMode) {
-    doneNotesPanel.hidden = true;
-    for (const { withNotes, label } of [
-      { withNotes: false, label: "Mark as Done" },
-      { withNotes: true, label: "Mark as Done with Notes" },
-    ]) {
-      const item = document.createElement("button");
-      item.type = "button";
-      item.className = "done-dropdown-item";
-      item.textContent = label;
-      item.addEventListener("click", (e) => {
-        e.stopPropagation();
-        closeDoneMenu();
-        handlers.onMarkDone(q.id, withNotes);
-      });
-      doneNotesPanel.appendChild(item);
-    }
-  } else {
-    const doneNotesItem = document.createElement("button");
-    doneNotesItem.type = "button";
-    doneNotesItem.className = "done-dropdown-item";
-    doneNotesItem.textContent = "Mark with Notes";
-    doneNotesItem.addEventListener("click", (e) => {
-      e.stopPropagation();
-      handlers.onMarkDone(q.id, true);
-    });
-    doneNotesPanel.appendChild(doneNotesItem);
-  }
-  let doneLongPressTimer = /** @type {ReturnType<typeof setTimeout>|null} */ (null);
-  let doneLongPressFired = false;
-  doneBtn.addEventListener(
-    "touchstart",
-    () => {
-      doneLongPressFired = false;
-      doneLongPressTimer = setTimeout(() => {
-        doneLongPressFired = true;
-        handlers.onResetDone(q.id);
-      }, 500);
-    },
-    { passive: true }
-  );
-  doneBtn.addEventListener("touchend", () => {
-    if (doneLongPressTimer) clearTimeout(doneLongPressTimer);
-  });
-  doneBtn.addEventListener(
-    "touchmove",
-    () => {
-      if (doneLongPressTimer) clearTimeout(doneLongPressTimer);
-    },
-    { passive: true }
-  );
-  doneBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    if (doneLongPressFired) {
-      doneLongPressFired = false;
-      return;
-    }
-    if (e.ctrlKey || e.metaKey) {
-      handlers.onResetDone(q.id);
-      return;
-    }
-    if (touchMode) {
-      const opening = doneNotesPanel.hidden;
-      doneNotesPanel.hidden = !opening;
-      if (opening) document.addEventListener("click", onDoneMenuDocClick);
-      else document.removeEventListener("click", onDoneMenuDocClick);
-      return;
-    }
-    handlers.onMarkDone(q.id, false);
-  });
-  doneWrap.appendChild(doneBtn);
-  doneWrap.appendChild(doneNotesPanel);
+  // Done/Failed/Review Later all share this same dropdown-menu treatment (see buildTriStateButton):
+  // on a desktop/mouse (hover-capable) device, a direct click marks that status immediately (no
+  // notes) — see features/statusFlags.js's markStatusWithMenu(qid, status, false) — and hovering the
+  // button reveals a "Mark with Notes" option (CSS-only) for the with-notes variant. On a touch
+  // device (no hover), there's no way to reveal that hover option, so a tap instead opens a small
+  // 2-item menu ("Mark as <Status>" / "Mark as <Status> with Notes") the same way the
+  // pre-hover-redesign UI did. Ctrl/Cmd+click (desktop) or long-press (touch, mirroring the qText
+  // long-press pattern above) resets ALL THREE statuses' counters/history at once, regardless of
+  // which of the three buttons triggered it — see features/statusFlags.js's resetTriState.
+  const doneWrap = buildTriStateButton("done", q, handlers);
+  const failedWrap = buildTriStateButton("failed", q, handlers);
+  const reviewWrap = buildTriStateButton("reviewLater", q, handlers);
+  statusRow.appendChild(failedWrap);
+  statusRow.appendChild(reviewWrap);
 
   for (const s of STATUS_ICONS) {
     const btn = document.createElement("button");
@@ -325,7 +384,7 @@ export function createQuestionNode(q, handlers) {
   header.appendChild(dragHandle);
   header.appendChild(selectBox);
   header.appendChild(reorderBadge);
-  header.appendChild(qText);
+  header.appendChild(qTextWrap);
   header.appendChild(updatedAtHeader);
   header.appendChild(doneWrap);
   header.appendChild(headerMoreBtn);
@@ -448,16 +507,19 @@ export function createQuestionNode(q, handlers) {
     handlers.onToggleStatus(q.id, "notImportant");
   });
 
-  // Done History viewer — timeline of every Mark Done/Mark Done with Notes click (see
-  // features/statusFlags.js's markDoneWithMenu). Content is rebuilt from q.doneHistory on every
-  // patchQuestionNode call, not just at creation. Always-visible icon; the panel itself opens on
-  // hover (CSS-only, see .history-dropdown-wrap:hover .history-dropdown-panel) rather than click.
+  // Status History viewer — merged, chronological timeline of every Mark Done/Failed/Review Later
+  // (with or without notes) click across all three (see features/statusFlags.js's
+  // markStatusWithMenu), each entry colored by which status it was (see buildMergedHistory /
+  // .history-entry-done/-failed/-review in style.css). Content is rebuilt from
+  // q.doneHistory/failedHistory/reviewLaterHistory on every patchQuestionNode call, not just at
+  // creation. Always-visible icon; the panel itself opens on hover (CSS-only, see
+  // .history-dropdown-wrap:hover .history-dropdown-panel) rather than click.
   const historyWrap = document.createElement("div");
   historyWrap.className = "history-dropdown-wrap";
   const historyBtn = document.createElement("button");
   historyBtn.type = "button";
   historyBtn.className = "btn btn-sm btn-outline-secondary icon-history";
-  historyBtn.title = "Done History";
+  historyBtn.title = "Status History (Done/Failed/Review Later)";
   historyBtn.innerHTML = '<i class="fa-solid fa-clock-rotate-left"></i>';
   historyBtn.addEventListener("click", (e) => e.stopPropagation());
   const historyPanel = document.createElement("div");
@@ -553,16 +615,7 @@ export function createQuestionNode(q, handlers) {
   // share one row — edit-gated hiding still applies to just the statusControls buttons.
   answerEditRow.appendChild(statusControls);
 
-  // Last-updated timestamp — always-visible small muted line (clock icon + compact age) in the
-  // answer body, both mobile and desktop (see style.css's .q-updated-body). Desktop ALSO gets a
-  // light-grey copy directly in the header, right before the Done icon (see updatedAtHeader above /
-  // .q-updated-header in style.css).
-  const updatedAtBody = document.createElement("div");
-  updatedAtBody.className = "q-updated-body text-muted small";
-  updatedAtBody.innerHTML = '<i class="fa-solid fa-clock"></i><span class="q-updated-body-text"></span>';
-
   body.appendChild(answerContent);
-  body.appendChild(updatedAtBody);
   body.appendChild(tagsDisplayRow);
   body.appendChild(answerEditRow);
 
@@ -612,22 +665,30 @@ export function patchQuestionNode(el, q, handlers) {
     if (btn) btn.classList.toggle("is-active", !!q[s.flag]);
   }
 
-  const doneBtn = header.querySelector(".icon-done");
-  if (doneBtn) {
-    doneBtn.classList.toggle("is-active", !!q.done);
-    const doneCount = q.doneCount ?? 0;
-    doneBtn.setAttribute(
+  for (const status of /** @type {const} */ (["done", "failed", "reviewLater"])) {
+    const btn = header.querySelector(`.icon-${iconClassSuffix(status)}`);
+    if (!btn) continue;
+    const isActive = triStateActive(q, status);
+    btn.classList.toggle("is-active", isActive);
+    const count = triStateCount(q, status);
+    const { label } = TRI_STATE_META[status];
+    btn.setAttribute(
       "title",
-      `Done${doneCount > 0 ? ` — marked ${doneCount} time${doneCount === 1 ? "" : "s"}` : ""}${q.srsDue ? ` — next review due ${q.srsDue}` : ""}`
+      `${label}${count > 0 ? ` — marked ${count} time${count === 1 ? "" : "s"}` : ""}${q.srsDue ? ` — next review due ${q.srsDue}` : ""}`
     );
-    const doneCountBadge = doneBtn.querySelector(".done-count-badge");
-    if (doneCountBadge) doneCountBadge.textContent = doneCount > 0 ? String(doneCount) : "";
+    const countBadge = btn.querySelector(".done-count-badge");
+    if (countBadge) countBadge.textContent = count > 0 ? String(count) : "";
   }
 
   const historyPanel = body.querySelector(".history-dropdown-panel");
   if (historyPanel) {
     historyPanel.textContent = "";
-    const history = q.doneHistory ?? [];
+    /** @type {Array<{ts: number, note?: string, status: "done"|"failed"|"reviewLater"}>} */
+    const history = [];
+    for (const status of /** @type {const} */ (["done", "failed", "reviewLater"])) {
+      for (const entry of triStateHistory(q, status)) history.push({ ...entry, status });
+    }
+    history.sort((a, b) => a.ts - b.ts);
     if (history.length === 0) {
       const empty = document.createElement("div");
       empty.className = "history-empty";
@@ -637,8 +698,8 @@ export function patchQuestionNode(el, q, handlers) {
       for (let i = history.length - 1; i >= 0; i--) {
         const entry = history[i];
         const row = document.createElement("div");
-        row.className = "history-entry";
-        row.textContent = `#${i + 1} — ${new Date(entry.ts).toLocaleString()}${entry.note ? ` — ${entry.note}` : ""}`;
+        row.className = `history-entry history-entry-${iconClassSuffix(entry.status)}`;
+        row.textContent = `#${i + 1} — ${TRI_STATE_META[entry.status].label} — ${new Date(entry.ts).toLocaleString()}${entry.note ? ` — ${entry.note}` : ""}`;
         historyPanel.appendChild(row);
       }
     }
@@ -723,10 +784,10 @@ export function patchQuestionNode(el, q, handlers) {
     const text = updatedAtHeader.querySelector(".q-updated-header-text");
     if (text) text.textContent = updatedAtLabel;
   }
-  const updatedAtBody = /** @type {HTMLElement|null} */ (body.querySelector(".q-updated-body"));
-  if (updatedAtBody) {
-    updatedAtBody.hidden = !updatedAtLabel;
-    const text = updatedAtBody.querySelector(".q-updated-body-text");
+  const updatedAtInline = /** @type {HTMLElement|null} */ (header.querySelector(".q-updated-inline"));
+  if (updatedAtInline) {
+    updatedAtInline.hidden = !updatedAtLabel;
+    const text = updatedAtInline.querySelector(".q-updated-inline-text");
     if (text) text.textContent = updatedAtLabel;
   }
 

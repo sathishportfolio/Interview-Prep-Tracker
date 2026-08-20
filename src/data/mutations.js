@@ -140,42 +140,66 @@ export function setTriStatusFlag(rawData, questionId, flag) {
 }
 
 /**
- * Marks a question Done via the Done menu ("Mark Done"/"Mark Done with Notes"): sets the tri-state
- * to Done (clearing Failed/Review Later, same as setTriStatusFlag), increments `doneCount`, and
- * appends a timestamped entry to `doneHistory`. Unlike the plain tri-state toggle, this ALWAYS
- * records a fresh entry — even if the question was already Done — so repeat review passes each get
- * their own counted, timestamped mark.
+ * Marks a question's tri-state via one of the three buttons' own dropdown menu ("Mark Done"/"Mark
+ * Done with Notes", and the same for Failed/Review Later): sets the tri-state to `status` (clearing
+ * the other two, same as setTriStatusFlag), increments `${status}Count`, and appends a timestamped
+ * entry to `${status}History`. Unlike the plain tri-state toggle, this ALWAYS records a fresh entry
+ * — even if the question was already in that state — so repeat review passes each get their own
+ * counted, timestamped mark. Each status keeps its own independent counter/history (a question
+ * marked Done 3 times then Failed once has doneCount:3 and failedCount:1, both preserved) — only
+ * resetTriStateHistory clears them, and it clears all three together.
  * @param {Question[]} rawData
  * @param {string} questionId
+ * @param {"done"|"failed"|"reviewLater"} status
  * @param {string} [note]
  * @returns {Question[]}
  */
-export function markDone(rawData, questionId, note) {
+export function markStatus(rawData, questionId, status, note) {
+  return rawData.map((q) => {
+    if (q.id !== questionId) return q;
+    const entry = { ts: Date.now(), ...(note ? { note } : {}) };
+    return {
+      ...q,
+      done: status === "done",
+      failed: status === "failed",
+      reviewLater: status === "reviewLater",
+      doneCount: status === "done" ? (q.doneCount ?? 0) + 1 : q.doneCount ?? 0,
+      doneHistory: status === "done" ? [...(q.doneHistory ?? []), entry] : q.doneHistory ?? [],
+      failedCount: status === "failed" ? (q.failedCount ?? 0) + 1 : q.failedCount ?? 0,
+      failedHistory: status === "failed" ? [...(q.failedHistory ?? []), entry] : q.failedHistory ?? [],
+      reviewLaterCount: status === "reviewLater" ? (q.reviewLaterCount ?? 0) + 1 : q.reviewLaterCount ?? 0,
+      reviewLaterHistory: status === "reviewLater" ? [...(q.reviewLaterHistory ?? []), entry] : q.reviewLaterHistory ?? [],
+      updatedAt: Date.now(),
+    };
+  });
+}
+
+/**
+ * Resets a question's Done/Failed/Review Later ENTIRELY — clears all three flags plus each of their
+ * counters/full history timelines in one shot, per the Ctrl+click/long-press "reset" gesture on ANY
+ * of the three buttons (feature layer confirms with the user first — see features/statusFlags.js).
+ * Deliberately not scoped to just the one button clicked: the three states are mutually exclusive
+ * already (only one can be true), but a stray earlier count on either of the other two (e.g. left
+ * over from before an undo, or from before this question's current state) would otherwise survive
+ * silently — resetting is meant to give the question a clean slate, not just clear whichever one
+ * happens to be currently set.
+ * @param {Question[]} rawData
+ * @param {string} questionId
+ * @returns {Question[]}
+ */
+export function resetTriStateHistory(rawData, questionId) {
   return rawData.map((q) =>
     q.id === questionId
       ? {
           ...q,
-          done: true,
-          failed: false,
-          reviewLater: false,
-          doneCount: (q.doneCount ?? 0) + 1,
-          doneHistory: [...(q.doneHistory ?? []), { ts: Date.now(), ...(note ? { note } : {}) }],
+          done: false, failed: false, reviewLater: false,
+          doneCount: 0, doneHistory: [],
+          failedCount: 0, failedHistory: [],
+          reviewLaterCount: 0, reviewLaterHistory: [],
           updatedAt: Date.now(),
         }
       : q
   );
-}
-
-/**
- * Resets a question's Done counter/timeline entirely, per the Ctrl+click/long-press "reset" gesture
- * on the Done button (feature layer confirms with the user first — see features/statusFlags.js).
- * Also clears the Done flag itself, mirroring unmarking Done today.
- * @param {Question[]} rawData
- * @param {string} questionId
- * @returns {Question[]}
- */
-export function resetDoneHistory(rawData, questionId) {
-  return rawData.map((q) => (q.id === questionId ? { ...q, done: false, doneCount: 0, doneHistory: [], updatedAt: Date.now() } : q));
 }
 
 /**
@@ -238,10 +262,12 @@ export function scheduleReview(rawData, questionId, outcome, referenceDate = new
 
 /**
  * Resets progress tracking — Done, Review Later, Visited, spaced-repetition scheduling (srsDue/
- * srsStreak), and the Done History timeline (doneCount/doneHistory, see markDone/resetDoneHistory)
- * — back to fresh-question defaults. Leaves Starred/NotImportant/Duplicate/Difficulty (organizational
- * flags, not progress) and every Subject/Topic/SubTopic/Question structure untouched — this only
- * clears tracking, it never deletes or moves anything.
+ * srsStreak), and each cleared flag's own history timeline (doneCount/doneHistory,
+ * reviewLaterCount/reviewLaterHistory — see markStatus/resetTriStateHistory) — back to
+ * fresh-question defaults. Leaves Failed/Starred/NotImportant/Duplicate/Difficulty (organizational
+ * flags, not progress, and Failed specifically represents "got this wrong" history worth keeping)
+ * and every Subject/Topic/SubTopic/Question structure untouched — this only clears tracking, it
+ * never deletes or moves anything.
  * @param {Question[]} rawData
  * @param {string[]} [questionIds] Restricts the reset to just these question ids — the currently
  *   filtered/visible set (see app.js's Reset Progress handler, which passes
@@ -253,7 +279,13 @@ export function resetProgress(rawData, questionIds) {
   const idSet = questionIds ? new Set(questionIds) : null;
   return rawData.map((q) =>
     !idSet || idSet.has(q.id)
-      ? { ...q, done: false, reviewLater: false, visited: false, srsDue: null, srsStreak: 0, doneCount: 0, doneHistory: [], updatedAt: Date.now() }
+      ? {
+          ...q,
+          done: false, reviewLater: false, visited: false, srsDue: null, srsStreak: 0,
+          doneCount: 0, doneHistory: [],
+          reviewLaterCount: 0, reviewLaterHistory: [],
+          updatedAt: Date.now(),
+        }
       : q
   );
 }
@@ -440,21 +472,34 @@ export function migrateGroupNamesToTitleCase(rawData, emptyGroups) {
 }
 
 /**
- * One-time migration/backfill: a question already marked Done before per-review-pass tracking
- * (doneCount/doneHistory) existed has done=true but doneCount=0 and no history entry — this stamps
- * exactly one "today" entry onto it, matching what a fresh Mark Done would have recorded, rather
- * than leaving it looking like it's never been reviewed. No-ops (same object references) once every
- * Done question already has at least one doneHistory entry.
+ * One-time migration/backfill: a question already marked Done/Failed/Review Later before
+ * per-review-pass tracking (doneCount/doneHistory and its Failed/Review Later counterparts) existed
+ * has the flag set but its count still 0 and no history entry — this stamps exactly one "today"
+ * entry onto it, matching what a fresh mark via that button's menu would have recorded, rather than
+ * leaving it looking like it's never been reviewed. No-ops (same object references) once every
+ * flagged question already has at least one matching history entry.
  * @param {Question[]} rawData
  * @param {Date} [referenceDate] Injectable for tests; defaults to now.
  * @returns {{rawData: Question[], changed: boolean}}
  */
-export function backfillDoneTracking(rawData, referenceDate = new Date()) {
+export function backfillTriStateTracking(rawData, referenceDate = new Date()) {
   let changed = false;
   const next = rawData.map((q) => {
-    if (!q.done || (q.doneHistory && q.doneHistory.length > 0)) return q;
+    const needsDone = q.done && !(q.doneHistory && q.doneHistory.length > 0);
+    const needsFailed = q.failed && !(q.failedHistory && q.failedHistory.length > 0);
+    const needsReview = q.reviewLater && !(q.reviewLaterHistory && q.reviewLaterHistory.length > 0);
+    if (!needsDone && !needsFailed && !needsReview) return q;
     changed = true;
-    return { ...q, doneCount: q.doneCount && q.doneCount > 0 ? q.doneCount : 1, doneHistory: [{ ts: referenceDate.getTime() }] };
+    const entry = { ts: referenceDate.getTime() };
+    return {
+      ...q,
+      doneCount: needsDone ? (q.doneCount && q.doneCount > 0 ? q.doneCount : 1) : q.doneCount,
+      doneHistory: needsDone ? [entry] : q.doneHistory,
+      failedCount: needsFailed ? (q.failedCount && q.failedCount > 0 ? q.failedCount : 1) : q.failedCount,
+      failedHistory: needsFailed ? [entry] : q.failedHistory,
+      reviewLaterCount: needsReview ? (q.reviewLaterCount && q.reviewLaterCount > 0 ? q.reviewLaterCount : 1) : q.reviewLaterCount,
+      reviewLaterHistory: needsReview ? [entry] : q.reviewLaterHistory,
+    };
   });
   return { rawData: next, changed };
 }

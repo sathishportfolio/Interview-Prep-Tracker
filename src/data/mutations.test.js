@@ -8,7 +8,8 @@ import {
   addQuestion, deleteQuestion, deleteQuestions, deleteGroup, deleteGroupCascade, renameGroup, moveQuestions, moveGroup,
   bulkAddRows, bulkUpdateRows, questionExists, scheduleReview, resetProgress,
   setGroupNotImportant, applyPatchToSelection, setDifficultyForQuestions, migrateLessImportantToNotImportant,
-  markDone, resetDoneHistory, toggleQuestionTag, updateQuestion, toggleStatusFlag, backfillUpdatedAt,
+  markStatus, resetTriStateHistory, toggleQuestionTag, updateQuestion, toggleStatusFlag, backfillUpdatedAt,
+  backfillTriStateTracking,
 } from "./mutations.js";
 
 function emptyData() {
@@ -74,10 +75,10 @@ test("migrateLessImportantToNotImportant copies the legacy field over once, then
   assert.equal(second.changed, false);
 });
 
-test("markDone increments doneCount and appends a timestamped history entry each call, clearing failed/reviewLater", () => {
+test("markStatus(done) increments doneCount and appends a timestamped history entry each call, clearing failed/reviewLater", () => {
   const data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1", failed: true });
   const id = data.question.id;
-  const once = markDone(data.rawData, id, "first note");
+  const once = markStatus(data.rawData, id, "done", "first note");
   const q1 = once.find((q) => q.id === id);
   assert.equal(q1.done, true);
   assert.equal(q1.failed, false);
@@ -85,22 +86,45 @@ test("markDone increments doneCount and appends a timestamped history entry each
   assert.equal(q1.doneHistory.length, 1);
   assert.equal(q1.doneHistory[0].note, "first note");
 
-  const twice = markDone(once, id);
+  const twice = markStatus(once, id, "done");
   const q2 = twice.find((q) => q.id === id);
   assert.equal(q2.doneCount, 2);
   assert.equal(q2.doneHistory.length, 2);
   assert.equal(q2.doneHistory[1].note, undefined);
 });
 
-test("resetDoneHistory clears done/doneCount/doneHistory back to fresh-question defaults", () => {
+test("markStatus(failed)/markStatus(reviewLater) track their own independent counters/history, distinct from Done's", () => {
   const data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
   const id = data.question.id;
-  const marked = markDone(data.rawData, id, "note");
-  const reset = resetDoneHistory(marked, id);
-  const q = reset.find((q) => q.id === id);
+  let rawData = markStatus(data.rawData, id, "done");
+  rawData = markStatus(rawData, id, "failed", "oops");
+  rawData = markStatus(rawData, id, "reviewLater");
+  const q = rawData.find((x) => x.id === id);
   assert.equal(q.done, false);
+  assert.equal(q.failed, false);
+  assert.equal(q.reviewLater, true);
+  assert.equal(q.doneCount, 1); // preserved from the earlier markStatus(done) call
+  assert.equal(q.failedCount, 1);
+  assert.equal(q.failedHistory[0].note, "oops");
+  assert.equal(q.reviewLaterCount, 1);
+});
+
+test("resetTriStateHistory clears done/failed/reviewLater flags and all three counters/histories together", () => {
+  const data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
+  const id = data.question.id;
+  let rawData = markStatus(data.rawData, id, "done", "note");
+  rawData = markStatus(rawData, id, "failed"); // leaves a stray doneCount/doneHistory behind
+  const reset = resetTriStateHistory(rawData, id);
+  const q = reset.find((x) => x.id === id);
+  assert.equal(q.done, false);
+  assert.equal(q.failed, false);
+  assert.equal(q.reviewLater, false);
   assert.equal(q.doneCount, 0);
   assert.deepEqual(q.doneHistory, []);
+  assert.equal(q.failedCount, 0);
+  assert.deepEqual(q.failedHistory, []);
+  assert.equal(q.reviewLaterCount, 0);
+  assert.deepEqual(q.reviewLaterHistory, []);
 });
 
 test("toggleQuestionTag adds then removes a tag, leaving other questions untouched", () => {
@@ -303,7 +327,7 @@ test("resetProgress clears done/reviewLater/visited/srsDue/srsStreak/doneCount/d
   let data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1", done: true, reviewLater: true, starred: true, visited: true });
   const ref = new Date("2026-08-08T00:00:00Z");
   let rawData = scheduleReview(data.rawData, data.question.id, "advance", ref);
-  rawData = markDone(rawData, data.question.id, "a note");
+  rawData = markStatus(rawData, data.question.id, "done", "a note");
 
   rawData = resetProgress(rawData);
   const q = rawData.find((x) => x.id === data.question.id);
@@ -337,7 +361,7 @@ test("addQuestion stamps a fresh updatedAt on the new question", () => {
   assert.ok(result.question.updatedAt >= before);
 });
 
-test("updateQuestion/toggleStatusFlag/markDone/resetDoneHistory/toggleQuestionTag/scheduleReview/resetProgress/setDifficultyForQuestions/applyPatchToSelection/renameGroup/moveQuestions all bump updatedAt", () => {
+test("updateQuestion/toggleStatusFlag/markStatus/resetTriStateHistory/toggleQuestionTag/scheduleReview/resetProgress/setDifficultyForQuestions/applyPatchToSelection/renameGroup/moveQuestions all bump updatedAt", () => {
   let data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
   const id = data.question.id;
   const original = data.question.updatedAt;
@@ -351,8 +375,8 @@ test("updateQuestion/toggleStatusFlag/markDone/resetDoneHistory/toggleQuestionTa
 
   bumpedBy(updateQuestion(data.rawData, id, { answer: "a" }));
   bumpedBy(toggleStatusFlag(data.rawData, id, "starred"));
-  bumpedBy(markDone(data.rawData, id));
-  bumpedBy(resetDoneHistory(data.rawData, id));
+  bumpedBy(markStatus(data.rawData, id, "done"));
+  bumpedBy(resetTriStateHistory(data.rawData, id));
   bumpedBy(toggleQuestionTag(data.rawData, id, "java"));
   bumpedBy(scheduleReview(data.rawData, id, "advance"));
   bumpedBy(resetProgress(data.rawData, [id]));
@@ -398,4 +422,32 @@ test("backfillUpdatedAt stamps missing updatedAt with the injected referenceDate
   const result = backfillUpdatedAt(rawData, ref);
   assert.equal(result.changed, true);
   assert.equal(result.rawData[0].updatedAt, ref.getTime());
+});
+
+test("backfillTriStateTracking no-ops once every flagged question already has matching history", () => {
+  const data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
+  const marked = markStatus(data.rawData, data.question.id, "done");
+  const result = backfillTriStateTracking(marked);
+  assert.equal(result.changed, false);
+  assert.equal(result.rawData[0], marked[0]);
+});
+
+test("backfillTriStateTracking stamps missing counts/history for Done/Failed/Review Later independently", () => {
+  const ref = new Date("2026-08-08T00:00:00Z");
+  const rawData = [
+    { id: "a", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1", answer: "", done: true },
+    { id: "b", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q2", answer: "", failed: true },
+    { id: "c", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q3", answer: "", reviewLater: true },
+    { id: "d", subject: "S1", topic: "T1", subTopic: "ST1", question: "Q4", answer: "" },
+  ];
+  const result = backfillTriStateTracking(rawData, ref);
+  assert.equal(result.changed, true);
+  const byId = Object.fromEntries(result.rawData.map((q) => [q.id, q]));
+  assert.equal(byId.a.doneCount, 1);
+  assert.deepEqual(byId.a.doneHistory, [{ ts: ref.getTime() }]);
+  assert.equal(byId.b.failedCount, 1);
+  assert.deepEqual(byId.b.failedHistory, [{ ts: ref.getTime() }]);
+  assert.equal(byId.c.reviewLaterCount, 1);
+  assert.deepEqual(byId.c.reviewLaterHistory, [{ ts: ref.getTime() }]);
+  assert.equal(byId.d.doneCount, undefined); // untouched — no flags set
 });

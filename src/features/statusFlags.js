@@ -8,7 +8,7 @@
  * spaced-repetition schedule; marking Failed or Review Later (or unmarking Done back to nothing)
  * resets it back to "due soon" — see data/mutations.js scheduleReview.
  */
-import { toggleStatusFlag, setTriStatusFlag, scheduleReview, markDone, resetDoneHistory } from "../data/mutations.js";
+import { toggleStatusFlag, setTriStatusFlag, scheduleReview, markStatus, resetTriStateHistory } from "../data/mutations.js";
 import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import { flashHighlight } from "../render/highlight.js";
@@ -80,37 +80,50 @@ function applyTriState(questionId, flag, options = {}) {
   }
 }
 
+/** @type {Record<"done"|"failed"|"reviewLater", string>} */
+const TRI_STATE_LABELS = { done: "Done", failed: "Failed", reviewLater: "Review Later" };
+
 /**
- * The status-icon-row Done button's menu: "Mark Done" (withNotes=false) or "Mark Done with Notes"
- * (withNotes=true, prompts for an optional note via window.prompt — cancelling aborts entirely, no
- * state change). Each call always records a fresh doneCount/doneHistory entry (see
- * data/mutations.js markDone), even if the question was already Done, and still advances the SRS
- * schedule exactly like the plain Done toggle does.
+ * Any of the three status buttons' own menu: "Mark <Status>" (withNotes=false) or "Mark <Status>
+ * with Notes" (withNotes=true, prompts for an optional note via window.prompt — cancelling aborts
+ * entirely, no state change). Each call always records a fresh count/history entry for `status` (see
+ * data/mutations.js markStatus), even if the question was already in that state, and advances/resets
+ * the SRS schedule the same way the plain tri-state toggle does (Done advances it; Failed/Review
+ * Later reset it back to "due soon").
  * @param {string} questionId
+ * @param {"done"|"failed"|"reviewLater"} status
  * @param {boolean} withNotes
  */
-export function markDoneWithMenu(questionId, withNotes) {
+export function markStatusWithMenu(questionId, status, withNotes) {
   let note;
   if (withNotes) {
-    note = window.prompt("Note for this Done entry (optional):", "");
+    note = window.prompt(`Note for this ${TRI_STATE_LABELS[status]} entry (optional):`, "");
     if (note === null) return; // cancelled — abort, no state change
     note = note.trim() || undefined;
   }
-  const rawData0 = markDone(appState.rawData, questionId, note);
-  const rawData = scheduleReview(rawData0, questionId, "advance");
+  const rawData0 = markStatus(appState.rawData, questionId, status, note);
+  const rawData = scheduleReview(rawData0, questionId, status === "done" ? "advance" : "reset");
   applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
 }
 
 /**
- * Ctrl/Cmd+click or long-press on the Done button: after a confirm() warning, clears the Done flag,
- * counter, and full history timeline for this question. Mirrors unmarking Done's SRS reset.
+ * Ctrl/Cmd+click or long-press on ANY of the Done/Failed/Review Later buttons: after a confirm()
+ * warning, clears all three flags plus each of their counters/full history timelines for this
+ * question (see data/mutations.js resetTriStateHistory — deliberately not scoped to just the button
+ * clicked). Mirrors unmarking Done's SRS reset.
  * @param {string} questionId
  */
-export function resetDone(questionId) {
+export function resetTriState(questionId) {
   const q = appState.rawData.find((x) => x.id === questionId);
   if (!q) return;
-  if (!window.confirm(`Reset Done history for this question? This clears the counter (currently ${q.doneCount ?? 0}) and its full timeline. This cannot be undone.`)) return;
-  const rawData0 = resetDoneHistory(appState.rawData, questionId);
+  const counts = [
+    q.doneCount ? `Done: ${q.doneCount}` : null,
+    q.failedCount ? `Failed: ${q.failedCount}` : null,
+    q.reviewLaterCount ? `Review Later: ${q.reviewLaterCount}` : null,
+  ].filter(Boolean);
+  const countsLabel = counts.length > 0 ? ` (currently ${counts.join(", ")})` : "";
+  if (!window.confirm(`Reset Done/Failed/Review Later history for this question${countsLabel}? This clears every counter and its full timeline. This cannot be undone.`)) return;
+  const rawData0 = resetTriStateHistory(appState.rawData, questionId);
   const rawData = scheduleReview(rawData0, questionId, "reset");
   applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
 }

@@ -39,9 +39,13 @@
  * @property {string|null} [srsDue]     Spaced-repetition: ISO date (YYYY-MM-DD) this question is next due for review, or null/undefined if never scheduled.
  * @property {number} [srsStreak]       Spaced-repetition: consecutive "remembered" reviews, used to pick the next interval (see data/mutations.js scheduleReview).
  * @property {number} [doneCount]       Times this question has been marked Done via the Done menu
- *   (see data/mutations.js markDone) — never decremented, only reset to 0 by resetDoneHistory.
+ *   (see data/mutations.js markStatus) — never decremented, only reset to 0 by resetTriStateHistory.
  * @property {{ts: number, note?: string}[]} [doneHistory]  Timestamped log of every "Mark Done"/
- *   "Mark Done with Notes" click, most-recent last — see data/mutations.js markDone/resetDoneHistory.
+ *   "Mark Done with Notes" click, most-recent last — see data/mutations.js markStatus/resetTriStateHistory.
+ * @property {number} [failedCount]     Same as doneCount, for the Failed button's own menu.
+ * @property {{ts: number, note?: string}[]} [failedHistory]  Same as doneHistory, for Failed.
+ * @property {number} [reviewLaterCount] Same as doneCount, for the Review Later button's own menu.
+ * @property {{ts: number, note?: string}[]} [reviewLaterHistory]  Same as doneHistory, for Review Later.
  * @property {string[]} [tags]          Names from the app-wide tag registry (StorageSchemaV1.globalTags)
  *   this question has been tagged with — see data/mutations.js toggleQuestionTag.
  * @property {number} [updatedAt]        Date.now()-based, bumped by every data/mutations.js call that

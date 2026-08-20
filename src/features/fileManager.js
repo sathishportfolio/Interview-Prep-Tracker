@@ -11,7 +11,7 @@ import { nextExportFileName } from "../data/filename.js";
 import { emptyFilterState } from "../data/filter.js";
 import { newFileId } from "../data/id.js";
 import { minifyAllAnswers } from "../data/answerFormat.js";
-import { migrateLessImportantToNotImportant, migrateGroupNamesToTitleCase, backfillDoneTracking, backfillUpdatedAt } from "../data/mutations.js";
+import { migrateLessImportantToNotImportant, migrateGroupNamesToTitleCase, backfillTriStateTracking, backfillUpdatedAt } from "../data/mutations.js";
 import * as store from "../persistence/store.js";
 import { appState, loadFileIntoState } from "../state/appState.js";
 import { showToast } from "./toast.js";
@@ -58,12 +58,12 @@ export function bootstrapFromStorage() {
   let anyMinified = false;
   appState.files = appState.files.map((f) => {
     const migrated = migrateLessImportantToNotImportant(f.rawData);
-    const doneBackfilled = backfillDoneTracking(migrated.rawData);
-    const updatedAtBackfilled = backfillUpdatedAt(doneBackfilled.rawData);
+    const triStateBackfilled = backfillTriStateTracking(migrated.rawData);
+    const updatedAtBackfilled = backfillUpdatedAt(triStateBackfilled.rawData);
     const titleCased = migrateGroupNamesToTitleCase(updatedAtBackfilled.rawData, f.emptyGroups);
     const result = minifyAllAnswers(titleCased.rawData);
     const tombstones = f.tombstones ?? [];
-    if (!result.changed && !migrated.changed && !doneBackfilled.changed && !updatedAtBackfilled.changed && !titleCased.changed && f.tombstones) return f;
+    if (!result.changed && !migrated.changed && !triStateBackfilled.changed && !updatedAtBackfilled.changed && !titleCased.changed && f.tombstones) return f;
     anyMinified = true;
     return { ...f, rawData: result.rawData, emptyGroups: titleCased.emptyGroups, tombstones };
   });

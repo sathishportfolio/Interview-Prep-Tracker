@@ -3,9 +3,11 @@
  * csv/mainCsv.js — parse/serialize the MAIN file CSV format (feature.md "CSV Upload" / "Export
  * Progress"). Required columns: Subject, Topic, SubTopic, Question, Answer, Done, ReviewLater.
  * Optional: Duplicate, NotImportant, Starred, Failed, Visited, Difficulty, Order, SubjectOrder,
- * TopicOrder, SubTopicOrder, SrsDue, SrsStreak, DoneCount, DoneHistory (JSON array), Tags (JSON
- * array), UpdatedAt (per-question last-modified timestamp — see types.js's Question.updatedAt,
- * used only by sync/gists.js's per-question merge; missing/blank on import defaults to "now").
+ * TopicOrder, SubTopicOrder, SrsDue, SrsStreak, DoneCount, DoneHistory (JSON array),
+ * FailedCount, FailedHistory (JSON array), ReviewLaterCount, ReviewLaterHistory (JSON array),
+ * Tags (JSON array), UpdatedAt (per-question last-modified timestamp — see types.js's
+ * Question.updatedAt, used only by sync/gists.js's per-question merge; missing/blank on import
+ * defaults to "now").
  * `NotImportant` was previously `LessImportant` — parsing accepts either column name
  * (whichever is present; `NotImportant` wins if both are) for backward compatibility with older
  * exports, but export always writes `NotImportant`. Empty-group placeholders round-trip as marker
@@ -20,7 +22,7 @@ import { toTitleCase } from "../textCase.js";
 export const REQUIRED_COLUMNS = ["Subject", "Topic", "SubTopic", "Question", "Answer", "Done", "ReviewLater"];
 export const OPTIONAL_COLUMNS = [
   "Duplicate", "NotImportant", "Starred", "Failed", "Visited", "Difficulty", "Order", "SubjectOrder", "TopicOrder", "SubTopicOrder",
-  "SrsDue", "SrsStreak", "DoneCount", "DoneHistory", "Tags", "UpdatedAt",
+  "SrsDue", "SrsStreak", "DoneCount", "DoneHistory", "FailedCount", "FailedHistory", "ReviewLaterCount", "ReviewLaterHistory", "Tags", "UpdatedAt",
 ];
 export const ALL_COLUMNS = [...REQUIRED_COLUMNS, ...OPTIONAL_COLUMNS];
 
@@ -107,6 +109,10 @@ export function parseMainCsv(text) {
       srsStreak: toNum(rec.SrsStreak, 0),
       doneCount: toNum(rec.DoneCount, 0),
       doneHistory: toJsonArray(rec.DoneHistory),
+      failedCount: toNum(rec.FailedCount, 0),
+      failedHistory: toJsonArray(rec.FailedHistory),
+      reviewLaterCount: toNum(rec.ReviewLaterCount, 0),
+      reviewLaterHistory: toJsonArray(rec.ReviewLaterHistory),
       tags: toJsonArray(rec.Tags),
       updatedAt: rec.UpdatedAt && rec.UpdatedAt.trim() ? toNum(rec.UpdatedAt, Date.now()) : Date.now(),
     });
@@ -147,6 +153,10 @@ export function serializeMainCsv(rawData, emptyGroups) {
       SrsStreak: q.srsStreak ?? 0,
       DoneCount: q.doneCount ?? 0,
       DoneHistory: q.doneHistory && q.doneHistory.length > 0 ? JSON.stringify(q.doneHistory) : "",
+      FailedCount: q.failedCount ?? 0,
+      FailedHistory: q.failedHistory && q.failedHistory.length > 0 ? JSON.stringify(q.failedHistory) : "",
+      ReviewLaterCount: q.reviewLaterCount ?? 0,
+      ReviewLaterHistory: q.reviewLaterHistory && q.reviewLaterHistory.length > 0 ? JSON.stringify(q.reviewLaterHistory) : "",
       Tags: q.tags && q.tags.length > 0 ? JSON.stringify(q.tags) : "",
       UpdatedAt: q.updatedAt ?? "",
     });
@@ -174,6 +184,10 @@ export function serializeMainCsv(rawData, emptyGroups) {
       SrsStreak: 0,
       DoneCount: 0,
       DoneHistory: "",
+      FailedCount: 0,
+      FailedHistory: "",
+      ReviewLaterCount: 0,
+      ReviewLaterHistory: "",
       Tags: "",
       UpdatedAt: "",
     });
