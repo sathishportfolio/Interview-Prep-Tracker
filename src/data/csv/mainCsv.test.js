@@ -102,7 +102,9 @@ test("Visited/DoneCount/DoneHistory/Tags round-trip through export/import", () =
   assert.equal(q.visited, true);
   assert.equal(q.doneCount, 2);
   assert.deepEqual(q.doneHistory, [{ ts: 1000 }, { ts: 2000, note: "second pass" }]);
-  assert.deepEqual(q.tags, ["java", "core"]);
+  // Tags are always Title Cased on import, same normalization Subject/Topic/SubTopic get (see
+  // data/textCase.js's toTitleCase).
+  assert.deepEqual(q.tags, ["Java", "Core"]);
 });
 
 test("empty Subject/Topic/SubTopic groups round-trip through export/import", () => {

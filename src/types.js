@@ -48,12 +48,25 @@
  * @property {{ts: number, note?: string}[]} [reviewLaterHistory]  Same as doneHistory, for Review Later.
  * @property {string[]} [tags]          Names from the app-wide tag registry (StorageSchemaV1.globalTags)
  *   this question has been tagged with — see data/mutations.js toggleQuestionTag.
+ * @property {QuestionLink[]} [links]    Related articles/resources for this question, user-ordered
+ *   (see data/mutations.js's addQuestionLink/updateQuestionLink/removeQuestionLink/
+ *   reorderQuestionLinks). Rides inside rawData like every other question field — no separate sync
+ *   handling needed (data/syncMerge.js's per-question updatedAt-wins merge already covers it).
  * @property {number} [updatedAt]        Date.now()-based, bumped by every data/mutations.js call that
  *   changes this question's fields. Used ONLY by sync/gists.js's per-question merge (data/syncMerge.js)
  *   to decide which side of a pull wins on conflicting edits — never rendered/exported as a
  *   user-facing field beyond the CSV UpdatedAt column (see data/csv/mainCsv.js). Optional so older
  *   in-memory/test objects still typecheck; data/mutations.js's backfillUpdatedAt migration
  *   guarantees every persisted question has one after the first load post-upgrade.
+ */
+
+/**
+ * A single related-article/resource link attached to a Question, always opened in a new tab.
+ * @typedef {Object} QuestionLink
+ * @property {string} id      Stable id, assigned once at creation (data/id.js's newLinkId) — used
+ *   for edit/remove/reorder targeting, never a display value.
+ * @property {string} label   Short user-facing text for the link (e.g. "MDN: Closures").
+ * @property {string} url     Full URL, opened via target="_blank" rel="noopener noreferrer".
  */
 
 /**

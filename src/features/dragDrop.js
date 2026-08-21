@@ -21,7 +21,7 @@
  * this module calls with a computed destination and nothing else.
  */
 import { reorderSiblingsByIdList, applyGroupReorder } from "../data/order.js";
-import { moveQuestions, moveGroup } from "../data/mutations.js";
+import { moveQuestions, moveGroup, reorderQuestionLinks } from "../data/mutations.js";
 import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import { showDropTargetHighlight, clearDropTargetHighlight } from "../render/highlight.js";
@@ -67,7 +67,33 @@ export function refreshSortables() {
     flatRoot.querySelectorAll(".flat-question-list").forEach((el) => initQuestionSortable(el, Sortable));
   }
 
+  // Related Links — a small, self-contained list scoped to a single question (see
+  // render/nodeViews/questionView.js's linksEditList), independent of the Subject/Topic/SubTopic/
+  // Question cross-hierarchy machinery above: same-list reorder only, no cross-hierarchy drop.
+  document.querySelectorAll(".related-links-list").forEach((el) => initLinksSortable(el, Sortable));
+
   attachDocumentDragTracking();
+}
+
+/**
+ * @param {Element} el
+ * @param {any} Sortable
+ */
+function initLinksSortable(el, Sortable) {
+  if (initializedContainers.has(el)) return;
+  initializedContainers.add(el);
+  Sortable.create(el, {
+    handle: ".drag-handle",
+    animation: 150,
+    onEnd: () => {
+      const questionId = /** @type {string} */ (/** @type {HTMLElement} */ (el).dataset.qid);
+      const orderedLinkIds = Array.from(el.children)
+        .map((c) => /** @type {HTMLElement} */ (c).dataset.linkId)
+        .filter((id) => id !== undefined);
+      const rawData = reorderQuestionLinks(appState.rawData, questionId, orderedLinkIds);
+      applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
+    },
+  });
 }
 
 /**

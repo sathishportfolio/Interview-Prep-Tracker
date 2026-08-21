@@ -361,6 +361,10 @@ function init() {
     if (id) fileManager.switchToFile(id);
   });
 
+  $("renameFileBtn")?.addEventListener("click", () => {
+    if (appState.activeFileId) fileManager.renameFilePrompt(appState.activeFileId);
+  });
+
   const tempModeToggleEl = /** @type {HTMLInputElement|null} */ ($("tempModeToggle"));
   if (tempModeToggleEl) tempModeToggleEl.checked = appState.toggles.tempMode;
   tempModeToggleEl?.addEventListener("change", (e) => {
@@ -567,6 +571,10 @@ function renderFileSwitcher() {
   // step; once real data exists it's just clutter next to Upload CSV.
   const loadSampleBtn = $("loadSampleBtn");
   if (loadSampleBtn) loadSampleBtn.hidden = appState.files.length > 0;
+
+  const renameFileBtn = $("renameFileBtn");
+  if (renameFileBtn) renameFileBtn.hidden = !appState.activeFileId;
+
   if (!select) return;
 
   // A switcher only means something once there's something to switch between.

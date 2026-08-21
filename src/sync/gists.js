@@ -281,20 +281,31 @@ export function applyRemotePullResult(result) {
 }
 
 /**
- * Pushes every locally-changed file (new content or never-pushed) plus the meta blob to the shared
- * sync gist in a single PATCH — but only after pre-push validation against a FRESH fetch of the
- * remote meta:
+ * Pushes every locally-changed file (new content or never-pushed) and the meta blob to the shared
+ * sync gist as SEPARATE, CONCURRENT PATCH requests (one per changed file, plus one for meta) —
+ * only after pre-push validation against a FRESH fetch of the remote meta:
  *   - Blocked if the remote's real `version` is ahead of this device's last-known version (someone
  *     else pushed since this device last pulled) — abort, tell the user to pull first.
  *   - Blocked if the remote's `activeDevice` write lock is currently held by a DIFFERENT device
  *     (a push from that device is in flight right now) — abort, tell the user to retry shortly.
- * A successful push bumps `version` by 1 and writes `activeDevice: null` in the same request —
+ * A successful meta push bumps `version` by 1 and writes `activeDevice: null` in the same request —
  * acquire, write, and release all happen as one atomic-from-our-perspective operation, so there's no
  * separate "holding" state that could leak if a device goes offline mid-edit.
+ *
+ * Firing one PATCH per changed file (instead of bundling everything into one combined PATCH) lets a
+ * push with many changed files land faster — GitHub's Gist PATCH only touches files explicitly
+ * named in ITS OWN payload, so disjoint concurrent PATCHes to the same gist never clobber each
+ * other's file content. The tradeoff is partial-success: one file's PATCH can fail while others (and
+ * meta) succeed. Each file's `lastPushedHash` is only advanced for files whose OWN PATCH succeeded,
+ * so a failed one is simply retried on the next push; `knownVersion`/`lastMetaPushedHash` are only
+ * advanced if the META push specifically succeeded. Callers get a per-item breakdown
+ * (`succeededFiles`/`failedFiles`/`metaOk`) to report partial failures precisely instead of one
+ * blanket error.
+ *
  * Duplicate Push Protection: if nothing local actually changed (no file/meta diff), returns
  * `skipped: true` WITHOUT any network call at all — the remote validation fetch only happens once
  * there's something worth sending.
- * @returns {Promise<{ok: boolean, error?: string, skipped?: boolean, blocked?: "behind"|"locked"}>}
+ * @returns {Promise<{ok: boolean, error?: string, skipped?: boolean, blocked?: "behind"|"locked", succeededFiles?: string[], failedFiles?: Array<{fileName: string, error: string}>, metaOk?: boolean}>}
  */
 export async function pushAllChangedFiles() {
   const token = appState.sync.githubToken;
@@ -303,16 +314,15 @@ export async function pushAllChangedFiles() {
 
   assignGistFilenames(appState.files);
 
-  /** @type {Record<string, {content: string}>} */
-  const filePatch = {};
-  let anyFileChanged = false;
+  /** @type {Array<{file: FileRecord, content: string}>} */
+  const changedFiles = [];
   for (const file of appState.files) {
     const content = serializeNormalizedFileContent(file);
     const hash = hashString(content);
     if (file.lastPushedHash === hash) continue;
-    filePatch[/** @type {string} */ (file.gistFileName)] = { content };
-    anyFileChanged = true;
+    changedFiles.push({ file, content });
   }
+  const anyFileChanged = changedFiles.length > 0;
 
   // Cheap local-only check first: don't fetch remote for full validation if there's no actual data
   // to push. Still sends a lightweight description-only PATCH (no files, no version bump, no
@@ -342,24 +352,54 @@ export async function pushAllChangedFiles() {
 
   const newVersion = remoteVersion + 1;
   const metaContent = serializeMetaContent({ version: newVersion, activeDevice: null });
-  filePatch[META_FILENAME] = { content: metaContent };
+  const description = syncGistDescription();
 
-  const result = await pushToGist({ token, gistId: configGistId, files: filePatch, description: syncGistDescription() });
-  if (!result.ok) return { ok: false, error: result.error };
+  const filePushResults = await Promise.all(
+    changedFiles.map(async ({ file, content }) => ({
+      file,
+      content,
+      result: await pushToGist({ token, gistId: configGistId, files: { [/** @type {string} */ (file.gistFileName)]: { content } }, description }),
+    }))
+  );
+  const metaResult = await pushToGist({ token, gistId: configGistId, files: { [META_FILENAME]: { content: metaContent } }, description });
 
-  for (const file of appState.files) file.lastPushedHash = hashString(serializeFileContent(file));
+  /** @type {string[]} */
+  const succeededFiles = [];
+  /** @type {Array<{fileName: string, error: string}>} */
+  const failedFiles = [];
+  for (const { file, content, result } of filePushResults) {
+    if (result.ok) {
+      file.lastPushedHash = hashString(content);
+      succeededFiles.push(file.fileName);
+    } else {
+      failedFiles.push({ fileName: file.fileName, error: result.error || "Push failed." });
+    }
+  }
   if (anyFileChanged) store.writeFiles(appState.files);
-  appState.sync = {
-    ...appState.sync,
-    lastPushAt: Date.now(),
-    lastKnownRemoteUpdatedAt: Date.now(),
-    knownVersion: newVersion,
-    lastMetaPushedHash: hashString(JSON.stringify({ t: appState.toggles, a: appState.activeQuestion, ti: appState.timer, g: appState.globalTags })),
-    lastRemoteActiveDevice: getDeviceLabel(),
-    lastRemoteUpdateTimestamp: formatIST(Date.now()),
+
+  const metaOk = metaResult.ok;
+  if (metaOk) {
+    appState.sync = {
+      ...appState.sync,
+      lastPushAt: Date.now(),
+      lastKnownRemoteUpdatedAt: Date.now(),
+      knownVersion: newVersion,
+      lastMetaPushedHash: hashString(JSON.stringify({ t: appState.toggles, a: appState.activeQuestion, ti: appState.timer, g: appState.globalTags })),
+      lastRemoteActiveDevice: getDeviceLabel(),
+      lastRemoteUpdateTimestamp: formatIST(Date.now()),
+    };
+    store.writeSync(appState.sync);
+  }
+
+  const ok = metaOk && failedFiles.length === 0;
+  return {
+    ok,
+    skipped: false,
+    succeededFiles,
+    failedFiles,
+    metaOk,
+    error: ok ? undefined : failedFiles[0]?.error || metaResult.error || "Push failed.",
   };
-  store.writeSync(appState.sync);
-  return { ok: true, skipped: false };
 }
 
 /**

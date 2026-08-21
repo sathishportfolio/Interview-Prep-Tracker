@@ -22,7 +22,7 @@ import { toTitleCase } from "../textCase.js";
 export const REQUIRED_COLUMNS = ["Subject", "Topic", "SubTopic", "Question", "Answer", "Done", "ReviewLater"];
 export const OPTIONAL_COLUMNS = [
   "Duplicate", "NotImportant", "Starred", "Failed", "Visited", "Difficulty", "Order", "SubjectOrder", "TopicOrder", "SubTopicOrder",
-  "SrsDue", "SrsStreak", "DoneCount", "DoneHistory", "FailedCount", "FailedHistory", "ReviewLaterCount", "ReviewLaterHistory", "Tags", "UpdatedAt",
+  "SrsDue", "SrsStreak", "DoneCount", "DoneHistory", "FailedCount", "FailedHistory", "ReviewLaterCount", "ReviewLaterHistory", "Tags", "Links", "UpdatedAt",
 ];
 export const ALL_COLUMNS = [...REQUIRED_COLUMNS, ...OPTIONAL_COLUMNS];
 
@@ -113,7 +113,8 @@ export function parseMainCsv(text) {
       failedHistory: toJsonArray(rec.FailedHistory),
       reviewLaterCount: toNum(rec.ReviewLaterCount, 0),
       reviewLaterHistory: toJsonArray(rec.ReviewLaterHistory),
-      tags: toJsonArray(rec.Tags),
+      tags: [...new Set(toJsonArray(rec.Tags).map((t) => toTitleCase(String(t))))],
+      links: toJsonArray(rec.Links),
       updatedAt: rec.UpdatedAt && rec.UpdatedAt.trim() ? toNum(rec.UpdatedAt, Date.now()) : Date.now(),
     });
   }
@@ -158,6 +159,7 @@ export function serializeMainCsv(rawData, emptyGroups) {
       ReviewLaterCount: q.reviewLaterCount ?? 0,
       ReviewLaterHistory: q.reviewLaterHistory && q.reviewLaterHistory.length > 0 ? JSON.stringify(q.reviewLaterHistory) : "",
       Tags: q.tags && q.tags.length > 0 ? JSON.stringify(q.tags) : "",
+      Links: q.links && q.links.length > 0 ? JSON.stringify(q.links) : "",
       UpdatedAt: q.updatedAt ?? "",
     });
   }

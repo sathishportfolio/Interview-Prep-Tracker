@@ -26,3 +26,8 @@ export function newQuestionId() {
 export function newFileId() {
   return generateId("f");
 }
+
+/** @returns {string} */
+export function newLinkId() {
+  return generateId("l");
+}

@@ -126,7 +126,10 @@ body {
 .last-synced-detail-label { font-size: 0.72rem; opacity: 0.65; padding-top: 0.55rem; border-top: 1px dashed var(--border-soft); margin: 0 0 0.7rem; }
 
 .app-footer { text-align: center; padding: 0.6rem 1rem 1rem; }
-.footer-last-synced-detail { font-size: 0.7rem; opacity: 0.5; }
+/* Lives in .toolbar-row-secondary now (alongside the Temp/Test Mode and Auto Download toggles) —
+   `margin: 0 auto` centers it independently of those two flex-row siblings without touching the
+   row's own `justify-content` (which would re-center the toggles too). */
+.footer-last-synced-detail { display: block; font-size: 0.7rem; opacity: 0.65; margin: 0 auto; text-align: center; }
 
 .bulk-select-menu-wrap { position: relative; display: inline-block; }
 .bulk-select-menu-panel {
@@ -147,6 +150,9 @@ body {
 .bulk-select-menu-item { justify-content: flex-start; border: none; }
 
 .sync-menu-wrap { position: relative; }
+/* Sync button now lives in the right-aligned .header-timer cluster (sticky header) — anchor its
+   panel off the right edge instead of the left so it stays inside the viewport there. */
+.header-timer .sync-menu-panel { left: auto; right: 0; }
 .sync-status-dot { display: inline-block; width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--review); margin-left: 0.2rem; vertical-align: middle; }
 .sync-menu-panel {
   position: absolute;
@@ -349,8 +355,14 @@ body {
 .no-data-message { text-align: center; color: var(--text-faint); padding: 3rem 1rem; }
 
 /* Accordion (custom, not Bootstrap data-api) */
-.acc-item { border: 1px solid var(--border); border-radius: 0.4rem; margin-bottom: 0.4rem; background: var(--bg-surface); overflow: hidden; }
-.acc-header { position: relative; display: flex; align-items: center; gap: 0.4rem; padding: 0.55rem 0.7rem; cursor: pointer; background: var(--bg-surface-alt); user-select: none; }
+/* No `overflow: hidden` here (deliberately removed) — it clipped any popup panel (Tags/History/
+   Google Search/Links/done-notes) that opened below the last question in a short SubTopic, since
+   the panel is positioned absolute against something inside this box and a short SubTopic's own
+   box ends before the panel's full height. .acc-header gets its own top-corner rounding below
+   instead, so its colored background still matches this container's rounded corners without
+   clipping anything that needs to overflow it. */
+.acc-item { border: 1px solid var(--border); border-radius: 0.4rem; margin-bottom: 0.4rem; background: var(--bg-surface); }
+.acc-header { position: relative; display: flex; align-items: center; gap: 0.4rem; padding: 0.55rem 0.7rem; cursor: pointer; background: var(--bg-surface-alt); user-select: none; border-radius: 0.35rem 0.35rem 0 0; }
 .acc-header:hover { background: var(--bg-hover); }
 .acc-header .acc-caret { transition: transform 0.15s ease; flex-shrink: 0; }
 .acc-header.expanded .acc-caret { transform: rotate(90deg); }
@@ -404,6 +416,7 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .icon-difficulty-medium.is-active { color: var(--difficulty-medium); }
 .icon-difficulty-hard.is-active { color: var(--difficulty-hard); }
 .icon-tags.is-active { color: var(--accent); }
+.icon-links.is-active { color: var(--accent); }
 
 /* Difficulty dot control (question header) — small colored-circle cycle button, same visual
    language as .sync-status-dot. Grey/hollow when unset, filled with the matching difficulty color
@@ -438,13 +451,13 @@ body.edit-mode-off .edit-gated { display: none !important; }
 /* Done menu / Done History / Tags / Google Search — small "button -> popup panel" controls in the
    question header and answer-edit-row, all sharing the same popup shell as
    .export-menu-panel/.stats-dropdown-panel. */
-.done-dropdown-wrap, .history-dropdown-wrap, .tags-dropdown-wrap, .google-search-wrap { position: relative; display: inline-flex; }
+.done-dropdown-wrap, .history-dropdown-wrap, .tags-dropdown-wrap, .links-dropdown-wrap, .google-search-wrap { position: relative; display: inline-flex; }
 /* Google Search split button: main button (direct click = default query) + a narrow caret that
    opens the query-style menu — the two visually merge into one control. */
 .google-search-wrap .btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .google-search-caret { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: none; padding-left: 0.35rem; padding-right: 0.35rem; }
 .google-search-panel { min-width: 190px; }
-.done-dropdown-panel, .history-dropdown-panel, .tags-dropdown-panel, .done-notes-panel {
+.done-dropdown-panel, .history-dropdown-panel, .tags-dropdown-panel, .links-dropdown-panel, .done-notes-panel {
   position: absolute;
   top: calc(100% + 0.3rem);
   left: 0;
@@ -479,12 +492,31 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .tag-new-row { display: flex; gap: 0.3rem; margin-top: 0.4rem; padding-top: 0.4rem; border-top: 1px dashed var(--border-soft); }
 .tag-new-input { flex: 1; min-width: 0; font-size: 0.82rem; padding: 0.2rem 0.4rem; border: 1px solid var(--border-input); border-radius: 0.3rem; background: var(--bg-surface); color: var(--text); }
 
+.tag-chip-row { display: inline-flex; align-items: center; gap: 0.1rem; }
+.tag-chip-action { border: none; background: none; padding: 0.1rem 0.2rem; font-size: 0.68rem; color: var(--text-faint-2); cursor: pointer; border-radius: 0.3rem; }
+.tag-chip-action:hover { color: var(--text); background: var(--bg-hover); }
 .tag-chip { display: inline-flex; align-items: center; border: 1px solid var(--border); background: var(--bg-badge); color: var(--text-badge); border-radius: 1rem; padding: 0.1rem 0.55rem; font-size: 0.75rem; cursor: pointer; }
 .tag-chip.is-active { background: var(--bg-tint-accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
 /* Read-only chips (question-tags-row) are still clickable — they add the tag to the Tags filter
    (see handlers.onFilterByTag) rather than toggling membership like the ones inside the Tags panel. */
 .tag-chip-readonly:hover { background: var(--bg-tint-accent-soft); border-color: var(--accent); }
-.question-tags-row { display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0 0.6rem; }
+/* Only shown at all when the question has tags (tagsDisplayRow.hidden toggles off/on in
+   patchQuestionNode) — the dashed divider below only ever renders alongside actual tag chips, never
+   as a stray line on a tagless question, since `[hidden]` sets display:none regardless of border. */
+.question-tags-row { display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0 0.6rem 0.5rem; margin-bottom: 0.4rem; border-bottom: 1px dashed var(--border-soft); }
+
+/* Related Links — edit panel (reorderable list + add-link form) and the always-visible read-only
+   row of link chips underneath the answer (see render/nodeViews/questionView.js). */
+.links-dropdown-panel { min-width: 240px; max-width: 300px; }
+.related-links-list { display: flex; flex-direction: column; gap: 0.2rem; max-height: 200px; overflow-y: auto; }
+.link-edit-row { display: flex; align-items: center; gap: 0.3rem; padding: 0.15rem 0; }
+.link-edit-row .drag-handle { cursor: grab; color: var(--text-faint-2); }
+.link-edit-anchor { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.82rem; color: var(--text); }
+.link-add-btn { margin-top: 0.4rem; padding-top: 0.4rem; border-top: 1px dashed var(--border-soft); width: 100%; }
+.question-links-row { display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0 0.6rem; margin-top: 0.3rem; }
+.link-chip { display: inline-flex; align-items: center; gap: 0.25rem; border: 1px solid var(--border); background: var(--bg-badge); color: var(--text-badge); border-radius: 1rem; padding: 0.1rem 0.55rem; font-size: 0.75rem; text-decoration: none; }
+.link-chip:hover { background: var(--bg-tint-accent-soft); border-color: var(--accent); color: var(--accent); }
+.link-chip i { font-size: 0.7em; }
 
 /* Tri-state count badge — small superscript-style number on the Done/Failed/Review Later icon, only
    shown once that status's own count > 0. Same badge class on all three; color follows whichever
@@ -494,18 +526,20 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .icon-failed .done-count-badge { color: var(--failed); }
 .icon-review .done-count-badge { color: var(--review); }
 
-/* Done History icon is always visible; its panel opens on hover of the icon (CSS-only — no click
-   needed), same popup shell as .done-dropdown-panel/.tags-dropdown-panel but shown via
-   opacity/visibility instead of the [hidden] attribute so no JS state is needed to open/close it. */
+/* Done History icon is always visible; its panel opens on hover-intent of the icon — JS-driven (see
+   questionView.js's attachHoverIntentPanel), not raw CSS `:hover`, so the small visual gap between
+   button and panel can't drop the reveal mid-move (the flicker raw `:hover` had) and opening it can
+   close whichever OTHER panel (Tags, Done, History, ...) was open via panelCoordinator.js. Same
+   popup shell as .done-dropdown-panel/.tags-dropdown-panel; shown via opacity/visibility (not the
+   [hidden] attribute) so the fade transition still works. */
 .history-dropdown-panel { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.15s ease; }
-.history-dropdown-wrap:hover .history-dropdown-panel,
-.history-dropdown-wrap:focus-within .history-dropdown-panel { opacity: 1; visibility: visible; pointer-events: auto; }
+.history-dropdown-panel.open { opacity: 1; visibility: visible; pointer-events: auto; }
 
 /* Done's "Mark with Notes" option — a direct click on the Done icon marks done immediately (no
-   notes); this single-item panel reveals only on hover, same mechanism as Done History above. */
+   notes); this single-item panel reveals on hover-intent, same JS-driven mechanism as Done History
+   above (desktop only — see buildTriStateButton's touchMode branch for the touch equivalent). */
 .done-notes-panel { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.15s ease; min-width: 150px; }
-.done-dropdown-wrap:hover .done-notes-panel,
-.done-dropdown-wrap:focus-within .done-notes-panel { opacity: 1; visibility: visible; pointer-events: auto; }
+.done-notes-panel.open { opacity: 1; visibility: visible; pointer-events: auto; }
 /* Touch devices (no hover): the panel becomes a tap-toggled 2-item menu ("Mark as Done" / "Mark as
    Done with Notes") instead of a hover reveal — visibility is driven entirely by the [hidden]
    attribute (JS-toggled), so it must always be opaque/interactive whenever not hidden. */
@@ -532,6 +566,10 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .question-body.open { display: block; }
 .answer-content { font-size: 0.9rem; }
 .answer-edit-row { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.4rem; }
+/* Dashed divider from the answer above only when there IS an answer (.question-item.no-answer is
+   toggled in patchQuestionNode from q.answer) — an empty/no-answer question has nothing above this
+   row worth separating from. */
+.question-item:not(.no-answer) .answer-edit-row { padding-top: 0.5rem; border-top: 1px dashed var(--border-soft); }
 .status-controls { display: flex; gap: 0.3rem; flex-wrap: wrap; }
 
 .flash-overlay, .drop-target-highlight {
@@ -548,7 +586,11 @@ body.edit-mode-off .edit-gated { display: none !important; }
 
 .floating-toggle-group { position: fixed; bottom: 1.2rem; right: 1.2rem; z-index: 60; display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 0.4rem; }
 .floating-toggle-items { display: none; flex-direction: column; gap: 0.35rem; margin-bottom: 0.4rem; }
-.floating-toggle-group:hover .floating-toggle-items,
+/* Hover-to-expand only on hover-capable/fine-pointer (mouse) devices — touch relies solely on the
+   JS `.expanded` toggle below (see floatingToggles.js) so emulated `:hover` on tap can't fight it. */
+@media (hover: hover) and (pointer: fine) {
+  .floating-toggle-group:hover .floating-toggle-items { display: flex; }
+}
 .floating-toggle-group.expanded .floating-toggle-items { display: flex; }
 .floating-main-btn { border-radius: 50%; width: 46px; height: 46px; }
 #editModeToggleBtn { color: var(--text-faint-2); }

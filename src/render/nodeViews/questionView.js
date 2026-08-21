@@ -9,6 +9,49 @@ import { appState } from "../../state/appState.js";
 import { applyOpenState } from "../accordion.js";
 import { isReorderTarget } from "../reorderEligibility.js";
 import { formatRelativeTime } from "../../data/relativeTime.js";
+import { openPanel as coordinatorOpenPanel, panelClosed as coordinatorPanelClosed } from "../panelCoordinator.js";
+
+/** @returns {boolean} true on touch/coarse-pointer devices (no reliable hover) */
+const isCoarsePointer = () => window.matchMedia("(hover: none)").matches;
+
+/** Delay before a hover-intent panel actually closes on mouseleave — tolerates the small visual gap
+ * between a button and its panel (moving the pointer across it would otherwise drop CSS `:hover`
+ * before the panel's own hover picked it up, causing flicker). */
+const HOVER_CLOSE_DELAY_MS = 150;
+
+/**
+ * Wires a hover-intent open/close (mouseenter opens immediately, mouseleave closes after a short
+ * delay so crossing the button->panel gap doesn't flicker) for a desktop/hover-capable pointer,
+ * coordinated via panelCoordinator so opening this panel closes whatever OTHER panel was open.
+ * Keyboard focus (focusin/focusout) gets the same treatment for accessibility. Visibility itself is
+ * driven by the `.open` class (see its CSS), not `:hover`, so JS is fully in control of when it
+ * shows — no competing pure-CSS trigger to fight with.
+ * @param {HTMLElement} wrap
+ * @param {HTMLElement} panel
+ */
+function attachHoverIntentPanel(wrap, panel) {
+  let closeTimer = /** @type {ReturnType<typeof setTimeout>|null} */ (null);
+  const close = () => {
+    panel.classList.remove("open");
+    coordinatorPanelClosed(close);
+  };
+  const openNow = () => {
+    if (closeTimer) {
+      clearTimeout(closeTimer);
+      closeTimer = null;
+    }
+    coordinatorOpenPanel(close);
+    panel.classList.add("open");
+  };
+  const scheduleClose = () => {
+    if (closeTimer) clearTimeout(closeTimer);
+    closeTimer = setTimeout(close, HOVER_CLOSE_DELAY_MS);
+  };
+  wrap.addEventListener("mouseenter", openNow);
+  wrap.addEventListener("mouseleave", scheduleClose);
+  wrap.addEventListener("focusin", openNow);
+  wrap.addEventListener("focusout", scheduleClose);
+}
 
 /**
  * @typedef {Object} TreeHandlers
@@ -18,6 +61,12 @@ import { formatRelativeTime } from "../../data/relativeTime.js";
  * @property {(qid: string, tag: string) => void} onToggleQuestionTag
  * @property {(qid: string, tag: string) => void} onCreateTag
  * @property {(tag: string) => void} onFilterByTag
+ * @property {(tag: string) => void} onRenameTag
+ * @property {(tag: string) => void} onDeleteTag
+ * @property {(qid: string) => void} onAddQuestionLink
+ * @property {(qid: string, linkId: string, label: string, url: string) => void} onEditQuestionLink
+ * @property {(qid: string, linkId: string, label: string) => void} onRemoveQuestionLink
+ * @property {(qid: string, orderedLinkIds: string[]) => void} onReorderQuestionLinks
  * @property {(qid: string) => void} onCycleDifficulty
  * @property {(qid: string) => void} onEditAnswer
  * @property {(qid: string) => void} onEditQuestionText
@@ -96,7 +145,6 @@ function iconClassSuffix(flag) {
  */
 function buildTriStateButton(status, q, handlers) {
   const { iconClass, label } = TRI_STATE_META[status];
-  const isCoarsePointer = () => window.matchMedia("(hover: none)").matches;
   const wrap = document.createElement("div");
   wrap.className = "done-dropdown-wrap";
   const btn = document.createElement("button");
@@ -109,10 +157,12 @@ function buildTriStateButton(status, q, handlers) {
   const closeMenu = () => {
     notesPanel.hidden = true;
     document.removeEventListener("click", onMenuDocClick);
+    coordinatorPanelClosed(closeMenu);
   };
   const onMenuDocClick = (e) => {
     if (!wrap.contains(/** @type {Node} */ (e.target))) closeMenu();
   };
+  if (!touchMode) attachHoverIntentPanel(wrap, notesPanel);
   if (touchMode) {
     notesPanel.hidden = true;
     for (const { withNotes, itemLabel } of [
@@ -176,9 +226,13 @@ function buildTriStateButton(status, q, handlers) {
     }
     if (touchMode) {
       const opening = notesPanel.hidden;
-      notesPanel.hidden = !opening;
-      if (opening) document.addEventListener("click", onMenuDocClick);
-      else document.removeEventListener("click", onMenuDocClick);
+      if (opening) {
+        coordinatorOpenPanel(closeMenu);
+        notesPanel.hidden = false;
+        document.addEventListener("click", onMenuDocClick);
+      } else {
+        closeMenu();
+      }
       return;
     }
     handlers.onMarkStatus(q.id, status, false);
@@ -362,6 +416,7 @@ export function createQuestionNode(q, handlers) {
   const closeHeaderActions = () => {
     headerActionsWrap.classList.remove("open");
     document.removeEventListener("click", onHeaderActionsDocClick);
+    coordinatorPanelClosed(closeHeaderActions);
   };
   const onHeaderActionsDocClick = (e) => {
     if (!headerActionsWrap.contains(/** @type {Node} */ (e.target)) && e.target !== headerMoreBtn) closeHeaderActions();
@@ -369,9 +424,13 @@ export function createQuestionNode(q, handlers) {
   headerMoreBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     const opening = !headerActionsWrap.classList.contains("open");
-    headerActionsWrap.classList.toggle("open", opening);
-    if (opening) document.addEventListener("click", onHeaderActionsDocClick);
-    else document.removeEventListener("click", onHeaderActionsDocClick);
+    if (opening) {
+      coordinatorOpenPanel(closeHeaderActions);
+      headerActionsWrap.classList.add("open");
+      document.addEventListener("click", onHeaderActionsDocClick);
+    } else {
+      closeHeaderActions();
+    }
   });
 
   // Last-updated timestamp, desktop only (see .q-updated-header in style.css) — a small clock icon
@@ -463,6 +522,7 @@ export function createQuestionNode(q, handlers) {
   const closeGoogleSearchMenu = () => {
     googleSearchPanel.hidden = true;
     document.removeEventListener("click", onGoogleSearchDocClick);
+    coordinatorPanelClosed(closeGoogleSearchMenu);
   };
   const onGoogleSearchDocClick = (e) => {
     if (!googleSearchWrap.contains(/** @type {Node} */ (e.target))) closeGoogleSearchMenu();
@@ -470,16 +530,20 @@ export function createQuestionNode(q, handlers) {
   googleSearchCaret.addEventListener("click", (e) => {
     e.stopPropagation();
     const opening = googleSearchPanel.hidden;
-    googleSearchPanel.hidden = !opening;
-    if (opening) document.addEventListener("click", onGoogleSearchDocClick);
-    else document.removeEventListener("click", onGoogleSearchDocClick);
+    if (opening) {
+      coordinatorOpenPanel(closeGoogleSearchMenu);
+      googleSearchPanel.hidden = false;
+      document.addEventListener("click", onGoogleSearchDocClick);
+    } else {
+      closeGoogleSearchMenu();
+    }
   });
   for (const [mode, label] of [
     ["plain", "Plain Question"],
     ["codeExample", "Ask for Code Example"],
-    ["subject", `As ${q.subject}`],
-    ["topic", `As ${q.topic}`],
     ["subTopic", `As ${q.subTopic}`],
+    ["topic", `As ${q.topic}`],
+    ["subject", `As ${q.subject}`],
   ]) {
     const item = document.createElement("button");
     item.type = "button";
@@ -524,6 +588,7 @@ export function createQuestionNode(q, handlers) {
   historyBtn.addEventListener("click", (e) => e.stopPropagation());
   const historyPanel = document.createElement("div");
   historyPanel.className = "history-dropdown-panel";
+  if (!isCoarsePointer()) attachHoverIntentPanel(historyWrap, historyPanel);
   historyWrap.appendChild(historyBtn);
   historyWrap.appendChild(historyPanel);
 
@@ -578,13 +643,18 @@ export function createQuestionNode(q, handlers) {
   const closeTagsPanel = () => {
     tagsPanel.hidden = true;
     document.removeEventListener("click", onTagsDocClick);
+    coordinatorPanelClosed(closeTagsPanel);
   };
   tagsBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     const opening = tagsPanel.hidden;
-    tagsPanel.hidden = !opening;
-    if (opening) document.addEventListener("click", onTagsDocClick);
-    else document.removeEventListener("click", onTagsDocClick);
+    if (opening) {
+      coordinatorOpenPanel(closeTagsPanel);
+      tagsPanel.hidden = false;
+      document.addEventListener("click", onTagsDocClick);
+    } else {
+      closeTagsPanel();
+    }
   });
   tagsWrap.appendChild(tagsBtn);
   tagsWrap.appendChild(tagsPanel);
@@ -592,12 +662,66 @@ export function createQuestionNode(q, handlers) {
   const tagsDisplayRow = document.createElement("div");
   tagsDisplayRow.className = "question-tags-row";
 
+  // Related Links — a user-ordered (drag-to-reorder, see features/dragDrop.js's refreshSortables)
+  // list of {label, url} links, each always opened in a new tab. Edit panel (list + add-link mini
+  // form) rebuilt from q.links on every patchQuestionNode call, same click-toggled-panel pattern as
+  // Tags above; the read-only linksDisplayRow underneath the answer lets a link be opened directly
+  // without going through the edit panel first.
+  const linksWrap = document.createElement("div");
+  linksWrap.className = "links-dropdown-wrap";
+  const linksBtn = document.createElement("button");
+  linksBtn.type = "button";
+  linksBtn.className = "btn btn-sm btn-outline-secondary icon-links";
+  linksBtn.title = "Related Links";
+  linksBtn.innerHTML = '<i class="fa-solid fa-link"></i>';
+  const linksPanel = document.createElement("div");
+  linksPanel.className = "links-dropdown-panel";
+  linksPanel.hidden = true;
+  const linksEditList = document.createElement("div");
+  linksEditList.className = "related-links-list";
+  linksEditList.dataset.qid = q.id;
+  const linksAddBtn = document.createElement("button");
+  linksAddBtn.type = "button";
+  linksAddBtn.className = "btn btn-sm btn-outline-secondary link-add-btn";
+  linksAddBtn.textContent = "+ Add link";
+  linksAddBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    handlers.onAddQuestionLink(q.id);
+  });
+  linksPanel.appendChild(linksEditList);
+  linksPanel.appendChild(linksAddBtn);
+  const onLinksDocClick = (e) => {
+    if (!linksWrap.contains(/** @type {Node} */ (e.target))) closeLinksPanel();
+  };
+  const closeLinksPanel = () => {
+    linksPanel.hidden = true;
+    document.removeEventListener("click", onLinksDocClick);
+    coordinatorPanelClosed(closeLinksPanel);
+  };
+  linksBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const opening = linksPanel.hidden;
+    if (opening) {
+      coordinatorOpenPanel(closeLinksPanel);
+      linksPanel.hidden = false;
+      document.addEventListener("click", onLinksDocClick);
+    } else {
+      closeLinksPanel();
+    }
+  });
+  linksWrap.appendChild(linksBtn);
+  linksWrap.appendChild(linksPanel);
+
+  const linksDisplayRow = document.createElement("div");
+  linksDisplayRow.className = "question-links-row";
+
   answerEditRow.appendChild(copyBtn);
   answerEditRow.appendChild(copySearchBtn);
   answerEditRow.appendChild(googleSearchWrap);
   answerEditRow.appendChild(notImportantBtn);
   answerEditRow.appendChild(historyWrap);
   answerEditRow.appendChild(tagsWrap);
+  answerEditRow.appendChild(linksWrap);
 
   const statusControls = document.createElement("div");
   statusControls.className = "status-controls edit-gated";
@@ -615,8 +739,9 @@ export function createQuestionNode(q, handlers) {
   // share one row — edit-gated hiding still applies to just the statusControls buttons.
   answerEditRow.appendChild(statusControls);
 
-  body.appendChild(answerContent);
   body.appendChild(tagsDisplayRow);
+  body.appendChild(answerContent);
+  body.appendChild(linksDisplayRow);
   body.appendChild(answerEditRow);
 
   item.appendChild(header);
@@ -716,6 +841,8 @@ export function patchQuestionNode(el, q, handlers) {
       tagChipsList.appendChild(empty);
     }
     for (const tag of appState.globalTags) {
+      const row = document.createElement("span");
+      row.className = "tag-chip-row";
       const chip = document.createElement("button");
       chip.type = "button";
       chip.className = `tag-chip${qTags.includes(tag) ? " is-active" : ""}`;
@@ -724,7 +851,28 @@ export function patchQuestionNode(el, q, handlers) {
         e.stopPropagation();
         handlers.onToggleQuestionTag(q.id, tag);
       });
-      tagChipsList.appendChild(chip);
+      const editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "tag-chip-action";
+      editBtn.title = `Rename tag "${tag}"`;
+      editBtn.innerHTML = '<i class="fa-solid fa-pen"></i>';
+      editBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        handlers.onRenameTag(tag);
+      });
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "tag-chip-action";
+      deleteBtn.title = `Delete tag "${tag}"`;
+      deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+      deleteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        handlers.onDeleteTag(tag);
+      });
+      row.appendChild(chip);
+      row.appendChild(editBtn);
+      row.appendChild(deleteBtn);
+      tagChipsList.appendChild(row);
     }
   }
 
@@ -747,6 +895,78 @@ export function patchQuestionNode(el, q, handlers) {
         handlers.onFilterByTag(tag);
       });
       tagsDisplayRow.appendChild(chip);
+    }
+  }
+
+  const linksBtn = body.querySelector(".icon-links");
+  const qLinks = q.links ?? [];
+  if (linksBtn) linksBtn.classList.toggle("is-active", qLinks.length > 0);
+
+  const linksEditList = body.querySelector(".related-links-list");
+  if (linksEditList) {
+    linksEditList.textContent = "";
+    if (qLinks.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "tag-chips-empty";
+      empty.textContent = "No links yet — add one below.";
+      linksEditList.appendChild(empty);
+    }
+    for (const link of qLinks) {
+      const row = document.createElement("div");
+      row.className = "link-edit-row";
+      row.dataset.linkId = link.id;
+      const dragHandle = document.createElement("i");
+      dragHandle.className = "fa-solid fa-grip-vertical drag-handle";
+      const anchor = document.createElement("a");
+      anchor.href = link.url;
+      anchor.target = "_blank";
+      anchor.rel = "noopener noreferrer";
+      anchor.className = "link-edit-anchor";
+      anchor.textContent = link.label || link.url;
+      anchor.addEventListener("click", (e) => e.stopPropagation());
+      const editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "tag-chip-action";
+      editBtn.title = "Edit link";
+      editBtn.innerHTML = '<i class="fa-solid fa-pen"></i>';
+      editBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        handlers.onEditQuestionLink(q.id, link.id, link.label, link.url);
+      });
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "tag-chip-action";
+      removeBtn.title = "Remove link";
+      removeBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+      removeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        handlers.onRemoveQuestionLink(q.id, link.id, link.label);
+      });
+      row.appendChild(dragHandle);
+      row.appendChild(anchor);
+      row.appendChild(editBtn);
+      row.appendChild(removeBtn);
+      linksEditList.appendChild(row);
+    }
+  }
+
+  const linksDisplayRow = /** @type {HTMLElement|null} */ (body.querySelector(".question-links-row"));
+  if (linksDisplayRow) {
+    linksDisplayRow.textContent = "";
+    linksDisplayRow.hidden = qLinks.length === 0;
+    for (const link of qLinks) {
+      const anchor = document.createElement("a");
+      anchor.href = link.url;
+      anchor.target = "_blank";
+      anchor.rel = "noopener noreferrer";
+      anchor.className = "link-chip";
+      anchor.title = link.url;
+      const linkIcon = document.createElement("i");
+      linkIcon.className = "fa-solid fa-arrow-up-right-from-square";
+      anchor.appendChild(linkIcon);
+      anchor.appendChild(document.createTextNode(` ${link.label || link.url}`));
+      anchor.addEventListener("click", (e) => e.stopPropagation());
+      linksDisplayRow.appendChild(anchor);
     }
   }
 

@@ -8,7 +8,7 @@
  * @typedef {import('../types.js').EmptyGroup} EmptyGroup
  * @typedef {import('../types.js').Tombstone} Tombstone
  */
-import { newQuestionId } from "./id.js";
+import { newQuestionId, newLinkId } from "./id.js";
 import { nextQuestionOrder, nextGroupOrder } from "./order.js";
 import { markGroupEmpty, unmarkGroupEmpty, pruneEmptyGroups, renameInEmptyGroups, markGroupsNotImportant } from "./emptyGroups.js";
 import { toTitleCase } from "./textCase.js";
@@ -215,6 +215,87 @@ export function toggleQuestionTag(rawData, questionId, tag) {
     if (q.id !== questionId) return q;
     const tags = q.tags ?? [];
     return { ...q, tags: tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag], updatedAt: Date.now() };
+  });
+}
+
+/**
+ * Replaces `oldTag` with `newTag` in every question's `tags` array that carries it — used by
+ * features/tags.js's renameTagPrompt (applied across every loaded file, not just this one, since
+ * the tag registry is app-wide). De-dupes if the question already also carries `newTag`.
+ * @param {Question[]} rawData
+ * @param {string} oldTag
+ * @param {string} newTag
+ * @returns {Question[]}
+ */
+export function renameTag(rawData, oldTag, newTag) {
+  return rawData.map((q) => {
+    const tags = q.tags ?? [];
+    if (!tags.includes(oldTag)) return q;
+    const renamed = tags.map((t) => (t === oldTag ? newTag : t));
+    const deduped = [...new Set(renamed)];
+    return { ...q, tags: deduped, updatedAt: Date.now() };
+  });
+}
+
+/**
+ * Appends a new related-article link to a question's `links` array.
+ * @param {Question[]} rawData
+ * @param {string} questionId
+ * @param {{label: string, url: string}} input
+ * @returns {Question[]}
+ */
+export function addQuestionLink(rawData, questionId, input) {
+  return rawData.map((q) => {
+    if (q.id !== questionId) return q;
+    const links = q.links ?? [];
+    return { ...q, links: [...links, { id: newLinkId(), label: input.label, url: input.url }], updatedAt: Date.now() };
+  });
+}
+
+/**
+ * Replaces one existing link's label/url in place (order untouched).
+ * @param {Question[]} rawData
+ * @param {string} questionId
+ * @param {string} linkId
+ * @param {{label: string, url: string}} input
+ * @returns {Question[]}
+ */
+export function updateQuestionLink(rawData, questionId, linkId, input) {
+  return rawData.map((q) => {
+    if (q.id !== questionId || !q.links) return q;
+    return { ...q, links: q.links.map((l) => (l.id === linkId ? { ...l, label: input.label, url: input.url } : l)), updatedAt: Date.now() };
+  });
+}
+
+/**
+ * Removes one link from a question's `links` array.
+ * @param {Question[]} rawData
+ * @param {string} questionId
+ * @param {string} linkId
+ * @returns {Question[]}
+ */
+export function removeQuestionLink(rawData, questionId, linkId) {
+  return rawData.map((q) => {
+    if (q.id !== questionId || !q.links) return q;
+    return { ...q, links: q.links.filter((l) => l.id !== linkId), updatedAt: Date.now() };
+  });
+}
+
+/**
+ * Reorders a question's `links` array to match `orderedLinkIds` — same "reorder a list by its
+ * desired id order" shape as data/order.js's reorderSiblingsByIdList, scoped to one question's own
+ * links instead of a Subject/Topic/SubTopic/Question sibling group.
+ * @param {Question[]} rawData
+ * @param {string} questionId
+ * @param {string[]} orderedLinkIds
+ * @returns {Question[]}
+ */
+export function reorderQuestionLinks(rawData, questionId, orderedLinkIds) {
+  return rawData.map((q) => {
+    if (q.id !== questionId || !q.links) return q;
+    const byId = new Map(q.links.map((l) => [l.id, l]));
+    const reordered = orderedLinkIds.map((id) => byId.get(id)).filter((l) => l !== undefined);
+    return { ...q, links: reordered, updatedAt: Date.now() };
   });
 }
 
@@ -469,6 +550,37 @@ export function migrateGroupNamesToTitleCase(rawData, emptyGroups) {
     return { ...eg, subject, topic, subTopic };
   });
   return { rawData: next, emptyGroups: nextEmptyGroups, changed };
+}
+
+/**
+ * One-time migration: title-cases every tag in the global registry and every question's `tags`
+ * array (see data/textCase.js's toTitleCase) — for data created before tags were normalized to
+ * Title Case (see features/tags.js). De-dupes case-insensitive collisions the normalization can
+ * introduce (e.g. "sql" and "SQL" both becoming "Sql").
+ * @param {string[]} globalTags
+ * @param {Question[]} rawData
+ * @returns {{globalTags: string[], rawData: Question[], changed: boolean}}
+ */
+export function migrateTagsToTitleCase(globalTags, rawData) {
+  let changed = false;
+  const nextGlobalTags = [];
+  const seen = new Set();
+  for (const tag of globalTags) {
+    const titled = toTitleCase(tag);
+    if (titled !== tag) changed = true;
+    if (seen.has(titled.toLowerCase())) continue;
+    seen.add(titled.toLowerCase());
+    nextGlobalTags.push(titled);
+  }
+  const next = rawData.map((q) => {
+    const tags = q.tags;
+    if (!tags || tags.length === 0) return q;
+    const titled = [...new Set(tags.map(toTitleCase))];
+    if (titled.length === tags.length && titled.every((t, i) => t === tags[i])) return q;
+    changed = true;
+    return { ...q, tags: titled };
+  });
+  return { globalTags: nextGlobalTags, rawData: next, changed };
 }
 
 /**

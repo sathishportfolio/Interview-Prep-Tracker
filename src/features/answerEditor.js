@@ -54,6 +54,16 @@ export function openAnswerEditor(questionId) {
   wrap.appendChild(label);
   wrap.appendChild(textarea);
 
+  // Copy the existing answer to the clipboard as soon as the editor opens — even before touching
+  // the converter link above — so it's always one paste away (e.g. into an external editor) without
+  // an extra manual copy step, for both "Edit Answer" (existing answer) and "Add Answer" (empty, but
+  // harmless to copy) alike.
+  if (q.answer) {
+    navigator.clipboard.writeText(q.answer).catch(() => {
+      // clipboard write failed (permissions/unsupported) — non-fatal, editor still opens normally
+    });
+  }
+
   openModal({
     title: q.answer ? "Edit Answer" : "Add Answer",
     bodyEl: wrap,
