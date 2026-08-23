@@ -11,6 +11,7 @@
   --difficulty-easy: #198754;
   --difficulty-medium: #e0a800;
   --difficulty-hard: #dc3545;
+  --has-answer: #198754;
 
   /* Theme tokens — light values here on bare :root; dark values are redefined below under
      :root[data-theme="dark"] (see features/theme.js, which sets that attribute). */
@@ -415,6 +416,7 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .icon-difficulty-easy.is-active { color: var(--difficulty-easy); }
 .icon-difficulty-medium.is-active { color: var(--difficulty-medium); }
 .icon-difficulty-hard.is-active { color: var(--difficulty-hard); }
+.icon-has-answer.is-active { color: var(--has-answer); }
 .icon-tags.is-active { color: var(--accent); }
 .icon-links.is-active { color: var(--accent); }
 
@@ -691,6 +693,19 @@ body.bulk-bar-visible { padding-bottom: 3.5rem; }
 /* Answer editor: shows which question is being answered, above the answer textarea (see
    features/answerEditor.js) so it's never ambiguous when several questions look similar. */
 .modal-question-text { font-weight: 600; margin-bottom: 0.6rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-soft); }
+
+/* Manage Tags popup (features/tagManager.js) — CRUD list + per-tag related-tags editor. */
+.modal-host .modal-box:has(.tag-manager) { max-width: 560px; }
+.tag-manager-add-row { display: flex; gap: 0.4rem; margin-bottom: 0.75rem; }
+.tag-manager-add-row input { flex: 1; }
+.tag-manager-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.tag-manager-row { border: 1px solid var(--border-soft); border-radius: 0.4rem; padding: 0.5rem 0.6rem; }
+.tag-manager-row-head { display: flex; align-items: center; gap: 0.4rem; }
+.tag-manager-name { font-weight: 600; flex: 1; }
+.tag-manager-related { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border-soft); }
+.tag-manager-related-label { width: 100%; margin-bottom: 0.1rem; }
+.tag-manager-related-chip { background: var(--bg-tint-accent-soft); }
+.tag-manager-related-select { width: auto; max-width: 160px; font-size: 0.8rem; }
 
 @media (max-width: 640px) {
   .app-title { font-size: 0.95rem; }

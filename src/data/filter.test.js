@@ -91,12 +91,22 @@ test("filterGroupedData narrows by tags (OR), alongside the status filter", () =
   assert.deepEqual(ids, ["t1"]);
 });
 
-test("filterGroupedData 'dueForReview' status matches by comparing srsDue to today, not a stored boolean", () => {
-  const past = q({ id: "d1", subject: "S1", topic: "T1", subTopic: "ST1", srsDue: "2000-01-01" });
-  const future = q({ id: "d2", subject: "S1", topic: "T1", subTopic: "ST1", srsDue: "2999-01-01" });
-  const never = q({ id: "d3", subject: "S1", topic: "T1", subTopic: "ST1", srsDue: null });
-  const tree = groupData([past, future, never], []);
-  const filtered = filterGroupedData(tree, { ...emptyFilterState(), statuses: ["dueForReview"] });
+test("filterGroupedData 'noDifficulty' status matches questions with no difficulty set, independent of visited", () => {
+  const untriaged = q({ id: "d1", subject: "S1", topic: "T1", subTopic: "ST1", difficulty: null, visited: false });
+  const visitedOnly = q({ id: "d2", subject: "S1", topic: "T1", subTopic: "ST1", difficulty: null, visited: true });
+  const difficultyOnly = q({ id: "d3", subject: "S1", topic: "T1", subTopic: "ST1", difficulty: "easy", visited: false });
+  const tree = groupData([untriaged, visitedOnly, difficultyOnly], []);
+  const filtered = filterGroupedData(tree, { ...emptyFilterState(), statuses: ["noDifficulty"] });
   const ids = filtered.subjects[0].topics[0].subTopics[0].questions.map((qq) => qq.id);
-  assert.deepEqual(ids, ["d1"]);
+  assert.deepEqual(ids, ["d1", "d2"]);
+});
+
+test("filterGroupedData 'notVisited' status matches questions with visited not set, independent of difficulty", () => {
+  const untriaged = q({ id: "d1", subject: "S1", topic: "T1", subTopic: "ST1", difficulty: null, visited: false });
+  const visitedOnly = q({ id: "d2", subject: "S1", topic: "T1", subTopic: "ST1", difficulty: null, visited: true });
+  const difficultyOnly = q({ id: "d3", subject: "S1", topic: "T1", subTopic: "ST1", difficulty: "easy", visited: false });
+  const tree = groupData([untriaged, visitedOnly, difficultyOnly], []);
+  const filtered = filterGroupedData(tree, { ...emptyFilterState(), statuses: ["notVisited"] });
+  const ids = filtered.subjects[0].topics[0].subTopics[0].questions.map((qq) => qq.id);
+  assert.deepEqual(ids, ["d1", "d3"]);
 });

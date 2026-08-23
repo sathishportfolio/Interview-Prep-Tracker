@@ -1,8 +1,11 @@
 // @ts-check
 /**
- * render/statsBadges.js — Global stats dropdown (Total, plus Review/Done/Starred/Due/Failed/With
- * Answer/Without Answer — click any row to toggle it in/out of the Status filter, additive/multi-
- * select just like statusFilterMount, both sharing appState.filterState.statuses, combined via
+ * render/statsBadges.js — Global stats dropdown (Total, plus rows grouped into Untriaged
+ * [Unmarked/Without Answer/No Difficulty/Not Visited — every "nothing set yet" signal in one place],
+ * Answer [With Answer], Status [Done/Failed/Review/Starred/Visited/Not Important], and Difficulty
+ * [Easy/Medium/Hard], in that render order, each group under its own divider label — click any row
+ * to toggle it in/out of the Status filter, additive/multi-select just like statusFilterMount, both
+ * sharing appState.filterState.statuses, combined via
  * appState.filterState.statusMode's AND/OR/NOT — see filters.js's toggleStatusFilter). Each row shows
  * its own plain count by default; once 1+ statuses are active, every row switches to a
  * "count/total" fraction where `total` is THAT ROW'S OWN fixed count (unaffected by which row(s)
@@ -81,7 +84,8 @@ function closeStatsDropdown() {
  * @property {StatusFraction} difficultyEasy
  * @property {StatusFraction} difficultyMedium
  * @property {StatusFraction} difficultyHard
- * @property {StatusFraction} due
+ * @property {StatusFraction} noDifficulty Questions with no Difficulty set.
+ * @property {StatusFraction} notVisited Questions with `visited` not set.
  * @property {StatusFraction} failed
  * @property {StatusFraction} withAnswer
  * @property {StatusFraction} withoutAnswer
@@ -107,25 +111,41 @@ export function renderStatsBadges(stats, handlers) {
 
   // `colorClass` reuses the exact same icon-* classes render/nodeViews/questionView.js's status
   // icons use, so a dropdown row and its matching per-question icon are always the same color
-  // (see .stats-dropdown-item's CSS, mirroring .icon-btn.is-active).
-  /** @type {Array<{statusKey: string, label: string, fraction: StatusFraction, colorClass: string|null, onClick: () => void}>} */
-  const items = [
+  // (see .stats-dropdown-item's CSS, mirroring .icon-btn.is-active). Grouped into four sections —
+  // Untriaged, Answer, Status, Difficulty (in THAT render order) — each under its own divider label,
+  // same pattern as the Tags section. Untriaged pulls together every "nothing set yet" signal
+  // (Unmarked/Without Answer/No Difficulty/Not Visited) that would otherwise be scattered across the
+  // other three groups, so it's the first thing shown.
+  /** @typedef {{statusKey: string, label: string, fraction: StatusFraction, colorClass: string|null, onClick: () => void}} StatItem */
+  /** @type {StatItem[]} */
+  const untriagedItems = [
     { statusKey: "unmarked", label: "Unmarked", fraction: stats.unmarked, colorClass: null, onClick: () => handlers.onStatusBadgeClick("unmarked") },
+    { statusKey: "noAnswer", label: "Without Answer", fraction: stats.withoutAnswer, colorClass: null, onClick: () => handlers.onStatusBadgeClick("noAnswer") },
+    { statusKey: "noDifficulty", label: "No Difficulty", fraction: stats.noDifficulty, colorClass: null, onClick: () => handlers.onStatusBadgeClick("noDifficulty") },
+    { statusKey: "notVisited", label: "Not Visited", fraction: stats.notVisited, colorClass: null, onClick: () => handlers.onStatusBadgeClick("notVisited") },
+  ];
+  /** @type {StatItem[]} */
+  const answerItems = [{ statusKey: "hasAnswer", label: "With Answer", fraction: stats.withAnswer, colorClass: "icon-has-answer", onClick: () => handlers.onStatusBadgeClick("hasAnswer") }];
+  /** @type {StatItem[]} */
+  const statusItems = [
     { statusKey: "done", label: "Done", fraction: stats.done, colorClass: "icon-done", onClick: () => handlers.onStatusBadgeClick("done") },
     { statusKey: "failed", label: "Failed", fraction: stats.failed, colorClass: "icon-failed", onClick: () => handlers.onStatusBadgeClick("failed") },
     { statusKey: "reviewLater", label: "Review", fraction: stats.review, colorClass: "icon-review", onClick: () => handlers.onStatusBadgeClick("reviewLater") },
     { statusKey: "starred", label: "Starred", fraction: stats.starred, colorClass: "icon-starred", onClick: () => handlers.onStatusBadgeClick("starred") },
     { statusKey: "visited", label: "Visited", fraction: stats.visited, colorClass: "icon-visited", onClick: () => handlers.onStatusBadgeClick("visited") },
     { statusKey: "notImportant", label: "Not Important", fraction: stats.notImportant, colorClass: "icon-notimportant", onClick: () => handlers.onStatusBadgeClick("notImportant") },
+  ];
+  /** @type {StatItem[]} */
+  const difficultyItems = [
     { statusKey: "difficultyEasy", label: "Easy", fraction: stats.difficultyEasy, colorClass: "icon-difficulty-easy", onClick: () => handlers.onStatusBadgeClick("difficultyEasy") },
     { statusKey: "difficultyMedium", label: "Medium", fraction: stats.difficultyMedium, colorClass: "icon-difficulty-medium", onClick: () => handlers.onStatusBadgeClick("difficultyMedium") },
     { statusKey: "difficultyHard", label: "Hard", fraction: stats.difficultyHard, colorClass: "icon-difficulty-hard", onClick: () => handlers.onStatusBadgeClick("difficultyHard") },
-    { statusKey: "hasAnswer", label: "With Answer", fraction: stats.withAnswer, colorClass: null, onClick: () => handlers.onStatusBadgeClick("hasAnswer") },
-    { statusKey: "noAnswer", label: "Without Answer", fraction: stats.withoutAnswer, colorClass: null, onClick: () => handlers.onStatusBadgeClick("noAnswer") },
-    { statusKey: "dueForReview", label: "Due", fraction: stats.due, colorClass: null, onClick: () => handlers.onStatusBadgeClick("dueForReview") },
   ];
   const activeStatuses = new Set(stats.activeStatuses || []);
-  const hasActiveFilter = activeStatuses.size > 0;
+  // Status and Tags combine into the SAME active filter (see features/refresh.js's repaint()), so a
+  // Tags-only selection must also switch every row (Status rows included) into its "count/total"
+  // fraction display, not just the Tags rows.
+  const hasActiveFilter = activeStatuses.size > 0 || (stats.activeTags && stats.activeTags.length > 0);
 
   /** @param {StatusFraction} fraction */
   const fractionText = (fraction) => (hasActiveFilter ? `${fraction.count}/${fraction.total}` : `${fraction.count}`);
@@ -152,41 +172,59 @@ export function renderStatsBadges(stats, handlers) {
   panel.className = "stats-dropdown-panel";
   panel.hidden = !statsDropdownOpen;
 
-  for (const item of items) {
+  /**
+   * @param {string} label
+   * @param {StatusFraction} fraction
+   * @param {string|null} colorClass
+   * @param {boolean} isActive
+   * @param {() => void} onClick
+   */
+  const buildRow = (label, fraction, colorClass, isActive, onClick) => {
     const row = document.createElement("button");
     row.type = "button";
-    const isActive = activeStatuses.has(item.statusKey);
-    row.className = `stats-dropdown-item${item.colorClass ? ` ${item.colorClass} is-active` : ""}${isActive ? " filter-active" : ""}`;
+    row.className = `stats-dropdown-item${colorClass ? ` ${colorClass} is-active` : ""}${isActive ? " filter-active" : ""}`;
     row.setAttribute("aria-pressed", String(isActive));
-    row.innerHTML = `<span class="stats-dropdown-label">${item.label}</span><span class="stats-dropdown-count">${fractionText(item.fraction)}</span>`;
+    row.innerHTML = `<span class="stats-dropdown-label">${label}</span><span class="stats-dropdown-count">${fractionText(fraction)}</span>`;
     row.addEventListener("click", (e) => {
       e.stopPropagation();
-      item.onClick();
+      onClick();
     });
-    panel.appendChild(row);
-  }
+    return row;
+  };
 
-  if (stats.tags && stats.tags.length > 0) {
+  /**
+   * @param {string} label
+   * @param {StatItem[]} items
+   * @param {(key: string) => boolean} isActive
+   */
+  const appendGroup = (label, items, isActive) => {
+    if (items.length === 0) return;
     const divider = document.createElement("div");
     divider.className = "stats-dropdown-divider";
-    divider.textContent = "Tags";
+    divider.textContent = label;
     panel.appendChild(divider);
-
-    const activeTags = new Set(stats.activeTags || []);
-    for (const tag of stats.tags) {
-      const row = document.createElement("button");
-      row.type = "button";
-      const isActive = activeTags.has(tag);
-      row.className = `stats-dropdown-item${isActive ? " filter-active" : ""}`;
-      row.setAttribute("aria-pressed", String(isActive));
-      const fraction = stats.tagFractions[tag] || { count: 0, total: 0 };
-      row.innerHTML = `<span class="stats-dropdown-label">${tag}</span><span class="stats-dropdown-count">${fractionText(fraction)}</span>`;
-      row.addEventListener("click", (e) => {
-        e.stopPropagation();
-        handlers.onTagBadgeClick(tag);
-      });
-      panel.appendChild(row);
+    for (const item of items) {
+      panel.appendChild(buildRow(item.label, item.fraction, item.colorClass, isActive(item.statusKey), item.onClick));
     }
+  };
+
+  const isStatusActive = (key) => activeStatuses.has(key);
+  appendGroup("Untriaged", untriagedItems, isStatusActive);
+  appendGroup("Answer", answerItems, isStatusActive);
+  appendGroup("Status", statusItems, isStatusActive);
+  appendGroup("Difficulty", difficultyItems, isStatusActive);
+
+  if (stats.tags && stats.tags.length > 0) {
+    const activeTags = new Set(stats.activeTags || []);
+    /** @type {StatItem[]} */
+    const tagItems = stats.tags.map((tag) => ({
+      statusKey: tag,
+      label: tag,
+      fraction: stats.tagFractions[tag] || { count: 0, total: 0 },
+      colorClass: null,
+      onClick: () => handlers.onTagBadgeClick(tag),
+    }));
+    appendGroup("Tags", tagItems, (tag) => activeTags.has(tag));
   }
 
   dropdownWrap.appendChild(panel);

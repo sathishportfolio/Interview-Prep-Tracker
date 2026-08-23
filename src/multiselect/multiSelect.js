@@ -7,9 +7,15 @@
  */
 
 /**
+ * @typedef {Record<string, {count: number, total: number}>} OptionFractions Optional per-option
+ *   "count/total" annotation (e.g. `{count: 3, total: 12}` renders as " (3/12)"), keyed the same as
+ *   the option string itself — see features/filters.js's filterCardBody counts.
+ */
+
+/**
  * @param {HTMLElement} mount
  * @param {{placeholder?: string, onChange: (selected: string[]) => void}} config
- * @returns {{setOptions: (options: string[]) => void, setSelected: (selected: string[]) => void, getSelected: () => string[], clear: () => void}}
+ * @returns {{setOptions: (options: string[], fractions?: OptionFractions) => void, setSelected: (selected: string[]) => void, getSelected: () => string[], clear: () => void}}
  */
 export function createMultiSelect(mount, config) {
   mount.textContent = "";
@@ -19,8 +25,16 @@ export function createMultiSelect(mount, config) {
   let options = [];
   /** @type {Set<string>} */
   let selected = new Set();
+  /** @type {OptionFractions} */
+  let fractions = {};
   let filterText = "";
   let dropdownOpen = false;
+
+  /** @param {string} opt @returns {string} */
+  function fractionSuffix(opt) {
+    const f = fractions[opt];
+    return f ? ` (${f.count}/${f.total})` : "";
+  }
 
   const control = document.createElement("div");
   control.className = "multiselect-control";
@@ -43,7 +57,7 @@ export function createMultiSelect(mount, config) {
       const tag = document.createElement("span");
       tag.className = "multiselect-tag";
       const label = document.createElement("span");
-      label.textContent = val;
+      label.textContent = val + fractionSuffix(val);
       const rm = document.createElement("span");
       rm.className = "rm";
       rm.textContent = "×";
@@ -74,7 +88,7 @@ export function createMultiSelect(mount, config) {
     for (const opt of filtered) {
       const optEl = document.createElement("div");
       optEl.className = "multiselect-option";
-      optEl.textContent = opt;
+      optEl.textContent = opt + fractionSuffix(opt);
       optEl.addEventListener("mousedown", (e) => {
         e.preventDefault();
         selected.add(opt);
@@ -105,8 +119,13 @@ export function createMultiSelect(mount, config) {
   });
 
   return {
-    setOptions(newOptions) {
+    setOptions(newOptions, newFractions) {
       options = newOptions;
+      fractions = newFractions || {};
+      // Selected values are shown as tags in the control itself, not the dropdown — their own
+      // fraction suffix needs a re-render here too, not just the dropdown's, so an already-selected
+      // option's count stays live as OTHER filters change.
+      renderTags();
       if (dropdownOpen) renderDropdown();
     },
     setSelected(newSelected) {

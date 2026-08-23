@@ -5,22 +5,26 @@
  * Filter selections are remembered per file (persisted as part of the active FileRecord).
  */
 import { appState } from "../state/appState.js";
-import { emptyFilterState } from "../data/filter.js";
+import { emptyFilterState, sortTagsByCount } from "../data/filter.js";
 import { createMultiSelect } from "../multiselect/multiSelect.js";
-import { getFilterOptions, refreshView } from "./refresh.js";
+import { getFilterOptions, computeFilterPanelFractions, refreshView } from "./refresh.js";
 import * as fileManager from "./fileManager.js";
 
-// Order matches the Stats dropdown's own row order (see render/statsBadges.js), plus duplicate
-// appended at the end (not shown in the Stats dropdown, so no ordering there to match against).
+// Order matches the Stats dropdown's own row order/grouping (see render/statsBadges.js's
+// answerItems/statusItems/difficultyItems), plus duplicate appended at the end (not shown in the
+// Stats dropdown, so no ordering there to match against).
 const STATUS_OPTIONS = /** @type {const} */ ([
-  "unmarked", "done", "failed", "reviewLater", "starred", "visited", "notImportant", "difficultyEasy", "difficultyMedium", "difficultyHard",
-  "hasAnswer", "noAnswer", "dueForReview", "duplicate",
+  "hasAnswer", "noAnswer",
+  "notVisited", "unmarked", "done", "failed", "reviewLater", "starred", "visited", "notImportant",
+  "noDifficulty", "difficultyEasy", "difficultyMedium", "difficultyHard",
+  "duplicate",
 ]);
 /** @type {Record<string, string>} */
 const STATUS_LABELS = {
-  done: "Done", reviewLater: "Review Later", dueForReview: "Due for Review", duplicate: "Duplicate", notImportant: "Not Important", starred: "Starred", failed: "Failed", visited: "Visited",
+  done: "Done", reviewLater: "Review Later", duplicate: "Duplicate", notImportant: "Not Important", starred: "Starred", failed: "Failed", visited: "Visited",
+  notVisited: "Not Visited",
   hasAnswer: "With Answer", noAnswer: "Without Answer", unmarked: "Unmarked",
-  difficultyEasy: "Difficulty: Easy", difficultyMedium: "Difficulty: Medium", difficultyHard: "Difficulty: Hard",
+  noDifficulty: "No Difficulty", difficultyEasy: "Difficulty: Easy", difficultyMedium: "Difficulty: Medium", difficultyHard: "Difficulty: Hard",
 };
 /** @type {Record<string, string>} */
 const LABEL_TO_STATUS = Object.fromEntries(Object.entries(STATUS_LABELS).map(([k, v]) => [v, k]));
@@ -112,18 +116,25 @@ function onFilterChanged() {
   refreshOptionLists();
 }
 
-/** Recomputes each dropdown's own option list from the OTHER active filters. */
+/** Recomputes each dropdown's own option list — and every option's/selected-tag's "count/total"
+ *  fraction (see multiselect/multiSelect.js's setOptions) — from the OTHER active filters. */
 export function refreshOptionLists() {
   const opts = getFilterOptions();
-  subjectMs?.setOptions(opts.subjects);
-  topicMs?.setOptions(opts.topics);
-  subTopicMs?.setOptions(opts.subTopics);
+  const fractions = computeFilterPanelFractions(STATUS_OPTIONS);
+  subjectMs?.setOptions(opts.subjects, fractions.subjects);
+  topicMs?.setOptions(opts.topics, fractions.topics);
+  subTopicMs?.setOptions(opts.subTopics, fractions.subTopics);
+  const statusLabelFractions = Object.fromEntries(STATUS_OPTIONS.map((s) => [STATUS_LABELS[s], fractions.statuses[s]]));
+  statusMs?.setOptions(STATUS_OPTIONS.map((s) => STATUS_LABELS[s]), statusLabelFractions);
+  // Most-tagged-first, same ordering convention as the Stats dropdown's Tags section.
+  tagMs?.setOptions(sortTagsByCount(appState.globalTags, fractions.tags), fractions.tags);
 }
 
 /** Re-reads the Tags dropdown's option list from appState.globalTags — call whenever a new tag is
  *  created (see features/tags.js's createAndAddTag) so it shows up without a full reload. */
 export function refreshTagOptions() {
-  tagMs?.setOptions(appState.globalTags);
+  const tagFractions = computeFilterPanelFractions(STATUS_OPTIONS).tags;
+  tagMs?.setOptions(sortTagsByCount(appState.globalTags, tagFractions), tagFractions);
 }
 
 /** Syncs the multi-select UI widgets from appState.filterState (call on file switch/load). */
@@ -149,7 +160,7 @@ export function clearFilters() {
  * (statusFilterMount) — toggles ONE status in/out of the existing `statuses` selection rather than
  * replacing it, so e.g. clicking "With Answer" then "Done" ends up with both selected (combined per
  * appState.filterState.statusMode — see data/filter.js's matchesStatus).
- * @param {"done"|"reviewLater"|"dueForReview"|"duplicate"|"notImportant"|"starred"|"failed"|"hasAnswer"|"noAnswer"|"unmarked"|"difficultyEasy"|"difficultyMedium"|"difficultyHard"} status
+ * @param {"done"|"reviewLater"|"duplicate"|"notImportant"|"starred"|"failed"|"visited"|"notVisited"|"hasAnswer"|"noAnswer"|"unmarked"|"difficultyEasy"|"difficultyMedium"|"difficultyHard"|"noDifficulty"} status
  */
 export function toggleStatusFilter(status) {
   const set = new Set(appState.filterState.statuses);
@@ -178,6 +189,18 @@ export function toggleTagFilter(tag) {
  *  SubTopic and the AND/OR/NOT mode untouched — distinct from clearFilters(), which resets everything. */
 export function clearStatusFilterOnly() {
   appState.filterState = { ...appState.filterState, statuses: [] };
+  syncControlsFromState();
+  onFilterChanged();
+}
+
+/**
+ * Call after code OUTSIDE this module directly rewrites appState.filterState in place (e.g.
+ * features/rename.js's Subject/Topic/SubTopic rename, or features/tags.js's tag rename/delete,
+ * swapping a renamed/removed value into the active filter selection so it doesn't keep pointing at a
+ * name that no longer exists and silently match zero questions) — resyncs the multiSelect UI to the
+ * new selection and reruns the same recompute/persist/repaint sequence a normal filter change does.
+ */
+export function refreshAfterExternalFilterStateChange() {
   syncControlsFromState();
   onFilterChanged();
 }

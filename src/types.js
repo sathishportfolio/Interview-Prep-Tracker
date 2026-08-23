@@ -105,13 +105,12 @@
  */
 
 /**
- * "dueForReview" is not a real boolean field on Question — it's a computed match against
- * `srsDue` vs today, handled as a special case in data/filter.js's matchesStatus. "hasAnswer"/
- * "noAnswer" are likewise computed (from whether `answer` is non-blank), not stored booleans.
+ * "hasAnswer"/"noAnswer" are computed (from whether `answer` is non-blank), not stored booleans.
  * "unmarked" is also computed — none of the three tri-state review flags (done/failed/reviewLater)
  * are set, i.e. a question that hasn't been reviewed at all yet. "difficultyEasy"/"difficultyMedium"/
- * "difficultyHard" are likewise computed, from `Question.difficulty`.
- * @typedef {"done"|"reviewLater"|"duplicate"|"notImportant"|"starred"|"failed"|"visited"|"dueForReview"|"hasAnswer"|"noAnswer"|"unmarked"|"difficultyEasy"|"difficultyMedium"|"difficultyHard"} StatusFilterKey
+ * "difficultyHard"/"noDifficulty" are likewise computed, from `Question.difficulty` (`noDifficulty`
+ * = unset). "notVisited" is the negation of the stored `visited` boolean.
+ * @typedef {"done"|"reviewLater"|"duplicate"|"notImportant"|"starred"|"failed"|"visited"|"notVisited"|"hasAnswer"|"noAnswer"|"unmarked"|"difficultyEasy"|"difficultyMedium"|"difficultyHard"|"noDifficulty"} StatusFilterKey
  */
 
 /**
@@ -218,6 +217,10 @@
  *   created, independent of which questions currently carry it, so a tag stays pickable even after
  *   being removed from every question. Mirrored onto appState.globalTags at bootstrap (see
  *   features/fileManager.js) and written via persistence/store.js's writeGlobalTags.
+ * @property {Record<string, string[]>} globalTagRelations Directed tag -> related-tags map (Manage
+ *   Tags popup, features/tags.js) — assigning a tag to a question auto-applies every tag it maps to
+ *   here too (data/mutations.js's toggleQuestionTag). Mirrored onto appState.globalTagRelations at
+ *   bootstrap and written via persistence/store.js's writeGlobalTagRelations.
  */
 
 /**

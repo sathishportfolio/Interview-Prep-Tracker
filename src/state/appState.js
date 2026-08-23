@@ -60,6 +60,9 @@ export const appState = {
 
   /** @type {string[]} App-wide tag registry — see types.js's StorageSchemaV1.globalTags. */
   globalTags: [],
+  /** @type {Record<string, string[]>} Directed tag -> related-tags map — see features/tags.js's
+   *  Manage Tags popup and StorageSchemaV1.globalTagRelations. */
+  globalTagRelations: {},
 
   // --- Transient (never persisted) UI state ---
   /** @type {Set<string>} question IDs currently bulk-selected */

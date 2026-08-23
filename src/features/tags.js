@@ -9,7 +9,7 @@ import { toggleQuestionTag, renameTag } from "../data/mutations.js";
 import { applyDataChange, recompute, repaint } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import * as store from "../persistence/store.js";
-import { refreshTagOptions } from "./filters.js";
+import { refreshTagOptions, refreshAfterExternalFilterStateChange } from "./filters.js";
 import { promptAction, confirmAction, showToast } from "./toast.js";
 import { toTitleCase } from "../data/textCase.js";
 
@@ -18,7 +18,7 @@ import { toTitleCase } from "../data/textCase.js";
  * @param {string} tag
  */
 export function toggleTagOnQuestion(questionId, tag) {
-  const rawData = toggleQuestionTag(appState.rawData, questionId, tag);
+  const rawData = toggleQuestionTag(appState.rawData, questionId, tag, appState.globalTagRelations);
   applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
 }
 
@@ -41,21 +41,100 @@ export function createAndAddTag(questionId, rawTag) {
 }
 
 /**
- * Filter card's "+ Add Tag" button: a plain `prompt()` to create a new tag in the global registry
- * without attaching it to any question — for pre-seeding a tag before any question uses it yet.
+ * Creates a new tag in the global registry without attaching it to any question — for pre-seeding a
+ * tag before any question uses it yet. Shared by the Manage Tags popup's "+ Add Tag" row
+ * (features/tagManager.js).
+ * @param {string} rawTag
+ * @returns {boolean} true if a new tag was created (false if empty or already existed).
  */
-export function addGlobalTagPrompt() {
-  const rawTag = promptAction("New tag name:");
+export function createGlobalTag(rawTag) {
   const tag = toTitleCase((rawTag || "").trim());
-  if (!tag) return;
+  if (!tag) return false;
   if (appState.globalTags.some((t) => t.toLowerCase() === tag.toLowerCase())) {
     showToast(`Tag "${tag}" already exists.`, "error");
-    return;
+    return false;
   }
   appState.globalTags = [...appState.globalTags, tag];
   store.writeGlobalTags(appState.globalTags);
   refreshTagOptions();
   showToast(`Tag "${tag}" added.`, "success");
+  return true;
+}
+
+/**
+ * @param {string} tag
+ * @returns {string[]} appState.globalTagRelations[tag], or [] if it has no related tags mapped.
+ */
+export function getRelatedTags(tag) {
+  return appState.globalTagRelations[tag] || [];
+}
+
+/**
+ * Maps `relatedTag` onto `tag` — adding `tag` to a question will also auto-apply `relatedTag` (and
+ * transitively, whatever `relatedTag` itself maps to — see data/mutations.js's toggleQuestionTag).
+ * @param {string} tag
+ * @param {string} relatedTag
+ */
+export function addRelatedTag(tag, relatedTag) {
+  if (tag === relatedTag) return;
+  const current = getRelatedTags(tag);
+  if (current.includes(relatedTag)) return;
+  appState.globalTagRelations = { ...appState.globalTagRelations, [tag]: [...current, relatedTag] };
+  store.writeGlobalTagRelations(appState.globalTagRelations);
+}
+
+/**
+ * Un-maps `relatedTag` from `tag` — the reverse of addRelatedTag. Only removes this ONE direction;
+ * if `relatedTag` separately maps back to `tag`, that direction is untouched.
+ * @param {string} tag
+ * @param {string} relatedTag
+ */
+export function removeRelatedTag(tag, relatedTag) {
+  const next = getRelatedTags(tag).filter((t) => t !== relatedTag);
+  appState.globalTagRelations = { ...appState.globalTagRelations, [tag]: next };
+  store.writeGlobalTagRelations(appState.globalTagRelations);
+}
+
+/**
+ * Renames `oldTag` to `newTag` everywhere it appears in the relations map — as a key (its own related
+ * tags list carries over) and as a value inside every OTHER tag's related-tags list. If `newTag`
+ * already has its own key (a rename-into-existing-tag merge, mirroring renameTagPrompt's question-tag
+ * merge below), the two related-tags lists are unioned.
+ * @param {Record<string, string[]>} relations
+ * @param {string} oldTag
+ * @param {string} newTag
+ * @returns {Record<string, string[]>}
+ */
+function renameTagInRelations(relations, oldTag, newTag) {
+  /** @type {Record<string, string[]>} */
+  const out = {};
+  for (const [key, related] of Object.entries(relations)) {
+    if (key === oldTag) continue;
+    const renamedRelated = related.map((t) => (t === oldTag ? newTag : t));
+    out[key === newTag ? newTag : key] = [...new Set([...(out[key] || []), ...renamedRelated])];
+  }
+  const ownRelated = (relations[oldTag] || []).map((t) => (t === oldTag ? newTag : t));
+  if (ownRelated.length > 0 || relations[oldTag]) {
+    out[newTag] = [...new Set([...(out[newTag] || []), ...ownRelated])].filter((t) => t !== newTag);
+  }
+  return out;
+}
+
+/**
+ * Strips `tag` out of the relations map entirely — drops its own key and removes it from every
+ * other tag's related-tags list.
+ * @param {Record<string, string[]>} relations
+ * @param {string} tag
+ * @returns {Record<string, string[]>}
+ */
+function removeTagFromRelations(relations, tag) {
+  /** @type {Record<string, string[]>} */
+  const out = {};
+  for (const [key, related] of Object.entries(relations)) {
+    if (key === tag) continue;
+    out[key] = related.filter((t) => t !== tag);
+  }
+  return out;
 }
 
 /**
@@ -108,10 +187,17 @@ export function renameTagPrompt(oldTag) {
   appState.globalTags = appState.globalTags.map((t) => (t === oldTag ? newTag : t));
   store.writeGlobalTags(appState.globalTags);
 
+  appState.globalTagRelations = renameTagInRelations(appState.globalTagRelations, oldTag, newTag);
+  store.writeGlobalTagRelations(appState.globalTagRelations);
+
   applyTagChangeAcrossFiles((rawData) => renameTag(rawData, oldTag, newTag));
   refreshTagOptions();
+  // If the renamed tag was itself part of the active Tags filter, swap it in place and re-apply —
+  // otherwise the filter keeps pointing at a tag name no longer present in the data and silently
+  // matches nothing until the user manually clears and re-picks it.
   if (appState.filterState.tags.includes(oldTag)) {
     appState.filterState = { ...appState.filterState, tags: appState.filterState.tags.map((t) => (t === oldTag ? newTag : t)) };
+    refreshAfterExternalFilterStateChange();
   }
   showToast(`Renamed tag to "${newTag}".`, "success");
 }
@@ -131,10 +217,16 @@ export function deleteTagPrompt(tag) {
   appState.globalTags = appState.globalTags.filter((t) => t !== tag);
   store.writeGlobalTags(appState.globalTags);
 
+  appState.globalTagRelations = removeTagFromRelations(appState.globalTagRelations, tag);
+  store.writeGlobalTagRelations(appState.globalTagRelations);
+
   applyTagChangeAcrossFiles((rawData) => rawData.map((q) => (q.tags?.includes(tag) ? { ...q, tags: q.tags.filter((t) => t !== tag), updatedAt: Date.now() } : q)));
   refreshTagOptions();
+  // Same "keep the active filter pointed at something real" concern as renameTagPrompt above — a
+  // deleted tag still selected in the Tags filter must be dropped from it, not just from the registry.
   if (appState.filterState.tags.includes(tag)) {
     appState.filterState = { ...appState.filterState, tags: appState.filterState.tags.filter((t) => t !== tag) };
+    refreshAfterExternalFilterStateChange();
   }
   showToast(`Deleted tag "${tag}".`, "success");
 }

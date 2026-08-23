@@ -205,16 +205,39 @@ export function resetTriStateHistory(rawData, questionId) {
 /**
  * Adds or removes one tag on a single question (question-level side of the Tags feature — the
  * global tag registry itself lives on appState.globalTags/StorageSchemaV1.globalTags, not here).
+ * Adding a tag also pulls in every tag it's mapped to via `relatedTagsMap` (appState.globalTagRelations,
+ * see features/tags.js's Manage Tags popup) — followed transitively (A relates to B, B relates to C
+ * -> adding A also adds C) with a visited-set guard against cycles, so a relation loop can't hang.
+ * Removing a tag removes ONLY that tag, not its related ones — related tags are a one-way "apply
+ * together" convenience, not a permanent link.
  * @param {Question[]} rawData
  * @param {string} questionId
  * @param {string} tag
+ * @param {Record<string, string[]>} [relatedTagsMap] appState.globalTagRelations; omitted/empty means
+ *   no auto-applied related tags (e.g. existing callers/tests that predate this feature).
  * @returns {Question[]}
  */
-export function toggleQuestionTag(rawData, questionId, tag) {
+export function toggleQuestionTag(rawData, questionId, tag, relatedTagsMap = {}) {
   return rawData.map((q) => {
     if (q.id !== questionId) return q;
     const tags = q.tags ?? [];
-    return { ...q, tags: tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag], updatedAt: Date.now() };
+    if (tags.includes(tag)) {
+      return { ...q, tags: tags.filter((t) => t !== tag), updatedAt: Date.now() };
+    }
+    const toAdd = new Set([tag]);
+    const queue = [tag];
+    while (queue.length > 0) {
+      const current = /** @type {string} */ (queue.shift());
+      for (const related of relatedTagsMap[current] || []) {
+        if (!toAdd.has(related)) {
+          toAdd.add(related);
+          queue.push(related);
+        }
+      }
+    }
+    const merged = [...tags];
+    for (const t of toAdd) if (!merged.includes(t)) merged.push(t);
+    return { ...q, tags: merged, updatedAt: Date.now() };
   });
 }
 

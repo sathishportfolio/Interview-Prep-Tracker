@@ -5,7 +5,7 @@
  * undoRedo.js wraps `applyDataChange` to capture snapshots; everything else just calls it.
  */
 import { groupData } from "../data/group.js";
-import { filterGroupedData, computeFilterOptions, matchesSingleStatus, matchesStatus } from "../data/filter.js";
+import { filterGroupedData, computeFilterOptions, computeOptionFractions, matchesSingleStatus, matchesStatus, matchesTags, flattenTreeQuestions, sortTagsByCount } from "../data/filter.js";
 import { appState } from "../state/appState.js";
 import { renderTree } from "../render/treeRenderer.js";
 import { renderFlat } from "../render/flatRenderer.js";
@@ -74,7 +74,13 @@ export function repaint() {
   // Starred's own row becomes "2/2".
   const hierarchyOnlyTree = filterGroupedData(appState.groupedUnfiltered, { ...appState.filterState, statuses: [], tags: [] });
   const hierarchyQuestions = flattenTreeQuestions(hierarchyOnlyTree);
-  const { statuses, statusMode } = appState.filterState;
+  const { statuses, statusMode, tags } = appState.filterState;
+  // Both Status and Tags narrow these fractions/the "Filtered" total together — clicking a Tags row
+  // must move the Status rows' counts (and vice versa), not just its own, since both dimensions
+  // combine into the same active filter (see data/filter.js's matchesStatus/matchesTags).
+  const hasActiveStatusOrTagFilter = statuses.length > 0 || tags.length > 0;
+  /** @param {import('../types.js').Question} q */
+  const matchesFullActiveFilter = (q) => matchesStatus(q, statuses, statusMode) && matchesTags(q, tags);
   /**
    * @param {import('../types.js').StatusFilterKey} key
    * @returns {{count: number, total: number}}
@@ -82,20 +88,21 @@ export function repaint() {
   const statusFraction = (key) => {
     const own = hierarchyQuestions.filter((q) => matchesSingleStatus(q, key));
     const total = own.length;
-    const count = statuses.length > 0 ? own.filter((q) => matchesStatus(q, statuses, statusMode)).length : total;
+    const count = hasActiveStatusOrTagFilter ? own.filter(matchesFullActiveFilter).length : total;
     return { count, total };
   };
   /** @param {string} tag @returns {{count: number, total: number}} */
   const tagFraction = (tag) => {
     const own = hierarchyQuestions.filter((q) => q.tags?.includes(tag));
     const total = own.length;
-    const count = statuses.length > 0 ? own.filter((q) => matchesStatus(q, statuses, statusMode)).length : total;
+    const count = hasActiveStatusOrTagFilter ? own.filter(matchesFullActiveFilter).length : total;
     return { count, total };
   };
+  const tagFractionsByTag = Object.fromEntries(appState.globalTags.map((t) => [t, tagFraction(t)]));
   renderStatsBadges(
     {
       total: hierarchyQuestions.length,
-      filtered: statuses.length > 0 ? hierarchyQuestions.filter((q) => matchesStatus(q, statuses, statusMode)).length : hierarchyQuestions.length,
+      filtered: hasActiveStatusOrTagFilter ? hierarchyQuestions.filter(matchesFullActiveFilter).length : hierarchyQuestions.length,
       activeStatuses: statuses,
       review: statusFraction("reviewLater"),
       done: statusFraction("done"),
@@ -105,14 +112,15 @@ export function repaint() {
       difficultyEasy: statusFraction("difficultyEasy"),
       difficultyMedium: statusFraction("difficultyMedium"),
       difficultyHard: statusFraction("difficultyHard"),
-      due: statusFraction("dueForReview"),
+      noDifficulty: statusFraction("noDifficulty"),
+      notVisited: statusFraction("notVisited"),
       failed: statusFraction("failed"),
       withAnswer: statusFraction("hasAnswer"),
       withoutAnswer: statusFraction("noAnswer"),
       unmarked: statusFraction("unmarked"),
-      tags: appState.globalTags,
+      tags: sortTagsByCount(appState.globalTags, tagFractionsByTag),
       activeTags: appState.filterState.tags,
-      tagFractions: Object.fromEntries(appState.globalTags.map((t) => [t, tagFraction(t)])),
+      tagFractions: tagFractionsByTag,
     },
     statsHandlers
   );
@@ -129,13 +137,6 @@ export function repaint() {
   if (autoDownloadToggleEl) autoDownloadToggleEl.checked = !!appState.toggles.autoDownloadOn;
 
   if (afterRepaintHook) afterRepaintHook();
-}
-
-/** @param {import('../types.js').GroupedTree} tree */
-function flattenTreeQuestions(tree) {
-  const out = [];
-  for (const s of tree.subjects) for (const t of s.topics) for (const st of t.subTopics) out.push(...st.questions);
-  return out;
 }
 
 /** @type {((prevRawData: any[], prevEmptyGroups: any[], prevTombstones: any[]) => void)|null} */
@@ -182,4 +183,48 @@ export function refreshView() {
 /** @returns {{subjects: string[], topics: string[], subTopics: string[]}} */
 export function getFilterOptions() {
   return computeFilterOptions(appState.groupedUnfiltered, appState.filterState);
+}
+
+/**
+ * "count/total" fractions for every option in filterCardBody's five multiSelect filters (Subject/
+ * Topic/SubTopic/Status/Tags) — same fraction shape and hierarchy-scoped-denominator convention as
+ * the Stats dropdown's own rows (see `repaint()`'s statusFraction/tagFraction above), computed once
+ * here so features/filters.js doesn't duplicate the logic. Subject/Topic/SubTopic use
+ * data/filter.js's computeOptionFractions (denominator = that value's count across the whole file);
+ * Status/Tags reuse the hierarchy-scoped denominator (that status/tag's count within the current
+ * Subject/Topic/SubTopic selection, ignoring Status/Tags themselves) so their `total` matches what
+ * the Stats dropdown already shows for the same row.
+ * @param {readonly string[]} statusKeys STATUS_OPTIONS from features/filters.js.
+ * @returns {{subjects: Record<string, {count: number, total: number}>, topics: Record<string, {count: number, total: number}>, subTopics: Record<string, {count: number, total: number}>, statuses: Record<string, {count: number, total: number}>, tags: Record<string, {count: number, total: number}>}}
+ */
+export function computeFilterPanelFractions(statusKeys) {
+  const hierarchyOnlyTree = filterGroupedData(appState.groupedUnfiltered, { ...appState.filterState, statuses: [], tags: [] });
+  const hierarchyQuestions = flattenTreeQuestions(hierarchyOnlyTree);
+  const { statuses, statusMode, tags } = appState.filterState;
+  const hasActiveStatusOrTagFilter = statuses.length > 0 || tags.length > 0;
+  /** @param {import('../types.js').Question} q */
+  const matchesFullActiveFilter = (q) => matchesStatus(q, statuses, statusMode) && matchesTags(q, tags);
+
+  /** @param {import('../types.js').StatusFilterKey} key */
+  const statusFraction = (key) => {
+    const own = hierarchyQuestions.filter((q) => matchesSingleStatus(q, key));
+    const total = own.length;
+    const count = hasActiveStatusOrTagFilter ? own.filter(matchesFullActiveFilter).length : total;
+    return { count, total };
+  };
+  /** @param {string} tag */
+  const tagFraction = (tag) => {
+    const own = hierarchyQuestions.filter((q) => q.tags?.includes(tag));
+    const total = own.length;
+    const count = hasActiveStatusOrTagFilter ? own.filter(matchesFullActiveFilter).length : total;
+    return { count, total };
+  };
+
+  const hierarchyFractions = computeOptionFractions(appState.groupedUnfiltered, appState.filterState);
+
+  return {
+    ...hierarchyFractions,
+    statuses: Object.fromEntries(statusKeys.map((k) => [k, statusFraction(/** @type {any} */ (k))])),
+    tags: Object.fromEntries(appState.globalTags.map((t) => [t, tagFraction(t)])),
+  };
 }

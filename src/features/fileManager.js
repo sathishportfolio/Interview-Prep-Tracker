@@ -52,6 +52,7 @@ export function bootstrapFromStorage() {
   appState.timer = schema.timer;
   appState.sync = schema.sync;
   appState.globalTags = schema.globalTags;
+  appState.globalTagRelations = schema.globalTagRelations;
 
   // Answers saved before HTML minification existed may still carry extra whitespace — normalize
   // every loaded file's answers now (not just the active one) so the very next persist/sync carries

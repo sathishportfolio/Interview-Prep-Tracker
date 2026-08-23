@@ -44,7 +44,7 @@ import * as manualPush from "./sync/manualPush.js";
 import * as autoPush from "./sync/autoPush.js";
 import * as gists from "./sync/gists.js";
 import * as store from "./persistence/store.js";
-import { addGlobalTagPrompt } from "./features/tags.js";
+import { openTagManager } from "./features/tagManager.js";
 import { STORAGE_KEY } from "./persistence/schema.js";
 
 function $(id) {
@@ -283,7 +283,7 @@ function init() {
     clearStatusBtn: $("clearStatusFilterBtn"),
   });
   $("clearFiltersBtn")?.addEventListener("click", () => filters.clearFilters());
-  $("addGlobalTagBtn")?.addEventListener("click", () => addGlobalTagPrompt());
+  $("manageTagsBtn")?.addEventListener("click", () => openTagManager());
   $("filterCardToggle")?.addEventListener("click", () => {
     const filterCardOpen = !appState.toggles.filterCardOpen;
     appState.toggles = { ...appState.toggles, filterCardOpen };
@@ -494,11 +494,25 @@ function init() {
   // Pull Only: for orgs that block/monitor pushes to GitHub Gist — blocks Manual Push and the
   // auto-push backstop entirely (see sync/manualPush.js, sync/autoPush.js) while Manual Pull keeps
   // working either way.
-  $("pullOnlyToggle")?.addEventListener("change", (e) => {
+  $("pullOnlyToggle")?.addEventListener("change", async (e) => {
     const on = /** @type {HTMLInputElement} */ (e.target).checked;
     syncConfig.setPullOnly(on);
     updatePullOnlyState();
     showToast(on ? "Pull Only enabled — pushing is now blocked." : "Pull Only disabled — pushing is available again.", "info");
+    // Turning Pull Only back off means pushing works again — resume Auto-sync (rather than leave it
+    // paused from before/during Pull Only) and immediately sync once, instead of waiting for the
+    // next edit or manual Push click.
+    if (!on) {
+      syncConfig.setEnabled(true);
+      const enabledToggleEl = /** @type {HTMLInputElement|null} */ ($("syncEnabledToggle"));
+      if (enabledToggleEl) enabledToggleEl.checked = true;
+      updateSyncStatusIndicator();
+      const result = await manualPush.manualPush();
+      if (result.ok) {
+        autoPush.markSynced();
+        updateSyncStatusLabel();
+      }
+    }
   });
   updateSyncStatusIndicator();
 

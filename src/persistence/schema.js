@@ -52,6 +52,10 @@ export function emptySchema() {
       startedAt: null,
     },
     globalTags: [],
+    // Directed tag -> related-tags map (see features/tags.js's Manage Tags popup): assigning a tag
+    // to a question auto-applies every tag it's mapped to here too (data/mutations.js's
+    // toggleQuestionTag).
+    globalTagRelations: {},
   };
 }
 
@@ -73,6 +77,7 @@ export function coerceSchema(raw) {
     sync: coerceSync(raw.sync),
     timer: { ...base.timer, ...(raw.timer || {}) },
     globalTags: Array.isArray(raw.globalTags) ? raw.globalTags : base.globalTags,
+    globalTagRelations: raw.globalTagRelations && typeof raw.globalTagRelations === "object" ? raw.globalTagRelations : base.globalTagRelations,
   };
 }
 

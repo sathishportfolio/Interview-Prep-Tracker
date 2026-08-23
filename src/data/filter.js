@@ -34,25 +34,15 @@ export function matchesStatus(q, statuses, mode) {
  * @returns {boolean}
  */
 export function matchesSingleStatus(q, status) {
-  if (status === "dueForReview") return isDueForReview(q);
   if (status === "hasAnswer") return hasAnswer(q);
   if (status === "noAnswer") return !hasAnswer(q);
   if (status === "unmarked") return !q.done && !q.failed && !q.reviewLater;
   if (status === "difficultyEasy") return q.difficulty === "easy";
   if (status === "difficultyMedium") return q.difficulty === "medium";
   if (status === "difficultyHard") return q.difficulty === "hard";
+  if (status === "noDifficulty") return !q.difficulty;
+  if (status === "notVisited") return !q.visited;
   return q[status] === true;
-}
-
-/**
- * "dueForReview" isn't a stored boolean like the other status flags — it's a live comparison of
- * `srsDue` against today, so a question naturally falls in/out of this filter as days pass without
- * needing any write.
- * @param {Question} q
- * @returns {boolean}
- */
-function isDueForReview(q) {
-  return !!q.srsDue && q.srsDue <= new Date().toISOString().slice(0, 10);
 }
 
 /**
@@ -138,14 +128,101 @@ export function computeFilterOptions(fullTree, filters) {
     }
   }
 
+  // Insertion order, NOT alphabetical — `fullTree` is already ordered to match the accordion's own
+  // custom Subject/Topic/SubTopic order (see data/group.js's groupData), and a Set preserves the
+  // order values were first added in, so the filter dropdowns list options in that same order.
   return {
-    subjects: [...subjectsSet].sort(),
-    topics: [...topicsSet].sort(),
-    subTopics: [...subTopicsSet].sort(),
+    subjects: [...subjectsSet],
+    topics: [...topicsSet],
+    subTopics: [...subTopicsSet],
   };
 }
 
 /** @returns {FilterState} */
 export function emptyFilterState() {
   return { subjects: [], topics: [], subTopics: [], statuses: [], statusMode: "OR", tags: [] };
+}
+
+/**
+ * Flattens every Question out of a GroupedTree, dropping the Subject/Topic/SubTopic grouping.
+ * Exported (moved from features/refresh.js, its original single caller) so data/filter.js's own
+ * fraction helpers below can share it too.
+ * @param {GroupedTree} tree
+ * @returns {Question[]}
+ */
+export function flattenTreeQuestions(tree) {
+  const out = [];
+  for (const s of tree.subjects) for (const t of s.topics) for (const st of t.subTopics) out.push(...st.questions);
+  return out;
+}
+
+/**
+ * @param {Question[]} questions
+ * @param {(q: Question) => string} keyFn
+ * @returns {Record<string, number>}
+ */
+function countBy(questions, keyFn) {
+  /** @type {Record<string, number>} */
+  const out = {};
+  for (const q of questions) {
+    const k = keyFn(q);
+    out[k] = (out[k] || 0) + 1;
+  }
+  return out;
+}
+
+/**
+ * Per-option "count/total" fractions for the Subject/Topic/SubTopic filter dropdowns (see
+ * features/filters.js's filterCardBody) — mirrors the Status/Tags "count/total" fraction pattern
+ * already used by the Stats dropdown (features/refresh.js's statusFraction/tagFraction), but for the
+ * three hierarchy dimensions. For each dimension, `total` is that value's fixed count across the
+ * WHOLE file (every question with that Subject/Topic/SubTopic, ignoring every active filter — a
+ * denominator that never changes), and `count` is how many of those also match every OTHER
+ * currently-active filter (every dimension except this one's own selection, so picking more values
+ * within the SAME dimension doesn't shrink its siblings' own counts).
+ * @param {GroupedTree} fullTree Ungrouped-by-status full tree (appState.groupedUnfiltered).
+ * @param {FilterState} filters
+ * @returns {{subjects: Record<string, {count: number, total: number}>, topics: Record<string, {count: number, total: number}>, subTopics: Record<string, {count: number, total: number}>}}
+ */
+export function computeOptionFractions(fullTree, filters) {
+  const allQuestions = flattenTreeQuestions(fullTree);
+  const subjectTotals = countBy(allQuestions, (q) => q.subject);
+  const topicTotals = countBy(allQuestions, (q) => q.topic);
+  const subTopicTotals = countBy(allQuestions, (q) => q.subTopic);
+
+  const subjectCounts = countBy(flattenTreeQuestions(filterGroupedData(fullTree, { ...filters, subjects: [] })), (q) => q.subject);
+  const topicCounts = countBy(flattenTreeQuestions(filterGroupedData(fullTree, { ...filters, topics: [] })), (q) => q.topic);
+  const subTopicCounts = countBy(flattenTreeQuestions(filterGroupedData(fullTree, { ...filters, subTopics: [] })), (q) => q.subTopic);
+
+  /**
+   * @param {Record<string, number>} totals
+   * @param {Record<string, number>} counts
+   */
+  const buildFractions = (totals, counts) => {
+    /** @type {Record<string, {count: number, total: number}>} */
+    const out = {};
+    for (const k of Object.keys(totals)) out[k] = { count: counts[k] || 0, total: totals[k] };
+    return out;
+  };
+
+  return {
+    subjects: buildFractions(subjectTotals, subjectCounts),
+    topics: buildFractions(topicTotals, topicCounts),
+    subTopics: buildFractions(subTopicTotals, subTopicCounts),
+  };
+}
+
+/**
+ * Orders tag names by their fraction's `total` count descending (most-tagged first), ties broken
+ * alphabetically for a stable order — shared by the Stats dropdown's Tags section
+ * (features/refresh.js's repaint()) and the filterCardBody Tags multiselect (features/filters.js).
+ * @param {string[]} tagNames
+ * @param {Record<string, {count: number, total: number}>} fractionsByTag
+ * @returns {string[]}
+ */
+export function sortTagsByCount(tagNames, fractionsByTag) {
+  return [...tagNames].sort((a, b) => {
+    const diff = (fractionsByTag[b]?.total || 0) - (fractionsByTag[a]?.total || 0);
+    return diff !== 0 ? diff : a.localeCompare(b);
+  });
 }
