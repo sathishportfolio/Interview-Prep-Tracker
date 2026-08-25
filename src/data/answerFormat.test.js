@@ -1,38 +1,27 @@
 // @ts-nocheck
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { wrapAnswerAsList, minifyHtml, minifyAllAnswers, stripAttributesAndComments, stripDisallowedTags, cleanAnswerHtml, normalizeStoredAnswer } from "./answerFormat.js";
+import { linesToList, minifyHtml, stripAttributesAndComments, stripDisallowedTags, cleanFormatting, escapeHtml, unescapeHtml, buildCodeSnippetBlock, appendCodeSnippet, splitTrailingCodeSnippet, DEFAULT_CODE_LANGUAGE } from "./answerFormat.js";
 
-test("wrapAnswerAsList wraps plain text in <ul><li>", () => {
-  assert.equal(wrapAnswerAsList("Plain answer text"), "<ul><li>Plain answer text</li></ul>");
+test("linesToList wraps each non-blank line as its own <li> in a <ul>", () => {
+  assert.equal(linesToList("First point\nSecond point\nThird point", false), "<ul><li>First point</li><li>Second point</li><li>Third point</li></ul>");
 });
 
-test("wrapAnswerAsList leaves an already-wrapped answer untouched", () => {
-  const already = "<ul><li>Already a list</li></ul>";
-  assert.equal(wrapAnswerAsList(already), already);
+test("linesToList wraps each non-blank line as its own <li> in an <ol> when ordered", () => {
+  assert.equal(linesToList("First point\nSecond point", true), "<ol><li>First point</li><li>Second point</li></ol>");
 });
 
-test("wrapAnswerAsList is case-insensitive when detecting an existing list", () => {
-  const already = "<UL><LI>Already a list</LI></UL>";
-  assert.equal(wrapAnswerAsList(already), already);
+test("linesToList drops blank lines", () => {
+  assert.equal(linesToList("First\n\n  \nSecond", false), "<ul><li>First</li><li>Second</li></ul>");
 });
 
-test("wrapAnswerAsList leaves a blank/whitespace-only answer untouched", () => {
-  assert.equal(wrapAnswerAsList(""), "");
-  assert.equal(wrapAnswerAsList("   "), "   ");
+test("linesToList trims each line's surrounding whitespace", () => {
+  assert.equal(linesToList("  First  \n  Second  ", false), "<ul><li>First</li><li>Second</li></ul>");
 });
 
-test("wrapAnswerAsList trims surrounding whitespace when wrapping", () => {
-  assert.equal(wrapAnswerAsList("  Plain answer  "), "<ul><li>Plain answer</li></ul>");
-});
-
-test("wrapAnswerAsList wraps HTML with no <li> at all", () => {
-  assert.equal(wrapAnswerAsList("<p>Some paragraph</p>"), "<ul><li><p>Some paragraph</p></li></ul>");
-});
-
-test("wrapAnswerAsList does not re-wrap when a <li> exists anywhere, even after other markup", () => {
-  const already = "<p>Intro sentence</p><ul><li>Already a list</li></ul>";
-  assert.equal(wrapAnswerAsList(already), already);
+test("linesToList leaves a blank/whitespace-only input untouched", () => {
+  assert.equal(linesToList("", false), "");
+  assert.equal(linesToList("   ", false), "   ");
 });
 
 test("minifyHtml collapses whitespace between tags", () => {
@@ -65,27 +54,6 @@ test("minifyHtml still collapses whitespace outside <pre> blocks while leaving t
   assert.equal(minifyHtml(input), "<p>Before</p><pre>  keep   this   </pre><p>After</p>");
 });
 
-test("minifyAllAnswers minifies only answers that need it, reporting changed:true", () => {
-  const rawData = [
-    { id: "a", answer: "<ul>\n  <li>Needs minifying</li>\n</ul>" },
-    { id: "b", answer: "<ul><li>Already minified</li></ul>" },
-    { id: "c", answer: "" },
-  ];
-  const result = minifyAllAnswers(rawData);
-  assert.equal(result.changed, true);
-  assert.equal(result.rawData.find((q) => q.id === "a").answer, "<ul><li>Needs minifying</li></ul>");
-  // Untouched questions keep their exact original object reference (no unnecessary churn).
-  assert.equal(result.rawData.find((q) => q.id === "b"), rawData[1]);
-  assert.equal(result.rawData.find((q) => q.id === "c"), rawData[2]);
-});
-
-test("minifyAllAnswers reports changed:false when nothing needs minifying", () => {
-  const rawData = [{ id: "a", answer: "<ul><li>Already minified</li></ul>" }, { id: "b", answer: "" }];
-  const result = minifyAllAnswers(rawData);
-  assert.equal(result.changed, false);
-  assert.deepEqual(result.rawData, rawData);
-});
-
 test("stripAttributesAndComments removes style/class/id and every other attribute, including custom/data-*/aria-*/on* ones", () => {
   const input = '<div id="x" class="y" style="color:red" data-foo="bar" aria-label="z" onclick="alert(1)" data-whatever-custom-thing="123">text</div>';
   assert.equal(stripAttributesAndComments(input), "<div>text</div>");
@@ -105,21 +73,26 @@ test("stripAttributesAndComments leaves plain tags and text content untouched", 
   assert.equal(stripAttributesAndComments(input), input);
 });
 
-test("stripDisallowedTags unwraps p/div/span/headers/a/img/em, keeping ul/li/b/strong", () => {
-  assert.equal(stripDisallowedTags("<div><p>text</p></div>"), "text");
-  assert.equal(stripDisallowedTags("<span>x</span>"), "x");
-  assert.equal(stripDisallowedTags("<h1>Title</h1>"), "Title");
+test("stripDisallowedTags unwraps div/span/a/img, keeping ul/li/b/strong/em/u/p/h1-h5", () => {
+  assert.equal(stripDisallowedTags("<div><span>text</span></div>"), "text");
   assert.equal(stripDisallowedTags("<a>link</a><img>"), "link");
-  assert.equal(stripDisallowedTags("<em>x</em>"), "x");
   assert.equal(stripDisallowedTags("<ul><li><b>bold</b> and <strong>strong</strong></li></ul>"), "<ul><li><b>bold</b> and <strong>strong</strong></li></ul>");
 });
 
-test("cleanAnswerHtml doesn't double-wrap an answer that already contains a <ul><li> list", () => {
-  const input = "Some intro text<ul><li>Existing point one</li><li>Existing point two</li></ul>";
-  assert.equal(cleanAnswerHtml(input), "Some intro text<ul><li>Existing point one</li><li>Existing point two</li></ul>");
+test("stripDisallowedTags keeps h1 through h5 but unwraps h6 and other headings-adjacent tags", () => {
+  assert.equal(stripDisallowedTags("<h1>Title</h1>"), "<h1>Title</h1>");
+  assert.equal(stripDisallowedTags("<h2>Sub</h2>"), "<h2>Sub</h2>");
+  assert.equal(stripDisallowedTags("<h5>Small</h5>"), "<h5>Small</h5>");
+  assert.equal(stripDisallowedTags("<h6>Too small</h6>"), "Too small");
 });
 
-test("cleanAnswerHtml strips attributes/comments, wraps, and minifies a real 'Text to HTML' export", () => {
+test("stripDisallowedTags keeps em/u/p (Italic/Underline/Paragraph toolbar output)", () => {
+  assert.equal(stripDisallowedTags("<em>Italic</em>"), "<em>Italic</em>");
+  assert.equal(stripDisallowedTags("<u>Underlined</u>"), "<u>Underlined</u>");
+  assert.equal(stripDisallowedTags("<p>Paragraph</p>"), "<p>Paragraph</p>");
+});
+
+test("cleanFormatting strips attributes/comments and unwraps disallowed tags from a real 'Text to HTML' export", () => {
   const input = `<p class="demoTitle">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span style="background: #16643d; color: #fff;"> &nbsp;Text </span>&nbsp;-&nbsp;HTML&nbsp;.&nbsp;com</p>
 <p class="intro">Convert your visual text documents to HTML code instantly. Edit and clean your markup with a couple of clicks.</p>
 <p style="text-align: center;"><a href="https://text-html.com/" target="_blank" rel="nofollow"><img style="width: 90%; max-width: 400px;" src="https://text-html.com/pics/paste-text-here-convert-html.jpg" alt="screenshot" /></a></p>
@@ -132,21 +105,80 @@ test("cleanAnswerHtml strips attributes/comments, wraps, and minifies a real 'Te
 <p class="aligncenter">Erase the page to get started. <span style="background: url('pics/png.png') no-repeat scroll -75px 0 transparent; height: 25px; width: 25px; display: inline-block;">&nbsp;</span></p>
 <p>&nbsp;</p>
 <!-- Comments are visible in the HTML source only -->`;
-  const result = cleanAnswerHtml(input);
+  const result = cleanFormatting(input);
   // No leftover attributes (of any name, including custom ones) or comments.
   assert.equal(/<[a-z][a-z0-9]*\s+[^>]/i.test(result), false, "no tag should have anything after its name");
   assert.equal(/<!--/.test(result), false);
-  // No disallowed tags survive (p/span/h2/a/img/em all unwrapped, only ul/li/strong remain), and
-  // the answer isn't re-wrapped in an outer <ul><li> since it already contains list markup.
+  // span/a/img are unwrapped; p/h2/strong/em all survive (allowed tags), just stripped of attributes.
   assert.equal(
     result,
-    "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;Text &nbsp;-&nbsp;HTML&nbsp;.&nbsp;com Convert your visual text documents to HTML code instantly. Edit and clean your markup with a couple of clicks. How to use the Text to HTML converter? " +
-      "<ul><li>Paste a visual document to the left to convert it to HTML</li><li>Paste your HTML code it the right to preview the document</li></ul>" +
-      "<strong>Press the Clean button to execute the checked HTML cleaning options.</strong> Erase the page to get started. &nbsp; &nbsp;"
+    '<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  &nbsp;Text &nbsp;-&nbsp;HTML&nbsp;.&nbsp;com</p>\n<p>Convert your visual text documents to HTML code instantly. Edit and clean your markup with a couple of clicks.</p>\n<p></p>\n<h2>How to use the Text to HTML converter?</h2>\n<ul>\n<li>Paste a visual document to the left to convert it to HTML</li>\n<li>Paste your HTML code it the right to preview the document</li>\n</ul>\n<p><strong>Press the Clean button to execute the <em>checked</em> HTML cleaning options.</strong></p>\n<p>Erase the page to get started. &nbsp;</p>\n<p>&nbsp;</p>\n'
   );
 });
 
-test("normalizeStoredAnswer strips attributes/comments/disallowed tags and minifies but does NOT wrap unwrapped content", () => {
-  const input = '<p class="x">Legacy answer</p>';
-  assert.equal(normalizeStoredAnswer(input), "Legacy answer");
+test("cleanFormatting leaves an already-plain ul/li/strong answer untouched", () => {
+  const input = "<ul><li>Existing point one</li><li>Existing point two</li></ul>";
+  assert.equal(cleanFormatting(input), input);
+});
+
+test("escapeHtml escapes &, <, > only, in the correct order", () => {
+  assert.equal(escapeHtml("if (a < b && b > c) return;"), "if (a &lt; b &amp;&amp; b &gt; c) return;");
+});
+
+test("unescapeHtml reverses escapeHtml", () => {
+  const code = `if (a < b && b > c) { return "x & y"; }`;
+  assert.equal(unescapeHtml(escapeHtml(code)), code);
+});
+
+test("buildCodeSnippetBlock wraps escaped code in a <pre><code class=\"language-xxx\"> block", () => {
+  assert.equal(buildCodeSnippetBlock("int x = 1 < 2;", "javascript"), '<pre><code class="language-javascript">int x = 1 &lt; 2;</code></pre>');
+});
+
+test("buildCodeSnippetBlock falls back to DEFAULT_CODE_LANGUAGE for a missing/unrecognized language", () => {
+  assert.equal(buildCodeSnippetBlock("x", undefined), `<pre><code class="language-${DEFAULT_CODE_LANGUAGE}">x</code></pre>`);
+  assert.equal(buildCodeSnippetBlock("x", "cobol"), `<pre><code class="language-${DEFAULT_CODE_LANGUAGE}">x</code></pre>`);
+});
+
+test("appendCodeSnippet appends the code block directly after the body when both are present", () => {
+  assert.equal(appendCodeSnippet("Some explanation.", "return 1;", "java"), 'Some explanation.<pre><code class="language-java">return 1;</code></pre>');
+});
+
+test("appendCodeSnippet returns the code block alone when the body is blank", () => {
+  assert.equal(appendCodeSnippet("", "return 1;", "java"), '<pre><code class="language-java">return 1;</code></pre>');
+  assert.equal(appendCodeSnippet("   ", "return 1;", "java"), '<pre><code class="language-java">return 1;</code></pre>');
+});
+
+test("appendCodeSnippet no-ops (returns body unchanged) when code is blank", () => {
+  assert.equal(appendCodeSnippet("Some explanation.", "", "java"), "Some explanation.");
+  assert.equal(appendCodeSnippet("Some explanation.", "   ", "java"), "Some explanation.");
+});
+
+test("splitTrailingCodeSnippet round-trips through appendCodeSnippet, including language", () => {
+  const body = "Some explanation.<ul><li>A point</li></ul>";
+  const code = `if (a < b) {\n  return "x & y";\n}`;
+  const answer = appendCodeSnippet(body, code, "typescript");
+  const result = splitTrailingCodeSnippet(answer);
+  assert.equal(result.body, body);
+  assert.equal(result.code, code);
+  assert.equal(result.language, "typescript");
+});
+
+test("splitTrailingCodeSnippet leaves an answer with no trailing code block untouched, code empty, default language", () => {
+  const answer = "Just a plain explanation, no code.";
+  assert.deepEqual(splitTrailingCodeSnippet(answer), { body: answer, code: "", language: DEFAULT_CODE_LANGUAGE });
+});
+
+test("splitTrailingCodeSnippet returns an empty body when the whole answer is just the code block", () => {
+  const result = splitTrailingCodeSnippet(appendCodeSnippet("", "return 1;", "sql"));
+  assert.equal(result.body, "");
+  assert.equal(result.code, "return 1;");
+  assert.equal(result.language, "sql");
+});
+
+test("splitTrailingCodeSnippet falls back to DEFAULT_CODE_LANGUAGE for a legacy code block with no language class", () => {
+  const answer = "Legacy answer.<pre><code>old code here</code></pre>";
+  const result = splitTrailingCodeSnippet(answer);
+  assert.equal(result.body, "Legacy answer.");
+  assert.equal(result.code, "old code here");
+  assert.equal(result.language, DEFAULT_CODE_LANGUAGE);
 });

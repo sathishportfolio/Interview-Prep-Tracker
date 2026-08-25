@@ -8,7 +8,11 @@
  */
 
 /**
- * @param {{title: string, bodyEl: HTMLElement, onSave?: () => void, saveLabel?: string}} config
+ * @param {{title: string, bodyEl: HTMLElement, onSave?: () => void, saveLabel?: string, onClose?: () => void}} config
+ *   `onClose` fires on every close path (Save, Cancel, the X button, Escape, and backdrop click) —
+ *   for a caller that wired its own document-level listener scoped to "while this modal is open"
+ *   (e.g. features/answerEditor.js's undo/redo keyboard shortcut) to tear it down symmetrically,
+ *   since openModal has no other hook back to the caller once the modal is showing.
  * @returns {{close: () => void}}
  */
 export function openModal(config) {
@@ -69,6 +73,7 @@ export function openModal(config) {
   function close() {
     document.removeEventListener("keydown", handleKeydown);
     backdrop.remove();
+    if (config.onClose) config.onClose();
   }
   /** @param {KeyboardEvent} e */
   function handleKeydown(e) {

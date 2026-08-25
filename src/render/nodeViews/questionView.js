@@ -10,6 +10,7 @@ import { applyOpenState } from "../accordion.js";
 import { isReorderTarget } from "../reorderEligibility.js";
 import { formatRelativeTime } from "../../data/relativeTime.js";
 import { openPanel as coordinatorOpenPanel, panelClosed as coordinatorPanelClosed } from "../panelCoordinator.js";
+import { highlightCodeBlocks } from "../codeHighlight.js";
 
 /** @returns {boolean} true on touch/coarse-pointer devices (no reliable hover) */
 const isCoarsePointer = () => window.matchMedia("(hover: none)").matches;
@@ -401,10 +402,12 @@ export function createQuestionNode(q, handlers) {
   // Header actions collapse behind a single "more" button on narrow/mobile screens (see
   // .header-more-btn / .header-actions-wrap in style.css) so the question text keeps most of the
   // row's width instead of being squeezed by 6+ inline icon buttons. On desktop this wrapper is
-  // `display: contents`, so difficultyDot/statusRow/flagBtn lay out exactly as if unwrapped.
+  // `display: contents`, so statusRow/flagBtn lay out exactly as if unwrapped. difficultyDot is
+  // deliberately NOT in this group — it's appended directly into `header` below, right before
+  // doneWrap, so it always stays visible (both collapsed/expanded states) immediately before the
+  // Done button rather than getting hidden behind "more" with the rest.
   const headerActionsWrap = document.createElement("div");
   headerActionsWrap.className = "header-actions-wrap";
-  headerActionsWrap.appendChild(difficultyDot);
   headerActionsWrap.appendChild(statusRow);
   headerActionsWrap.appendChild(flagBtn);
 
@@ -445,6 +448,7 @@ export function createQuestionNode(q, handlers) {
   header.appendChild(reorderBadge);
   header.appendChild(qTextWrap);
   header.appendChild(updatedAtHeader);
+  header.appendChild(difficultyDot);
   header.appendChild(doneWrap);
   header.appendChild(headerMoreBtn);
   header.appendChild(headerActionsWrap);
@@ -1012,7 +1016,10 @@ export function patchQuestionNode(el, q, handlers) {
   }
 
   const answerContent = body.querySelector(".answer-content");
-  if (answerContent) answerContent.innerHTML = q.answer || "<em>No answer yet.</em>";
+  if (answerContent) {
+    answerContent.innerHTML = q.answer || "<em>No answer yet.</em>";
+    highlightCodeBlocks(answerContent);
+  }
 
   const editBtn = body.querySelector(".answer-edit-row button");
   if (editBtn) editBtn.textContent = q.answer ? "Edit Answer" : "Add Answer";

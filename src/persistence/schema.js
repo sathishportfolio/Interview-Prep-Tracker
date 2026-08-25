@@ -17,6 +17,10 @@ export function emptySchema() {
     schemaVersion: SCHEMA_VERSION,
     files: [],
     activeFileId: null,
+    // Which file to load first on every app open, on every device, regardless of load order or
+    // which file was last active locally — set via sync/syncConfig.js's Cross-Device Sync manager
+    // and synced through the meta blob (see sync/gists.js) so it's the same on every device.
+    primaryFileId: null,
     globalToggles: {
       flatGroupView: false,
       dragDropOn: true,
@@ -72,6 +76,7 @@ export function coerceSchema(raw) {
     schemaVersion: SCHEMA_VERSION,
     files: Array.isArray(raw.files) ? raw.files.map((f) => ({ gistFileName: null, lastPushedHash: null, tombstones: [], ...f })) : base.files,
     activeFileId: raw.activeFileId ?? base.activeFileId,
+    primaryFileId: raw.primaryFileId ?? base.primaryFileId,
     globalToggles: { ...base.globalToggles, ...(raw.globalToggles || {}) },
     activeQuestion: raw.activeQuestion ?? base.activeQuestion,
     sync: coerceSync(raw.sync),

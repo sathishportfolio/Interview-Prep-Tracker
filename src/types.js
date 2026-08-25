@@ -209,6 +209,10 @@
  * @property {number} schemaVersion
  * @property {FileRecord[]} files
  * @property {string|null} activeFileId
+ * @property {string|null} primaryFileId  Which file loads first on every app open, on every device
+ *   (see features/fileManager.js's bootstrapFromStorage and togglePrimaryFile) — set via the
+ *   Cross-Device Sync manager and synced through the meta blob (see sync/gists.js) so every device
+ *   agrees on it.
  * @property {GlobalToggles} globalToggles
  * @property {ActiveQuestionPointer|null} activeQuestion
  * @property {SyncConfig} sync

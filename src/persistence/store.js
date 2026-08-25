@@ -91,6 +91,12 @@ export function writeActiveFileId(activeFileId) {
   writeSchema({ ...schema, activeFileId });
 }
 
+/** @param {string|null} primaryFileId */
+export function writePrimaryFileId(primaryFileId) {
+  const schema = readSchema();
+  writeSchema({ ...schema, primaryFileId });
+}
+
 /** @param {GlobalToggles} globalToggles */
 export function writeGlobalToggles(globalToggles) {
   const schema = readSchema();

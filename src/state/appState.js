@@ -21,6 +21,8 @@ export const appState = {
   files: [],
   /** @type {string|null} */
   activeFileId: null,
+  /** @type {string|null} Which file loads first on every app open, on every device — see types.js's StorageSchemaV1.primaryFileId. */
+  primaryFileId: null,
 
   /** @type {Question[]} rawData of the active file (mirrors the active FileRecord.rawData) */
   rawData: [],

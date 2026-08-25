@@ -10,7 +10,6 @@ import { parseMainCsv, serializeMainCsv, REQUIRED_COLUMNS } from "../data/csv/ma
 import { nextExportFileName } from "../data/filename.js";
 import { emptyFilterState } from "../data/filter.js";
 import { newFileId } from "../data/id.js";
-import { minifyAllAnswers } from "../data/answerFormat.js";
 import { migrateLessImportantToNotImportant, migrateGroupNamesToTitleCase, migrateTagsToTitleCase, backfillTriStateTracking, backfillUpdatedAt } from "../data/mutations.js";
 import { toTitleCase } from "../data/textCase.js";
 import * as store from "../persistence/store.js";
@@ -47,6 +46,7 @@ export function bootstrapFromStorage() {
   const schema = store.readSchema();
   appState.files = schema.files;
   appState.activeFileId = schema.activeFileId;
+  appState.primaryFileId = schema.primaryFileId;
   appState.toggles = schema.globalToggles;
   appState.activeQuestion = schema.activeQuestion;
   appState.timer = schema.timer;
@@ -54,10 +54,7 @@ export function bootstrapFromStorage() {
   appState.globalTags = schema.globalTags;
   appState.globalTagRelations = schema.globalTagRelations;
 
-  // Answers saved before HTML minification existed may still carry extra whitespace — normalize
-  // every loaded file's answers now (not just the active one) so the very next persist/sync carries
-  // the minified version instead of waiting for each question to be individually re-saved.
-  let anyMinified = false;
+  let anyChanged = false;
   let migratedGlobalTags = appState.globalTags;
   let anyTagsMigrated = false;
   appState.files = appState.files.map((f) => {
@@ -68,21 +65,25 @@ export function bootstrapFromStorage() {
     const tagsMigrated = migrateTagsToTitleCase(migratedGlobalTags, titleCased.rawData);
     migratedGlobalTags = tagsMigrated.globalTags;
     if (tagsMigrated.changed) anyTagsMigrated = true;
-    const result = minifyAllAnswers(tagsMigrated.rawData);
     const tombstones = f.tombstones ?? [];
-    if (!result.changed && !migrated.changed && !triStateBackfilled.changed && !updatedAtBackfilled.changed && !titleCased.changed && !tagsMigrated.changed && f.tombstones) return f;
-    anyMinified = true;
-    return { ...f, rawData: result.rawData, emptyGroups: titleCased.emptyGroups, tombstones };
+    if (!migrated.changed && !triStateBackfilled.changed && !updatedAtBackfilled.changed && !titleCased.changed && !tagsMigrated.changed && f.tombstones) return f;
+    anyChanged = true;
+    return { ...f, rawData: tagsMigrated.rawData, emptyGroups: titleCased.emptyGroups, tombstones };
   });
-  if (anyMinified) store.writeFiles(appState.files);
+  if (anyChanged) store.writeFiles(appState.files);
   if (anyTagsMigrated) {
     appState.globalTags = migratedGlobalTags;
     store.writeGlobalTags(appState.globalTags);
   }
 
-  const active = appState.files.find((f) => f.id === appState.activeFileId) || appState.files[0];
+  // A primary file (see sync/syncConfig.js's "Set Primary" control) always wins on load, regardless
+  // of which file was last active on this device or where it sits in appState.files — that's the
+  // whole point of marking one primary across devices. Falls back to the last-active file, then
+  // simply the first loaded file, the same as before primary existed.
+  const active = appState.files.find((f) => f.id === appState.primaryFileId) || appState.files.find((f) => f.id === appState.activeFileId) || appState.files[0];
   if (active) {
     loadFileIntoState(active);
+    if (active.id !== schema.activeFileId) store.writeActiveFileId(active.id);
   } else {
     appState.activeFileId = null;
     appState.rawData = [];
@@ -186,6 +187,23 @@ export function renameFilePrompt(fileId) {
   persistFiles();
   if (onFilesChanged) onFilesChanged();
   showToast(`Renamed to "${newName}".`, "success");
+}
+
+/**
+ * Sets/clears which file is "primary" (see sync/syncConfig.js's Cross-Device Sync manager) — the
+ * file bootstrapFromStorage always loads first on every app open, on every device, once this
+ * setting itself syncs (it rides in the meta blob alongside globalToggles — see sync/gists.js).
+ * Toggles off if the given file is already primary, so there's always a plain "clear primary" path
+ * without needing a separate button for it.
+ * @param {string} fileId
+ */
+export function togglePrimaryFile(fileId) {
+  const file = appState.files.find((f) => f.id === fileId);
+  if (!file) return;
+  const next = appState.primaryFileId === fileId ? null : fileId;
+  appState.primaryFileId = next;
+  store.writePrimaryFileId(next);
+  showToast(next ? `"${file.fileName}" set as primary — it'll load first on every device.` : `"${file.fileName}" is no longer primary.`, "success");
 }
 
 /** @param {string} fileId */
@@ -296,6 +314,10 @@ export function downloadFile(fileId) {
 export function deleteFile(fileId) {
   const wasActive = fileId === appState.activeFileId;
   appState.files = appState.files.filter((f) => f.id !== fileId);
+  if (appState.primaryFileId === fileId) {
+    appState.primaryFileId = null;
+    store.writePrimaryFileId(null);
+  }
   if (wasActive) {
     const next = appState.files[0];
     if (next) {

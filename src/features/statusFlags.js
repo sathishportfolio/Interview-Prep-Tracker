@@ -8,11 +8,31 @@
  * spaced-repetition schedule; marking Failed or Review Later (or unmarking Done back to nothing)
  * resets it back to "due soon" — see data/mutations.js scheduleReview.
  */
-import { toggleStatusFlag, setTriStatusFlag, scheduleReview, markStatus, resetTriStateHistory } from "../data/mutations.js";
+import { toggleStatusFlag, setTriStatusFlag, scheduleReview, markStatus, resetTriStateHistory, updateQuestion } from "../data/mutations.js";
 import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import { flashHighlight } from "../render/highlight.js";
 import { findQuestionHeaderEl } from "../render/treeRenderer.js";
+import { setActiveQuestionQuiet } from "./activeQuestion.js";
+
+/**
+ * The very first time a question is marked Done (never Done before, and never marked Done via the
+ * "Mark Done" menu before either — see doneCount), it's also marked Visited and set as the Active
+ * Question — a first "I know this" is exactly the kind of milestone worth flagging and remembering
+ * where you left off, without requiring a second separate click for either. Uses setActiveQuestionQuiet
+ * (no scroll/reveal) rather than setActiveQuestion, matching how Starred already treats this same
+ * "don't yank the user's scroll position mid-review" concern.
+ * @param {import('../types.js').Question} prev
+ * @param {"done"|"failed"|"reviewLater"|null} flag
+ * @param {string} questionId
+ * @param {import('../types.js').Question[]} rawData
+ * @returns {import('../types.js').Question[]}
+ */
+function applyFirstDoneMilestone(prev, flag, questionId, rawData) {
+  if (flag !== "done" || prev.done || prev.doneCount) return rawData;
+  setActiveQuestionQuiet(questionId);
+  return updateQuestion(rawData, questionId, { visited: true });
+}
 
 /** Done -> Failed -> Review Later -> (cleared), the order the 'd' keyboard shortcut cycles through. */
 const TRI_STATE_ORDER = /** @type {const} */ (["done", "failed", "reviewLater"]);
@@ -73,6 +93,7 @@ function applyTriState(questionId, flag, options = {}) {
     // nothing) resets the schedule the same way unmarking Done directly always has.
     rawData = scheduleReview(rawData, questionId, "reset");
   }
+  rawData = applyFirstDoneMilestone(prev, flag, questionId, rawData);
   applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
   if (flash) {
     const el = findQuestionHeaderEl(questionId);
@@ -101,8 +122,10 @@ export function markStatusWithMenu(questionId, status, withNotes) {
     if (note === null) return; // cancelled — abort, no state change
     note = note.trim() || undefined;
   }
+  const prev = appState.rawData.find((x) => x.id === questionId);
   const rawData0 = markStatus(appState.rawData, questionId, status, note);
-  const rawData = scheduleReview(rawData0, questionId, status === "done" ? "advance" : "reset");
+  let rawData = scheduleReview(rawData0, questionId, status === "done" ? "advance" : "reset");
+  if (prev) rawData = applyFirstDoneMilestone(prev, status, questionId, rawData);
   applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
 }
 

@@ -340,11 +340,37 @@ function buildConfiguredView(wrap) {
 function buildFileRow(wrap, file) {
   const row = document.createElement("div");
   row.className = "sync-file-row";
+  const isPrimary = appState.primaryFileId === file.id;
+  row.classList.toggle("sync-file-row-primary", isPrimary);
+
+  const primaryBtn = document.createElement("button");
+  primaryBtn.type = "button";
+  primaryBtn.className = `btn btn-sm btn-icon sync-primary-btn${isPrimary ? " is-primary" : ""}`;
+  primaryBtn.title = isPrimary ? "Primary file — loads first on every device. Click to unset." : "Set as primary — this file loads first on every device";
+  primaryBtn.innerHTML = `<i class="fa-${isPrimary ? "solid" : "regular"} fa-star"></i>`;
+  primaryBtn.addEventListener("click", () => {
+    fileManager.togglePrimaryFile(file.id);
+    if (onSyncedDataChanged) onSyncedDataChanged();
+    renderInto(wrap);
+  });
+  row.appendChild(primaryBtn);
 
   const name = document.createElement("span");
   name.className = "sync-file-name";
   name.textContent = file.fileName;
+  if (isPrimary) name.title = "Primary file";
   row.appendChild(name);
+
+  const renameBtn = document.createElement("button");
+  renameBtn.type = "button";
+  renameBtn.className = "btn btn-sm btn-icon sync-rename-btn";
+  renameBtn.title = "Rename this file";
+  renameBtn.innerHTML = '<i class="fa-solid fa-pen"></i>';
+  renameBtn.addEventListener("click", () => {
+    fileManager.renameFilePrompt(file.id);
+    renderInto(wrap);
+  });
+  row.appendChild(renameBtn);
 
   const status = document.createElement("span");
   status.className = "sync-file-status small text-muted";

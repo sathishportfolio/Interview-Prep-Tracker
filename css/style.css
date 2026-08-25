@@ -104,6 +104,87 @@ body {
 .temp-mode-wrap { display: flex; align-items: center; }
 .auto-download-wrap { display: flex; align-items: center; }
 .auto-download-wrap .form-check-label { margin-left: 0.35rem; cursor: pointer; }
+
+/* Add/Edit Answer popup (features/answerEditor.js) — widened so the answer textarea, its live
+   preview, and the separate Code Snippet card all have room to breathe. Redesigned as two quiet
+   cards with slim icon toolbars rather than labeled form sections, so it reads as a compact tool
+   (question for context, answer to write, optional code snippet) instead of a form to fill in. */
+.modal-host .modal-box:has(.answer-editor-body) { max-width: 680px; }
+
+/* Question — quiet single-line caption for context, not a heavy bordered heading; the modal's own
+   title ("Edit Answer"/"Add Answer") already says what this popup is for. */
+.answer-editor-question {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 0.6rem;
+}
+
+/* Answer + Code Snippet cards — same quiet treatment (soft background, no heavy border/heading text)
+   so the two read as one continuous tool, not stacked forms. */
+.answer-editor-card { background: var(--bg-surface-alt, rgba(127, 127, 127, 0.04)); border-radius: 8px; padding: 0.6rem; }
+.answer-editor-card + .answer-editor-card { margin-top: 0.6rem; }
+.answer-editor-card .form-control { margin-top: 0.4rem; }
+.answer-textarea { font-size: 0.9rem; }
+
+/* Slim icon toolbar — selection/formatting actions on the left, Preview/Reset/Clear on the right, in
+   one row instead of several stacked labeled sections. Shared by both cards (the code card's is a
+   narrower variant with just the language picker + Preview). */
+.answer-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; flex-wrap: wrap; }
+.answer-toolbar-group { display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
+.answer-toolbar-group-right { margin-left: auto; }
+.answer-toolbar-btn { min-width: 2.15rem; font-weight: 600; padding: 0.2rem 0.4rem; }
+.answer-toolbar-btn-strong { font-weight: 800; }
+.answer-toolbar-btn-italic { font-style: italic; }
+.answer-toolbar-btn-underline { text-decoration: underline; }
+.answer-toolbar-btn-clear { margin-left: 0.25rem; border-left: 1px dashed var(--border-soft); padding-left: 0.5rem; }
+.answer-toolbar-btn-icon, .answer-preview-toggle-btn { min-width: 2.15rem; padding: 0.2rem 0.4rem; }
+.answer-toolbar-btn-danger:hover { color: var(--danger, #dc3545); border-color: var(--danger, #dc3545); }
+/* Heading (H1-H5) split into one button + dropdown menu — reuses the shared dropdown-panel shell
+   (see .done-dropdown-panel/.done-dropdown-item, also used by the tree view's Done/Tags/Google
+   Search menus) instead of inventing new styling for one more small popup. */
+.answer-heading-dropdown-btn i + i { margin-left: 0.2rem; font-size: 0.7em; }
+/* Formatting toggle buttons (Clean/Bulleted/Numbered/Minify/Plain) — same toolbar-button look as the
+   selection buttons before them, separated by a thin divider, but with a pressed/"on" state since
+   these persist rather than firing a one-shot action. */
+.answer-toolbar-divider { width: 1px; align-self: stretch; background: var(--border-soft); margin: 0 0.15rem; }
+.answer-toolbar-btn-toggle.is-active { background: var(--accent, #0d6efd); color: #fff; border-color: var(--accent, #0d6efd); }
+.answer-code-toolbar { margin-bottom: 0; }
+.answer-code-language-select { width: auto; }
+.answer-code-textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.82rem; }
+
+/* Live preview toggle + pane (both the answer body's and the code snippet's — buildLivePreview is
+   shared between them). The pane renders via innerHTML, same as the real question body — including
+   the same syntax highlighting (render/codeHighlight.js) — so what's previewed here is exactly what
+   saving will show. The outer wrap is what's hidden/shown; an optional actions row (e.g. the code
+   preview's Copy button) sits above the content div so it survives that div's innerHTML refresh. */
+.answer-live-preview-wrap { margin-top: 0.5rem; }
+.answer-preview-actions-row { display: flex; justify-content: flex-end; gap: 0.35rem; margin-bottom: 0.3rem; }
+.answer-preview-toggle-btn.is-active { background: var(--accent, #0d6efd); color: #fff; border-color: var(--accent, #0d6efd); }
+.answer-live-preview {
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.9rem;
+  max-height: 240px;
+  overflow: auto;
+  background: var(--bg-surface);
+}
+.answer-live-preview:empty::before { content: "Nothing to preview yet."; color: var(--text-faint-2, #999); font-style: italic; font-size: 0.85rem; }
+.answer-live-preview pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
+.answer-live-preview pre code.hljs { padding: 0; background: transparent; }
+
+/* Text to HTML — de-emphasized as a plain small link sitting quietly under the toolbar/textarea. */
+.answer-converter-link { display: block; margin-top: 0.4rem; }
+
+/* Code Snippet's own enable checkbox — collapsed to just this one line until ticked. */
+.answer-option-check { margin: 0; display: flex; align-items: center; }
+.answer-option-check .form-check-input { cursor: pointer; }
+.answer-option-check .form-check-label { cursor: pointer; margin-left: 0.35rem; font-size: 0.82rem; }
+.answer-code-enable-row .form-check-label { font-weight: 600; font-size: 0.88rem; }
+.answer-code-content-wrap { margin-top: 0.5rem; }
 .export-btn-wrap { position: relative; display: flex; gap: 0.4rem; }
 .export-menu-panel {
   position: absolute;
@@ -235,11 +316,19 @@ body {
 /* Duplicate Finder needs room for long question text, answer previews, and the append picker. */
 .modal-host .modal-box:has(.dup-finder) { max-width: 960px; }
 
-.sync-file-row { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(100px, auto) auto auto; gap: 0.5rem; align-items: center; padding: 0.4rem 0; border-top: 1px solid var(--border-soft); }
+.sync-file-row { display: grid; grid-template-columns: auto minmax(120px, 1fr) auto minmax(90px, auto) auto auto; gap: 0.4rem; align-items: center; padding: 0.4rem 0; border-top: 1px solid var(--border-soft); }
 .sync-file-row:first-of-type { border-top: none; }
+.sync-file-row-primary { background: var(--bg-highlight-soft, rgba(255, 193, 7, 0.08)); border-radius: 6px; padding-left: 0.35rem; padding-right: 0.35rem; }
 .sync-file-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; }
 .sync-file-status { white-space: nowrap; }
 .sync-file-usage-warn { color: #997404; }
+/* Compact icon-only buttons for the Files list (primary star / rename pencil) — same footprint as
+   the icon-btn family elsewhere, kept local since it's only used inside the Cross-Device Sync
+   manager's per-file row. */
+.btn-icon { display: inline-flex; align-items: center; justify-content: center; padding: 0.2rem 0.4rem; line-height: 1; }
+.sync-primary-btn { color: var(--text-faint-2, #999); }
+.sync-primary-btn.is-primary { color: #f0b400; }
+.sync-primary-btn:hover { color: #f0b400; }
 /* Separates the Cross-Device Sync manager's Files list from its App-config-gist-id/danger-zone
    sections so each is easy to tell apart at a glance (see sync/syncConfig.js's sectionDivider). */
 .sync-section-divider { border: none; border-top: 1px solid var(--border-soft); margin: 0.9rem 0; }
@@ -567,6 +656,10 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .question-body { display: none; padding: 0.5rem 0.6rem 0.6rem; }
 .question-body.open { display: block; }
 .answer-content { font-size: 0.9rem; }
+/* Code snippets appended via the answer editor (data/answerFormat.js's buildCodeSnippetBlock),
+   syntax-highlighted by render/codeHighlight.js — wrap long lines instead of forcing the whole
+   question row wider, and scroll horizontally only as a last resort. */
+.answer-content pre { white-space: pre-wrap; word-break: break-word; overflow-x: auto; border-radius: 6px; }
 .answer-edit-row { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.4rem; }
 /* Dashed divider from the answer above only when there IS an answer (.question-item.no-answer is
    toggled in patchQuestionNode from q.answer) — an empty/no-answer question has nothing above this
@@ -689,10 +782,6 @@ body.bulk-bar-visible { padding-bottom: 3.5rem; }
 
 .modal-host .modal-backdrop-custom { position: fixed; inset: 0; background: var(--overlay-backdrop); display: flex; align-items: center; justify-content: center; z-index: 90; }
 .modal-host .modal-box { background: var(--bg-surface); color: var(--text); border-radius: 0.5rem; padding: 1rem; max-width: 480px; width: 92%; max-height: 85vh; overflow: auto; }
-
-/* Answer editor: shows which question is being answered, above the answer textarea (see
-   features/answerEditor.js) so it's never ambiguous when several questions look similar. */
-.modal-question-text { font-weight: 600; margin-bottom: 0.6rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-soft); }
 
 /* Manage Tags popup (features/tagManager.js) — CRUD list + per-tag related-tags editor. */
 .modal-host .modal-box:has(.tag-manager) { max-width: 560px; }
