@@ -11,9 +11,11 @@ import { nextExportFileName } from "../data/filename.js";
 import { emptyFilterState } from "../data/filter.js";
 import { newFileId } from "../data/id.js";
 import { minifyAllAnswers } from "../data/answerFormat.js";
+import { migrateLessImportantToNotImportant, migrateGroupNamesToTitleCase, migrateTagsToTitleCase, backfillTriStateTracking, backfillUpdatedAt } from "../data/mutations.js";
+import { toTitleCase } from "../data/textCase.js";
 import * as store from "../persistence/store.js";
 import { appState, loadFileIntoState } from "../state/appState.js";
-import { showToast } from "./toast.js";
+import { showToast, promptAction } from "./toast.js";
 
 const FALLBACK_SAMPLE_CSV = `Subject,Topic,SubTopic,Question,Answer,Done,ReviewLater
 Java,Core Java,OOP,What is polymorphism?,"Polymorphism lets one interface represent different underlying forms (method overriding/overloading).",false,false
@@ -49,18 +51,34 @@ export function bootstrapFromStorage() {
   appState.activeQuestion = schema.activeQuestion;
   appState.timer = schema.timer;
   appState.sync = schema.sync;
+  appState.globalTags = schema.globalTags;
+  appState.globalTagRelations = schema.globalTagRelations;
 
   // Answers saved before HTML minification existed may still carry extra whitespace — normalize
   // every loaded file's answers now (not just the active one) so the very next persist/sync carries
   // the minified version instead of waiting for each question to be individually re-saved.
   let anyMinified = false;
+  let migratedGlobalTags = appState.globalTags;
+  let anyTagsMigrated = false;
   appState.files = appState.files.map((f) => {
-    const result = minifyAllAnswers(f.rawData);
-    if (!result.changed) return f;
+    const migrated = migrateLessImportantToNotImportant(f.rawData);
+    const triStateBackfilled = backfillTriStateTracking(migrated.rawData);
+    const updatedAtBackfilled = backfillUpdatedAt(triStateBackfilled.rawData);
+    const titleCased = migrateGroupNamesToTitleCase(updatedAtBackfilled.rawData, f.emptyGroups);
+    const tagsMigrated = migrateTagsToTitleCase(migratedGlobalTags, titleCased.rawData);
+    migratedGlobalTags = tagsMigrated.globalTags;
+    if (tagsMigrated.changed) anyTagsMigrated = true;
+    const result = minifyAllAnswers(tagsMigrated.rawData);
+    const tombstones = f.tombstones ?? [];
+    if (!result.changed && !migrated.changed && !triStateBackfilled.changed && !updatedAtBackfilled.changed && !titleCased.changed && !tagsMigrated.changed && f.tombstones) return f;
     anyMinified = true;
-    return { ...f, rawData: result.rawData };
+    return { ...f, rawData: result.rawData, emptyGroups: titleCased.emptyGroups, tombstones };
   });
   if (anyMinified) store.writeFiles(appState.files);
+  if (anyTagsMigrated) {
+    appState.globalTags = migratedGlobalTags;
+    store.writeGlobalTags(appState.globalTags);
+  }
 
   const active = appState.files.find((f) => f.id === appState.activeFileId) || appState.files[0];
   if (active) {
@@ -69,6 +87,7 @@ export function bootstrapFromStorage() {
     appState.activeFileId = null;
     appState.rawData = [];
     appState.emptyGroups = [];
+    appState.tombstones = [];
     appState.filterState = emptyFilterState();
   }
 }
@@ -84,8 +103,9 @@ function persistFiles() {
  * @returns {{ok: boolean, error?: string}}
  */
 export function loadCsvAsNewFile(fileName, csvText) {
-  if (appState.files.some((f) => f.fileName.toLowerCase() === fileName.toLowerCase())) {
-    return { ok: false, error: `A file named "${fileName}" is already loaded. Rename the file, switch to the existing one, or reset all data first.` };
+  const titledFileName = toTitleCase(fileName);
+  if (appState.files.some((f) => f.fileName.toLowerCase() === titledFileName.toLowerCase())) {
+    return { ok: false, error: `A file named "${titledFileName}" is already loaded. Rename the file, switch to the existing one, or reset all data first.` };
   }
   const parsed = parseMainCsv(csvText);
   if (!parsed.ok) {
@@ -94,7 +114,7 @@ export function loadCsvAsNewFile(fileName, csvText) {
   /** @type {FileRecord} */
   const file = {
     id: newFileId(),
-    fileName,
+    fileName: titledFileName,
     rawData: parsed.rawData,
     emptyGroups: parsed.emptyGroups,
     filters: emptyFilterState(),
@@ -102,6 +122,7 @@ export function loadCsvAsNewFile(fileName, csvText) {
     lastExportDate: null,
     gistFileName: null,
     lastPushedHash: null,
+    tombstones: [],
   };
   appState.files = [...appState.files, file];
   appState.activeFileId = file.id;
@@ -143,6 +164,30 @@ export function loadSampleData() {
   return loadCsvAsNewFile(fileName, csvText);
 }
 
+/**
+ * Renames a loaded file via a prompt() dialog (same UX as features/rename.js's Subject/Topic/
+ * SubTopic rename) — new name is always Title Cased, same normalization every other file name gets
+ * (see loadCsvAsNewFile). Deliberately never touches `gistFileName` (the sync blob's own name) —
+ * that's immutable once assigned (see sync/gists.js's assignGistFilenames doc comment) so the sync
+ * blob keeps its stable identity across a rename instead of orphaning/duplicating it.
+ * @param {string} fileId
+ */
+export function renameFilePrompt(fileId) {
+  const file = appState.files.find((f) => f.id === fileId);
+  if (!file) return;
+  const rawName = promptAction(`Rename file "${file.fileName}" to:`, file.fileName);
+  const newName = toTitleCase((rawName || "").trim());
+  if (!newName || newName === file.fileName) return;
+  if (appState.files.some((f) => f.id !== fileId && f.fileName.toLowerCase() === newName.toLowerCase())) {
+    showToast(`A file named "${newName}" already exists.`, "error");
+    return;
+  }
+  appState.files = appState.files.map((f) => (f.id === fileId ? { ...f, fileName: newName } : f));
+  persistFiles();
+  if (onFilesChanged) onFilesChanged();
+  showToast(`Renamed to "${newName}".`, "success");
+}
+
 /** @param {string} fileId */
 export function switchToFile(fileId) {
   const file = appState.files.find((f) => f.id === fileId);
@@ -163,6 +208,7 @@ export function clearActiveFile() {
   appState.activeFileId = null;
   appState.rawData = [];
   appState.emptyGroups = [];
+  appState.tombstones = [];
   appState.filterState = emptyFilterState();
   persistFiles();
 }
@@ -173,6 +219,7 @@ export function syncActiveFileBackIntoRecord() {
   if (!file) return;
   file.rawData = appState.rawData;
   file.emptyGroups = appState.emptyGroups;
+  file.tombstones = appState.tombstones;
   file.filters = appState.filterState;
 }
 
@@ -257,6 +304,7 @@ export function deleteFile(fileId) {
       appState.activeFileId = null;
       appState.rawData = [];
       appState.emptyGroups = [];
+      appState.tombstones = [];
       appState.filterState = emptyFilterState();
     }
   }
@@ -290,6 +338,21 @@ export async function copyProgressCsvToClipboard() {
  */
 export function resetAllData() {
   store.clearAll();
+  bootstrapFromStorage();
+  if (onFilesChanged) onFilesChanged();
+}
+
+/**
+ * Same full wipe as resetAllData, but preserves the Cross-Device Sync connection (GitHub token +
+ * gist id) across the reset — for the common case of "wipe my local progress but don't make me
+ * reconnect sync". Reads the current sync config BEFORE clearing, then writes it back onto the
+ * freshly-cleared schema before bootstrapping from it, so bootstrapFromStorage's own read-back
+ * naturally picks it up like everything else.
+ */
+export function resetAllDataKeepSync() {
+  const currentSync = store.readSchema().sync;
+  store.clearAll();
+  store.writeSync(currentSync);
   bootstrapFromStorage();
   if (onFilesChanged) onFilesChanged();
 }

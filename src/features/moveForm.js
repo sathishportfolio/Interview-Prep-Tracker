@@ -15,6 +15,7 @@ import { applySelectionMove, formatSelectionSummary } from "./bulkSelection.js";
 import { appState } from "../state/appState.js";
 import { openModal } from "./modal.js";
 import { promptAction, showToast } from "./toast.js";
+import { toTitleCase } from "../data/textCase.js";
 
 /**
  * @typedef {import("../data/selectionKeys.js").GroupLevel} GroupLevel
@@ -176,7 +177,7 @@ function allSame(values) {
 function createNew(select, label, onCreated) {
   const name = promptAction(`New ${label} name:`);
   if (!name || !name.trim()) return;
-  const trimmed = name.trim();
+  const trimmed = toTitleCase(name.trim());
   const opt = document.createElement("option");
   opt.value = trimmed;
   opt.textContent = trimmed;

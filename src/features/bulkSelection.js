@@ -307,7 +307,7 @@ export function bulkDeleteSelected() {
   const nestedNote = nestedQuestionTotal > 0 ? ` This includes ${nestedQuestionTotal} question${nestedQuestionTotal !== 1 ? "s" : ""} nested inside the selected group(s).` : "";
   if (!confirmAction(`Delete ${summary}?${nestedNote} This cannot be undone here, but Undo will still work.`)) return;
 
-  let data = { rawData: appState.rawData, emptyGroups: appState.emptyGroups };
+  let data = { rawData: appState.rawData, emptyGroups: appState.emptyGroups, tombstones: appState.tombstones };
   for (const g of groups) data = deleteGroupCascade(data, g.level, g.scope);
   if (questionIds.length > 0) data = deleteQuestions(data, questionIds);
 

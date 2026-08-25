@@ -3,18 +3,26 @@
  * csv/bulkCsv.js — Bulk Add/Update/Copy CSV format (feature.md). Comma-separated, header row
  * required (resolved ambiguity: chosen over README-AI's tab-separated/header-less description).
  * Columns: Subject, Topic, SubTopic, Question, Answer[, Done, ReviewLater, Duplicate,
- * LessImportant, Starred, Failed]. Rows may leave Subject/Topic/SubTopic blank to inherit the
- * previous row's value, or the panel's own fixed scope. Zero DOM.
+ * NotImportant, Starred, Failed, Difficulty]. `NotImportant` was previously `LessImportant` —
+ * parsing accepts either column name for backward compatibility, export always writes
+ * `NotImportant`. Rows may leave Subject/Topic/SubTopic blank to inherit the previous row's value,
+ * or the panel's own fixed scope. Zero DOM.
  * @typedef {import('../../types.js').Question} Question
  */
 import { parseCsvObjects, serializeCsvObjects } from "./csvCore.js";
 
 export const BULK_REQUIRED_COLUMNS = ["Subject", "Topic", "SubTopic", "Question", "Answer"];
-export const BULK_STATUS_COLUMNS = ["Done", "ReviewLater", "Duplicate", "LessImportant", "Starred", "Failed"];
-export const BULK_ALL_COLUMNS = [...BULK_REQUIRED_COLUMNS, ...BULK_STATUS_COLUMNS];
+export const BULK_STATUS_COLUMNS = ["Done", "ReviewLater", "Duplicate", "NotImportant", "Starred", "Failed", "Visited"];
+export const BULK_OPTIONAL_COLUMNS = ["Difficulty"];
+export const BULK_ALL_COLUMNS = [...BULK_REQUIRED_COLUMNS, ...BULK_STATUS_COLUMNS, ...BULK_OPTIONAL_COLUMNS];
 
 function toBool(v) {
   return String(v ?? "").trim().toLowerCase() === "true";
+}
+/** @param {string|undefined} v @returns {"easy"|"medium"|"hard"|null} */
+function toDifficulty(v) {
+  const norm = String(v || "").trim().toLowerCase();
+  return norm === "easy" || norm === "medium" || norm === "hard" ? norm : null;
 }
 
 /**
@@ -27,9 +35,11 @@ function toBool(v) {
  * @property {boolean} done
  * @property {boolean} reviewLater
  * @property {boolean} duplicate
- * @property {boolean} lessImportant
+ * @property {boolean} notImportant
  * @property {boolean} starred
  * @property {boolean} failed
+ * @property {boolean} visited
+ * @property {"easy"|"medium"|"hard"|null} difficulty
  * @property {number} rowIndex 1-based row index in the pasted block (for result reporting)
  */
 
@@ -77,9 +87,11 @@ export function parseBulkCsv(text, scope = {}) {
       done: toBool(rec.Done),
       reviewLater: toBool(rec.ReviewLater),
       duplicate: toBool(rec.Duplicate),
-      lessImportant: toBool(rec.LessImportant),
+      notImportant: toBool(rec.NotImportant ?? rec.LessImportant),
       starred: toBool(rec.Starred),
       failed: toBool(rec.Failed),
+      visited: toBool(rec.Visited),
+      difficulty: toDifficulty(rec.Difficulty),
       rowIndex: idx + 1,
     });
   });
@@ -102,9 +114,11 @@ export function serializeBulkCsv(questions) {
     Done: q.done ? "true" : "false",
     ReviewLater: q.reviewLater ? "true" : "false",
     Duplicate: q.duplicate ? "true" : "false",
-    LessImportant: q.lessImportant ? "true" : "false",
+    NotImportant: q.notImportant ? "true" : "false",
     Starred: q.starred ? "true" : "false",
     Failed: q.failed ? "true" : "false",
+    Visited: q.visited ? "true" : "false",
+    Difficulty: q.difficulty ?? "",
   }));
   return serializeCsvObjects(BULK_ALL_COLUMNS, records);
 }
@@ -128,9 +142,11 @@ export function sampleBulkRow(scope = {}) {
     Done: "false",
     ReviewLater: "false",
     Duplicate: "false",
-    LessImportant: "false",
+    NotImportant: "false",
     Starred: "false",
     Failed: "false",
+    Visited: "false",
+    Difficulty: "",
   };
   return serializeCsvObjects(BULK_ALL_COLUMNS, [record]);
 }

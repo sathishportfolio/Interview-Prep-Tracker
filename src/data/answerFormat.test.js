@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { wrapAnswerAsList, minifyHtml, minifyAllAnswers, stripAttributesAndComments, cleanAnswerHtml, normalizeStoredAnswer } from "./answerFormat.js";
+import { wrapAnswerAsList, minifyHtml, minifyAllAnswers, stripAttributesAndComments, stripDisallowedTags, cleanAnswerHtml, normalizeStoredAnswer } from "./answerFormat.js";
 
 test("wrapAnswerAsList wraps plain text in <ul><li>", () => {
   assert.equal(wrapAnswerAsList("Plain answer text"), "<ul><li>Plain answer text</li></ul>");
@@ -26,8 +26,13 @@ test("wrapAnswerAsList trims surrounding whitespace when wrapping", () => {
   assert.equal(wrapAnswerAsList("  Plain answer  "), "<ul><li>Plain answer</li></ul>");
 });
 
-test("wrapAnswerAsList wraps HTML that isn't already a top-level <ul><li>", () => {
+test("wrapAnswerAsList wraps HTML with no <li> at all", () => {
   assert.equal(wrapAnswerAsList("<p>Some paragraph</p>"), "<ul><li><p>Some paragraph</p></li></ul>");
+});
+
+test("wrapAnswerAsList does not re-wrap when a <li> exists anywhere, even after other markup", () => {
+  const already = "<p>Intro sentence</p><ul><li>Already a list</li></ul>";
+  assert.equal(wrapAnswerAsList(already), already);
 });
 
 test("minifyHtml collapses whitespace between tags", () => {
@@ -100,6 +105,20 @@ test("stripAttributesAndComments leaves plain tags and text content untouched", 
   assert.equal(stripAttributesAndComments(input), input);
 });
 
+test("stripDisallowedTags unwraps p/div/span/headers/a/img/em, keeping ul/li/b/strong", () => {
+  assert.equal(stripDisallowedTags("<div><p>text</p></div>"), "text");
+  assert.equal(stripDisallowedTags("<span>x</span>"), "x");
+  assert.equal(stripDisallowedTags("<h1>Title</h1>"), "Title");
+  assert.equal(stripDisallowedTags("<a>link</a><img>"), "link");
+  assert.equal(stripDisallowedTags("<em>x</em>"), "x");
+  assert.equal(stripDisallowedTags("<ul><li><b>bold</b> and <strong>strong</strong></li></ul>"), "<ul><li><b>bold</b> and <strong>strong</strong></li></ul>");
+});
+
+test("cleanAnswerHtml doesn't double-wrap an answer that already contains a <ul><li> list", () => {
+  const input = "Some intro text<ul><li>Existing point one</li><li>Existing point two</li></ul>";
+  assert.equal(cleanAnswerHtml(input), "Some intro text<ul><li>Existing point one</li><li>Existing point two</li></ul>");
+});
+
 test("cleanAnswerHtml strips attributes/comments, wraps, and minifies a real 'Text to HTML' export", () => {
   const input = `<p class="demoTitle">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span style="background: #16643d; color: #fff;"> &nbsp;Text </span>&nbsp;-&nbsp;HTML&nbsp;.&nbsp;com</p>
 <p class="intro">Convert your visual text documents to HTML code instantly. Edit and clean your markup with a couple of clicks.</p>
@@ -117,23 +136,17 @@ test("cleanAnswerHtml strips attributes/comments, wraps, and minifies a real 'Te
   // No leftover attributes (of any name, including custom ones) or comments.
   assert.equal(/<[a-z][a-z0-9]*\s+[^>]/i.test(result), false, "no tag should have anything after its name");
   assert.equal(/<!--/.test(result), false);
-  // Every original tag/text survives, just bare — wrapped as a single outer bullet since the
-  // cleaned content didn't already start with <ul><li>.
+  // No disallowed tags survive (p/span/h2/a/img/em all unwrapped, only ul/li/strong remain), and
+  // the answer isn't re-wrapped in an outer <ul><li> since it already contains list markup.
   assert.equal(
     result,
-    "<ul><li><p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span> &nbsp;Text </span>&nbsp;-&nbsp;HTML&nbsp;.&nbsp;com</p>" +
-      "<p>Convert your visual text documents to HTML code instantly. Edit and clean your markup with a couple of clicks.</p>" +
-      "<p><a><img></a></p>" +
-      "<h2>How to use the Text to HTML converter?</h2>" +
-      "<ul><li>Paste a visual document to the left to convert it to HTML</li>" +
-      "<li>Paste your HTML code it the right to preview the document</li></ul>" +
-      "<p><strong>Press the <span>Clean</span> button to execute the <em>checked</em><a>HTML cleaning</a> options.</strong></p>" +
-      "<p>Erase the page to get started. <span>&nbsp;</span></p>" +
-      "<p>&nbsp;</p></li></ul>"
+    "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;Text &nbsp;-&nbsp;HTML&nbsp;.&nbsp;com Convert your visual text documents to HTML code instantly. Edit and clean your markup with a couple of clicks. How to use the Text to HTML converter? " +
+      "<ul><li>Paste a visual document to the left to convert it to HTML</li><li>Paste your HTML code it the right to preview the document</li></ul>" +
+      "<strong>Press the Clean button to execute the checked HTML cleaning options.</strong> Erase the page to get started. &nbsp; &nbsp;"
   );
 });
 
-test("normalizeStoredAnswer strips attributes/comments and minifies but does NOT wrap unwrapped content", () => {
+test("normalizeStoredAnswer strips attributes/comments/disallowed tags and minifies but does NOT wrap unwrapped content", () => {
   const input = '<p class="x">Legacy answer</p>';
-  assert.equal(normalizeStoredAnswer(input), "<p>Legacy answer</p>");
+  assert.equal(normalizeStoredAnswer(input), "Legacy answer");
 });

@@ -33,6 +33,8 @@ import * as store from "../persistence/store.js";
 import { createGist, pushToGist, pullFromGist, usageAgainstSafeCeiling } from "./github.js";
 import { getDeviceId, getDeviceLabel, formatIST } from "./device.js";
 import { minifyAllAnswers } from "../data/answerFormat.js";
+import { mergeRawData } from "../data/syncMerge.js";
+import { pruneEmptyGroups } from "../data/emptyGroups.js";
 
 const META_FILENAME = "_sync-meta.json";
 
@@ -50,8 +52,8 @@ function hashString(str) {
 
 /** @param {FileRecord} file @returns {string} JSON content this file's gist blob should hold. */
 function serializeFileContent(file) {
-  const { id, fileName, rawData, emptyGroups, filters, lastExportVersion, lastExportDate } = file;
-  return JSON.stringify({ id, fileName, rawData, emptyGroups, filters, lastExportVersion, lastExportDate });
+  const { id, fileName, rawData, emptyGroups, filters, lastExportVersion, lastExportDate, tombstones } = file;
+  return JSON.stringify({ id, fileName, rawData, emptyGroups, filters, lastExportVersion, lastExportDate, tombstones: tombstones ?? [] });
 }
 
 /**
@@ -86,6 +88,7 @@ function serializeMetaContent({ version, activeDevice }) {
     globalToggles: appState.toggles,
     activeQuestion: appState.activeQuestion,
     timer: appState.timer,
+    globalTags: appState.globalTags,
   });
 }
 
@@ -180,12 +183,30 @@ function parseMeta(result) {
  * gist id isn't actually the sync gist, or its last write was somehow malformed — either way,
  * lastSyncedLabel/lastRemoteActiveDevice/knownVersion are only ever updated below AFTER this parse
  * succeeds, never from a failed/partial read.
+ *
+ * Per-question merge (not whole-file replace): for a file already known locally (has a
+ * gistFileName), the remote blob's rawData/tombstones are merged against this device's own
+ * pre-pull copy via data/syncMerge.js's mergeRawData — per question id, whichever side has the
+ * newer updatedAt (or, for a delete, the newer deletedAt tombstone) wins. This is what lets two
+ * devices edit DIFFERENT questions in the same file without syncing in between and have both edits
+ * survive, instead of one device's whole-file push silently clobbering the other's. emptyGroups/
+ * filters/export metadata stay a plain remote-replaces-local value (no smarter merge attempted
+ * there) — emptyGroups is pruned against the MERGED rawData afterward so a placeholder doesn't
+ * linger next to a question the merge just brought back.
+ * Exported (in addition to being used internally by pullAllFiles/pullIfRemoteNewer) so tests can
+ * exercise the merge logic directly against a fabricated gist payload without mocking fetch — see
+ * gists.test.js's headline regression test for the per-question merge this function implements.
  * @param {{files: Record<string, {content: string}>, updatedAt: number|null}} result
  * @returns {{ok: boolean, error?: string, failures?: Array<{fileName: string, error: string}>}}
  */
-function applyRemotePullResult(result) {
+export function applyRemotePullResult(result) {
   const meta = parseMeta(result);
   if (!meta) return { ok: false, error: `This gist has no readable "${META_FILENAME}" file — it isn't the sync gist (maybe the wrong gist id was pasted, or its last write was corrupted?).` };
+
+  // Pre-pull local snapshot, keyed by id — used ONLY to merge against a file that already has a
+  // gistFileName below (the byId accumulator itself is pre-seeded with never-pushed files only, so
+  // it can't be used for that lookup: see the seeding comment right after this).
+  const localById = new Map(appState.files.map((f) => [f.id, f]));
 
   // Seed ONLY with files that have never been pushed (gistFileName null) — there's nothing remote to
   // reconcile those against, so they survive untouched. Every file that HAS a gistFileName must come
@@ -200,10 +221,29 @@ function applyRemotePullResult(result) {
     if (filename === META_FILENAME) continue;
     try {
       const content = JSON.parse(f.content);
-      byId.set(content.id, {
+      const remoteTombstones = Array.isArray(content.tombstones) ? content.tombstones : [];
+      const localFile = localById.get(content.id);
+
+      let mergedRawData = content.rawData;
+      let mergedTombstones = remoteTombstones;
+      if (localFile) {
+        const merged = mergeRawData(
+          { rawData: localFile.rawData, tombstones: localFile.tombstones ?? [] },
+          { rawData: content.rawData, tombstones: remoteTombstones }
+        );
+        mergedRawData = merged.rawData;
+        mergedTombstones = merged.tombstones;
+      }
+      const mergedContent = {
         ...content,
+        rawData: mergedRawData,
+        tombstones: mergedTombstones,
+        emptyGroups: pruneEmptyGroups(content.emptyGroups, mergedRawData),
+      };
+      byId.set(content.id, {
+        ...mergedContent,
         gistFileName: filename,
-        lastPushedHash: hashString(JSON.stringify(content)),
+        lastPushedHash: hashString(serializeFileContent(/** @type {FileRecord} */ (mergedContent))),
       });
     } catch (e) {
       // Read-safety fallback: a genuinely unreadable blob shouldn't be treated as "deleted" — keep
@@ -219,6 +259,7 @@ function applyRemotePullResult(result) {
   if (meta.globalToggles) appState.toggles = meta.globalToggles;
   if (meta.activeQuestion !== undefined) appState.activeQuestion = meta.activeQuestion;
   if (meta.timer) appState.timer = meta.timer;
+  if (Array.isArray(meta.globalTags)) appState.globalTags = meta.globalTags;
 
   // Only reached once the meta parse above succeeded — lastSyncedLabel/activeDevice/version state
   // never gets updated from a failed or partial read (see this function's doc comment).
@@ -234,25 +275,37 @@ function applyRemotePullResult(result) {
   store.writeGlobalToggles(appState.toggles);
   store.writeActiveQuestion(appState.activeQuestion);
   store.writeTimer(appState.timer);
+  store.writeGlobalTags(appState.globalTags);
   store.writeSync(appState.sync);
   return { ok: true, failures: failures.length > 0 ? failures : undefined };
 }
 
 /**
- * Pushes every locally-changed file (new content or never-pushed) plus the meta blob to the shared
- * sync gist in a single PATCH — but only after pre-push validation against a FRESH fetch of the
- * remote meta:
+ * Pushes every locally-changed file (new content or never-pushed) and the meta blob to the shared
+ * sync gist as SEPARATE, CONCURRENT PATCH requests (one per changed file, plus one for meta) —
+ * only after pre-push validation against a FRESH fetch of the remote meta:
  *   - Blocked if the remote's real `version` is ahead of this device's last-known version (someone
  *     else pushed since this device last pulled) — abort, tell the user to pull first.
  *   - Blocked if the remote's `activeDevice` write lock is currently held by a DIFFERENT device
  *     (a push from that device is in flight right now) — abort, tell the user to retry shortly.
- * A successful push bumps `version` by 1 and writes `activeDevice: null` in the same request —
+ * A successful meta push bumps `version` by 1 and writes `activeDevice: null` in the same request —
  * acquire, write, and release all happen as one atomic-from-our-perspective operation, so there's no
  * separate "holding" state that could leak if a device goes offline mid-edit.
+ *
+ * Firing one PATCH per changed file (instead of bundling everything into one combined PATCH) lets a
+ * push with many changed files land faster — GitHub's Gist PATCH only touches files explicitly
+ * named in ITS OWN payload, so disjoint concurrent PATCHes to the same gist never clobber each
+ * other's file content. The tradeoff is partial-success: one file's PATCH can fail while others (and
+ * meta) succeed. Each file's `lastPushedHash` is only advanced for files whose OWN PATCH succeeded,
+ * so a failed one is simply retried on the next push; `knownVersion`/`lastMetaPushedHash` are only
+ * advanced if the META push specifically succeeded. Callers get a per-item breakdown
+ * (`succeededFiles`/`failedFiles`/`metaOk`) to report partial failures precisely instead of one
+ * blanket error.
+ *
  * Duplicate Push Protection: if nothing local actually changed (no file/meta diff), returns
  * `skipped: true` WITHOUT any network call at all — the remote validation fetch only happens once
  * there's something worth sending.
- * @returns {Promise<{ok: boolean, error?: string, skipped?: boolean, blocked?: "behind"|"locked"}>}
+ * @returns {Promise<{ok: boolean, error?: string, skipped?: boolean, blocked?: "behind"|"locked", succeededFiles?: string[], failedFiles?: Array<{fileName: string, error: string}>, metaOk?: boolean}>}
  */
 export async function pushAllChangedFiles() {
   const token = appState.sync.githubToken;
@@ -261,22 +314,21 @@ export async function pushAllChangedFiles() {
 
   assignGistFilenames(appState.files);
 
-  /** @type {Record<string, {content: string}>} */
-  const filePatch = {};
-  let anyFileChanged = false;
+  /** @type {Array<{file: FileRecord, content: string}>} */
+  const changedFiles = [];
   for (const file of appState.files) {
     const content = serializeNormalizedFileContent(file);
     const hash = hashString(content);
     if (file.lastPushedHash === hash) continue;
-    filePatch[/** @type {string} */ (file.gistFileName)] = { content };
-    anyFileChanged = true;
+    changedFiles.push({ file, content });
   }
+  const anyFileChanged = changedFiles.length > 0;
 
   // Cheap local-only check first: don't fetch remote for full validation if there's no actual data
   // to push. Still sends a lightweight description-only PATCH (no files, no version bump, no
   // validation needed since it touches nothing version-tracked) so the gist's "last touched" stamp
   // refreshes on every push attempt, not just ones carrying real content changes.
-  const localTogglesChanged = hashString(JSON.stringify({ t: appState.toggles, a: appState.activeQuestion, ti: appState.timer })) !== appState.sync.lastMetaPushedHash;
+  const localTogglesChanged = hashString(JSON.stringify({ t: appState.toggles, a: appState.activeQuestion, ti: appState.timer, g: appState.globalTags })) !== appState.sync.lastMetaPushedHash;
   if (!anyFileChanged && !localTogglesChanged) {
     await pushToGist({ token, gistId: configGistId, files: {}, description: syncGistDescription() });
     return { ok: true, skipped: true };
@@ -300,24 +352,54 @@ export async function pushAllChangedFiles() {
 
   const newVersion = remoteVersion + 1;
   const metaContent = serializeMetaContent({ version: newVersion, activeDevice: null });
-  filePatch[META_FILENAME] = { content: metaContent };
+  const description = syncGistDescription();
 
-  const result = await pushToGist({ token, gistId: configGistId, files: filePatch, description: syncGistDescription() });
-  if (!result.ok) return { ok: false, error: result.error };
+  const filePushResults = await Promise.all(
+    changedFiles.map(async ({ file, content }) => ({
+      file,
+      content,
+      result: await pushToGist({ token, gistId: configGistId, files: { [/** @type {string} */ (file.gistFileName)]: { content } }, description }),
+    }))
+  );
+  const metaResult = await pushToGist({ token, gistId: configGistId, files: { [META_FILENAME]: { content: metaContent } }, description });
 
-  for (const file of appState.files) file.lastPushedHash = hashString(serializeFileContent(file));
+  /** @type {string[]} */
+  const succeededFiles = [];
+  /** @type {Array<{fileName: string, error: string}>} */
+  const failedFiles = [];
+  for (const { file, content, result } of filePushResults) {
+    if (result.ok) {
+      file.lastPushedHash = hashString(content);
+      succeededFiles.push(file.fileName);
+    } else {
+      failedFiles.push({ fileName: file.fileName, error: result.error || "Push failed." });
+    }
+  }
   if (anyFileChanged) store.writeFiles(appState.files);
-  appState.sync = {
-    ...appState.sync,
-    lastPushAt: Date.now(),
-    lastKnownRemoteUpdatedAt: Date.now(),
-    knownVersion: newVersion,
-    lastMetaPushedHash: hashString(JSON.stringify({ t: appState.toggles, a: appState.activeQuestion, ti: appState.timer })),
-    lastRemoteActiveDevice: getDeviceLabel(),
-    lastRemoteUpdateTimestamp: formatIST(Date.now()),
+
+  const metaOk = metaResult.ok;
+  if (metaOk) {
+    appState.sync = {
+      ...appState.sync,
+      lastPushAt: Date.now(),
+      lastKnownRemoteUpdatedAt: Date.now(),
+      knownVersion: newVersion,
+      lastMetaPushedHash: hashString(JSON.stringify({ t: appState.toggles, a: appState.activeQuestion, ti: appState.timer, g: appState.globalTags })),
+      lastRemoteActiveDevice: getDeviceLabel(),
+      lastRemoteUpdateTimestamp: formatIST(Date.now()),
+    };
+    store.writeSync(appState.sync);
+  }
+
+  const ok = metaOk && failedFiles.length === 0;
+  return {
+    ok,
+    skipped: false,
+    succeededFiles,
+    failedFiles,
+    metaOk,
+    error: ok ? undefined : failedFiles[0]?.error || metaResult.error || "Push failed.",
   };
-  store.writeSync(appState.sync);
-  return { ok: true, skipped: false };
 }
 
 /**
@@ -331,6 +413,23 @@ export async function pullAllFiles() {
   const result = await pullFromGist({ token, gistId: configGistId });
   if (!result.ok) return { ok: false, error: result.error };
   return applyRemotePullResult(result);
+}
+
+/**
+ * True if any previously-synced file (has a `gistFileName`) has local content that no longer
+ * matches its `lastPushedHash` — i.e. an edit made here hasn't made it into a successful push yet.
+ * Files that have NEVER been pushed (`gistFileName` null) are excluded: applyRemotePullResult leaves
+ * those untouched regardless (see its own doc comment), so they're never at risk from a pull.
+ * Used to guard the silent session-start pull (app.js) against discarding local edits — see that
+ * call site's comment for why this check exists independent of the Auto-sync/Pull Only toggles: a
+ * pull silently REPLACES a synced file's content with whatever's in the gist (per
+ * applyRemotePullResult), so an unpushed edit sitting here is exactly the case that must block it,
+ * regardless of why it hasn't been pushed yet (debounce still pending, Pull Only blocking all
+ * pushes, Auto-sync paused, or the last push simply failed).
+ * @returns {boolean}
+ */
+export function hasUnpushedLocalChanges() {
+  return appState.files.some((f) => f.gistFileName && hashString(serializeFileContent(f)) !== f.lastPushedHash);
 }
 
 /**
@@ -421,7 +520,7 @@ export async function createNewSyncGist() {
     ...appState.sync,
     configGistId: result.gistId,
     knownVersion: 1,
-    lastMetaPushedHash: hashString(JSON.stringify({ t: appState.toggles, a: appState.activeQuestion, ti: appState.timer })),
+    lastMetaPushedHash: hashString(JSON.stringify({ t: appState.toggles, a: appState.activeQuestion, ti: appState.timer, g: appState.globalTags })),
     lastRemoteActiveDevice: getDeviceLabel(),
     lastRemoteUpdateTimestamp: formatIST(Date.now()),
   };

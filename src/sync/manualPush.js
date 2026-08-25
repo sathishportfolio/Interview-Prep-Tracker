@@ -22,7 +22,15 @@ export async function manualPush() {
   }
   const result = await gists.pushAllChangedFiles();
   if (!result.ok) {
-    showToast(result.error || "Push failed.", "error");
+    // Partial success (some files pushed, others/meta didn't) reports precisely instead of one
+    // blanket error — each item's own PATCH is independent now (see gists.js's pushAllChangedFiles
+    // doc comment), so a failure doesn't mean nothing went through.
+    if (result.failedFiles && result.failedFiles.length > 0) {
+      const names = result.failedFiles.map((f) => f.fileName).join(", ");
+      showToast(`Pushed with ${result.failedFiles.length} file(s) failing (${names}) — they'll retry on the next push.`, "error");
+    } else {
+      showToast(result.error || "Push failed.", "error");
+    }
     return { ok: false };
   }
   showToast(result.skipped ? "Already pushed latest changes." : "Pushed local changes to the cloud.", result.skipped ? "info" : "success");

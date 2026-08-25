@@ -11,6 +11,7 @@ import { reconcileKeyedList } from "../keyedList.js";
 import { createQuestionNode, patchQuestionNode } from "./questionView.js";
 import { appState } from "../../state/appState.js";
 import { groupKey } from "../../data/selectionKeys.js";
+import { isReorderTarget } from "../reorderEligibility.js";
 
 /**
  * @param {SubTopicGroup} st
@@ -40,6 +41,27 @@ export function createSubTopicNode(st, handlers) {
   });
   header.insertBefore(selectBox, header.children[1]);
 
+  const reorderBadge = document.createElement("span");
+  reorderBadge.className = "reorder-badge";
+  header.insertBefore(reorderBadge, header.children[2]);
+
+  header.addEventListener(
+    "click",
+    (e) => {
+      if (!isReorderTarget("subTopic", { subject: st.subject, topic: st.topic })) return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      handlers.onReorderSelect("subTopic", { subject: st.subject, topic: st.topic, subTopic: st.subTopic });
+    },
+    true
+  );
+
+  headerControls.appendChild(
+    iconBtn("fa-ban", "Not Important", (e) => {
+      e.stopPropagation();
+      handlers.onToggleGroupNotImportant("subTopic", { subject: st.subject, topic: st.topic, subTopic: st.subTopic });
+    }, true)
+  );
   headerControls.appendChild(
     iconBtn("fa-copy", "Copy", (e) => {
       e.stopPropagation();
@@ -102,7 +124,11 @@ function iconBtn(iconClass, title, onClick, gated = false) {
  */
 export function patchSubTopicNode(el, st, handlers) {
   const titleEl = el.querySelector(".acc-title");
-  if (titleEl) titleEl.textContent = `${st.subTopic}${st.isEmpty ? " (empty)" : ""} (${st.questions.length})`;
+  if (titleEl) {
+    const total = st.questions.length;
+    const notImportant = st.questions.filter((q) => q.notImportant).length;
+    titleEl.textContent = `${st.subTopic}${st.isEmpty ? " (empty)" : ""} (${total - notImportant}/${total})`;
+  }
 
   const header = el.querySelector(":scope > .acc-header");
   const body = el.querySelector(":scope > .acc-body");
@@ -116,8 +142,20 @@ export function patchSubTopicNode(el, st, handlers) {
     appState.childSelectModeKeys.has(groupKey("subTopic", { subject: st.subject, topic: st.topic, subTopic: st.subTopic }))
   );
 
+  el.classList.toggle("not-important", !!st.notImportant);
+
   const selectBox = /** @type {HTMLInputElement|null} */ (el.querySelector(":scope > .acc-header > .group-select-checkbox"));
   if (selectBox) selectBox.checked = appState.selectedGroupKeys.has(groupKey("subTopic", { subject: st.subject, topic: st.topic, subTopic: st.subTopic }));
+
+  const reorderEligible = isReorderTarget("subTopic", { subject: st.subject, topic: st.topic });
+  const reorderBadge = el.querySelector(":scope > .acc-header > .reorder-badge");
+  if (reorderBadge) {
+    const idx = reorderEligible ? appState.reorderMode?.selections.indexOf(st.subTopic) ?? -1 : -1;
+    reorderBadge.textContent = idx >= 0 ? String(idx + 1) : "";
+    reorderBadge.classList.toggle("reorder-eligible", reorderEligible);
+    reorderBadge.classList.toggle("reorder-picked", idx >= 0);
+  }
+  if (header) header.classList.toggle("reorder-mode-target", reorderEligible);
 
   const bulkAddMount = el.querySelector(".bulk-add-mount");
   if (bulkAddMount && handlers.onMountGroupPanels) {

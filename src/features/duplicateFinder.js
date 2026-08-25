@@ -188,7 +188,7 @@ export function openDuplicateFinder() {
         deleteBtn.addEventListener("click", () => {
           if (!confirmDelete([q])) return;
           selected.delete(q.id);
-          const result = deleteQuestion({ rawData: appState.rawData, emptyGroups: appState.emptyGroups }, q.id);
+          const result = deleteQuestion({ rawData: appState.rawData, emptyGroups: appState.emptyGroups, tombstones: appState.tombstones }, q.id);
           applyDataChange(result);
           showToast("Deleted.", "success");
           render();
@@ -220,7 +220,7 @@ export function openDuplicateFinder() {
     const ids = [...selected];
     const targets = appState.rawData.filter((q) => selected.has(q.id));
     if (!confirmDelete(targets)) return;
-    const result = deleteQuestions({ rawData: appState.rawData, emptyGroups: appState.emptyGroups }, ids);
+    const result = deleteQuestions({ rawData: appState.rawData, emptyGroups: appState.emptyGroups, tombstones: appState.tombstones }, ids);
     applyDataChange(result);
     selected.clear();
     showToast(`Deleted ${ids.length} question(s).`, "success");

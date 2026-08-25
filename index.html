@@ -30,35 +30,6 @@
     <h1 class="app-title"><i class="fa-solid fa-layer-group"></i> Interview Prep Tracker</h1>
     <div id="headerBreadcrumb" class="header-breadcrumb"></div>
     <div class="header-timer">
-      <button id="themeToggleBtn" type="button" class="btn btn-sm btn-outline-secondary" title="Toggle Dark/Light Theme"><i class="fa-solid fa-moon"></i></button>
-      <span id="timerDisplay" class="timer-display">00:00:00</span>
-      <button id="timerStartBtn" class="btn btn-sm btn-success" title="Start"><i class="fa-solid fa-play"></i></button>
-      <button id="timerPauseBtn" class="btn btn-sm btn-warning" title="Pause"><i class="fa-solid fa-pause"></i></button>
-      <button id="timerResetBtn" class="btn btn-sm btn-secondary" title="Reset"><i class="fa-solid fa-rotate-left"></i></button>
-    </div>
-  </div>
-</header>
-
-<main class="app-main">
-
-  <section id="toolbarCard" class="toolbar-card card">
-    <div class="toolbar-row">
-      <label class="btn btn-primary btn-sm">
-        <i class="fa-solid fa-file-csv"></i> Upload CSV
-        <input type="file" id="csvFileInput" accept=".csv" hidden>
-      </label>
-      <button id="loadSampleBtn" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-flask"></i> Load Sample</button>
-
-      <select id="fileSwitcher" class="form-select form-select-sm file-switcher"></select>
-
-      <div class="export-btn-wrap">
-        <button id="exportMenuBtn" class="btn btn-outline-success btn-sm" aria-haspopup="true" aria-expanded="false"><i class="fa-solid fa-file-export"></i> Export</button>
-        <div id="exportMenuPanel" class="export-menu-panel" hidden>
-          <button id="downloadProgressBtn" type="button" class="btn btn-sm btn-outline-secondary export-menu-item"><i class="fa-solid fa-download"></i> Download as CSV</button>
-          <button id="copyProgressCsvBtn" type="button" class="btn btn-sm btn-outline-secondary export-menu-item"><i class="fa-solid fa-copy"></i> Copy as CSV</button>
-        </div>
-      </div>
-
       <div class="sync-menu-wrap">
         <button id="syncMenuBtn" class="btn btn-outline-secondary btn-sm" title="Cloud Sync" aria-haspopup="true" aria-expanded="false">
           <i class="fa-solid fa-cloud"></i> Sync
@@ -93,9 +64,39 @@
           </div>
         </div>
       </div>
+      <button id="themeToggleBtn" type="button" class="btn btn-sm btn-outline-secondary" title="Toggle Dark/Light Theme"><i class="fa-solid fa-moon"></i></button>
+      <span id="timerDisplay" class="timer-display">00:00:00</span>
+      <button id="timerStartBtn" class="btn btn-sm btn-success" title="Start"><i class="fa-solid fa-play"></i></button>
+      <button id="timerPauseBtn" class="btn btn-sm btn-warning" title="Pause"><i class="fa-solid fa-pause"></i></button>
+      <button id="timerResetBtn" class="btn btn-sm btn-secondary" title="Reset"><i class="fa-solid fa-rotate-left"></i></button>
+    </div>
+  </div>
+</header>
 
-      <button id="resetProgressBtn" class="btn btn-outline-warning btn-sm" title="Clear Done, Review Later, and spaced-repetition scheduling for every question — keeps all questions, Starred, and other flags untouched"><i class="fa-solid fa-rotate-left"></i> Reset Progress</button>
-      <button id="resetAllBtn" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-trash"></i> Reset All</button>
+<main class="app-main">
+
+  <section id="toolbarCard" class="toolbar-card card">
+    <div class="toolbar-row">
+      <label class="btn btn-primary btn-sm">
+        <i class="fa-solid fa-file-csv"></i> Upload CSV
+        <input type="file" id="csvFileInput" accept=".csv" hidden>
+      </label>
+      <button id="loadSampleBtn" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-flask"></i> Load Sample</button>
+
+      <select id="fileSwitcher" class="form-select form-select-sm file-switcher"></select>
+      <button id="renameFileBtn" type="button" class="btn btn-outline-secondary btn-sm" title="Rename current file" hidden><i class="fa-solid fa-pen"></i></button>
+
+      <div class="export-btn-wrap">
+        <button id="exportMenuBtn" class="btn btn-outline-success btn-sm" aria-haspopup="true" aria-expanded="false"><i class="fa-solid fa-file-export"></i> Export</button>
+        <div id="exportMenuPanel" class="export-menu-panel" hidden>
+          <button id="downloadProgressBtn" type="button" class="btn btn-sm btn-outline-secondary export-menu-item"><i class="fa-solid fa-download"></i> Download as CSV</button>
+          <button id="copyProgressCsvBtn" type="button" class="btn btn-sm btn-outline-secondary export-menu-item"><i class="fa-solid fa-copy"></i> Copy as CSV</button>
+        </div>
+      </div>
+
+      <button id="resetProgressBtn" class="btn btn-outline-warning btn-sm" title="Clear Done, Review Later, Visited, spaced-repetition scheduling, and Done History for the currently filtered questions (all questions if no filter is active) — keeps all questions, Starred, and other flags untouched"><i class="fa-solid fa-rotate-left"></i> Reset Progress</button>
+      <button id="resetAllBtn" class="btn btn-outline-danger btn-sm" title="Wipe every file, all progress, and every setting — including Cross-Device Sync"><i class="fa-solid fa-trash"></i> Reset All</button>
+      <button id="resetAllKeepSyncBtn" class="btn btn-outline-danger btn-sm" title="Wipe every file, all progress, and every setting — but keep the Cross-Device Sync connection so you don't have to reconnect it"><i class="fa-solid fa-trash-can"></i> Reset (Keep Sync)</button>
     </div>
     <div class="toolbar-row toolbar-row-secondary">
       <div class="temp-mode-wrap" title="Temp/Test Mode">
@@ -108,6 +109,7 @@
           <input class="form-check-input" type="checkbox" id="autoDownloadToggle" aria-label="Auto Download Every Minute">
         </label>
       </div>
+      <span id="footerLastSyncedDetail" class="footer-last-synced-detail"></span>
     </div>
   </section>
 
@@ -128,6 +130,15 @@
         <div class="filter-field">
           <label>SubTopic</label>
           <div id="subTopicFilterMount"></div>
+        </div>
+        <div class="filter-field">
+          <label>Tags</label>
+          <div class="tag-filter-row">
+            <div id="tagFilterMount"></div>
+            <button id="manageTagsBtn" type="button" class="btn btn-sm btn-outline-secondary tag-add-btn" title="Manage Tags — create, rename, delete, and link related tags">
+              <i class="fa-solid fa-tags"></i>
+            </button>
+          </div>
         </div>
         <div class="filter-field status-filter-field">
           <label>Status</label>
@@ -163,6 +174,14 @@
     <span id="bulkSelectionCount"></span>
     <span>
       <button id="bulkSelectAllBtn" class="btn btn-sm btn-outline-secondary" title="Select everything in the currently active group(s); click again to clear it">Select All</button>
+      <select id="bulkDifficultySelect" class="form-select form-select-sm bulk-difficulty-select" title="Set Difficulty on the current selection">
+        <option value="">Set Difficulty…</option>
+        <option value="easy">Easy</option>
+        <option value="medium">Medium</option>
+        <option value="hard">Hard</option>
+        <option value="clear">Clear Difficulty</option>
+      </select>
+      <button id="bulkNotImportantBtn" class="btn btn-sm btn-outline-secondary" title="Mark the current selection Not Important">Mark Not Important</button>
       <button id="bulkMoveSelectedBtn" class="btn btn-sm btn-primary">Move Selected</button>
       <button id="bulkDeleteSelectedBtn" class="btn btn-sm btn-danger">Delete Selected</button>
       <button id="bulkClearSelectedBtn" class="btn btn-sm btn-light">Clear</button>
@@ -179,7 +198,6 @@
 </main>
 
 <footer id="appFooter" class="app-footer">
-  <span id="footerLastSyncedDetail" class="footer-last-synced-detail"></span>
 </footer>
 
 <div id="floatingToggleGroup" class="floating-toggle-group">

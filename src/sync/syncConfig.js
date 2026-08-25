@@ -198,6 +198,20 @@ function buildSetupForm(wrap, closeModal) {
     toggleModeLink.style.marginTop = "0.5rem";
 
     if (gistMode === "existing") {
+      const gistsHelpLinkWrap = document.createElement("div");
+      gistsHelpLinkWrap.style.marginBottom = "0.7rem";
+      const gistsHelpLink = document.createElement("a");
+      gistsHelpLink.href = "https://gist.github.com/mine";
+      gistsHelpLink.target = "_blank";
+      gistsHelpLink.rel = "noopener noreferrer";
+      gistsHelpLink.className = "btn btn-sm btn-outline-primary";
+      gistsHelpLink.textContent = "Open your Gists ↗";
+      gistsHelpLinkWrap.appendChild(gistsHelpLink);
+
+      const gistsHelpText = document.createElement("p");
+      gistsHelpText.className = "small text-muted";
+      gistsHelpText.textContent = "Find your sync gist there, then copy its ID (the part after the last \"/\" in its URL) below.";
+
       const idLabel = mkLabel("Existing Sync Gist ID");
       const idInput = mkInput("");
 
@@ -237,7 +251,7 @@ function buildSetupForm(wrap, closeModal) {
         render();
       });
 
-      box.append(idLabel, idInput, connectBtn, toggleModeLink);
+      box.append(gistsHelpLinkWrap, gistsHelpText, idLabel, idInput, connectBtn, toggleModeLink);
     } else {
       const desc = document.createElement("p");
       desc.className = "small text-muted";

@@ -22,7 +22,7 @@ export function emptySchema() {
       dragDropOn: true,
       editModeOn: true,
       tempMode: false,
-      autoExpandChildrenOn: false,
+      autoExpandChildrenOn: true,
       themeDark: true,
       autoDownloadOn: false,
       filterCardOpen: false,
@@ -51,6 +51,11 @@ export function emptySchema() {
       elapsedMs: 0,
       startedAt: null,
     },
+    globalTags: [],
+    // Directed tag -> related-tags map (see features/tags.js's Manage Tags popup): assigning a tag
+    // to a question auto-applies every tag it's mapped to here too (data/mutations.js's
+    // toggleQuestionTag).
+    globalTagRelations: {},
   };
 }
 
@@ -65,12 +70,14 @@ export function coerceSchema(raw) {
   if (!raw || typeof raw !== "object") return base;
   return {
     schemaVersion: SCHEMA_VERSION,
-    files: Array.isArray(raw.files) ? raw.files.map((f) => ({ gistFileName: null, lastPushedHash: null, ...f })) : base.files,
+    files: Array.isArray(raw.files) ? raw.files.map((f) => ({ gistFileName: null, lastPushedHash: null, tombstones: [], ...f })) : base.files,
     activeFileId: raw.activeFileId ?? base.activeFileId,
     globalToggles: { ...base.globalToggles, ...(raw.globalToggles || {}) },
     activeQuestion: raw.activeQuestion ?? base.activeQuestion,
     sync: coerceSync(raw.sync),
     timer: { ...base.timer, ...(raw.timer || {}) },
+    globalTags: Array.isArray(raw.globalTags) ? raw.globalTags : base.globalTags,
+    globalTagRelations: raw.globalTagRelations && typeof raw.globalTagRelations === "object" ? raw.globalTagRelations : base.globalTagRelations,
   };
 }
 

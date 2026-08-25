@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * features/autoExpand.js — "Auto-Expand Children" toggle (independent of Edit Mode/Drag & Drop,
- * default OFF, persisted like the other global toggles). When on, opening a Subject also opens its
+ * default ON, persisted like the other global toggles). When on, opening a Subject also opens its
  * first Topic and that Topic's first SubTopic in the same click; opening a Topic also opens its
  * first SubTopic. Never cascades into Questions — SubTopic clicks are left alone. "First" means
  * first in the currently-grouped/sorted order (appState.grouped), matching what's actually on

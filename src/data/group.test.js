@@ -14,7 +14,7 @@ function q(overrides) {
     done: false,
     reviewLater: false,
     duplicate: false,
-    lessImportant: false,
+    notImportant: false,
     starred: false,
     order: 0,
     subjectOrder: 0,
@@ -37,16 +37,36 @@ test("groups into Subject > Topic > SubTopic > Question", () => {
   assert.equal(s1.topics[0].subTopics.length, 2);
 });
 
-test("tiering: starred first, normal middle, lessImportant last, tie-break by order", () => {
+test("questions sort by persisted order regardless of starred/notImportant flags", () => {
   const rawData = [
     q({ id: "normal2", order: 2 }),
-    q({ id: "less", order: 0, lessImportant: true }),
+    q({ id: "less", order: 0, notImportant: true }),
     q({ id: "star", order: 5, starred: true }),
     q({ id: "normal1", order: 1 }),
   ];
   const tree = groupData(rawData, []);
   const ids = tree.subjects[0].topics[0].subTopics[0].questions.map((x) => x.id);
-  assert.deepEqual(ids, ["star", "normal1", "normal2", "less"]);
+  assert.deepEqual(ids, ["less", "normal1", "normal2", "star"]);
+});
+
+test("notImportant is derived bottom-up: a SubTopic is notImportant only when every question in it is, and a childless placeholder falls back to its EmptyGroup marker", () => {
+  const allMarked = [q({ id: "a", subTopic: "ST1", notImportant: true }), q({ id: "b", subTopic: "ST1", notImportant: true })];
+  const mixed = [q({ id: "c", subTopic: "ST2", notImportant: true }), q({ id: "d", subTopic: "ST2", notImportant: false })];
+  const emptyGroups = [{ subject: "S1", topic: "T1", subTopic: "ST3", createdOrder: 0, notImportant: true }];
+  const tree = groupData([...allMarked, ...mixed], emptyGroups);
+  const subTopics = tree.subjects[0].topics[0].subTopics;
+  assert.equal(subTopics.find((st) => st.subTopic === "ST1").notImportant, true);
+  assert.equal(subTopics.find((st) => st.subTopic === "ST2").notImportant, false);
+  assert.equal(subTopics.find((st) => st.subTopic === "ST3").notImportant, true);
+  // Never affects order/visibility — same tie-break as before, purely a label.
+  assert.equal(tree.subjects[0].topics[0].isEmpty, false);
+});
+
+test("notImportant never reorders siblings — a mixed-flag SubTopic keeps persisted order", () => {
+  const rawData = [q({ id: "a", order: 1, notImportant: true }), q({ id: "b", order: 0, notImportant: false })];
+  const tree = groupData(rawData, []);
+  const ids = tree.subjects[0].topics[0].subTopics[0].questions.map((x) => x.id);
+  assert.deepEqual(ids, ["b", "a"]);
 });
 
 test("empty groups merge in and sort after real siblings by creation order", () => {

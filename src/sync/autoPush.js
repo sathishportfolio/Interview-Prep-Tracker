@@ -71,11 +71,9 @@ export function initAutoPush(pushedCallback, dirtyChangeCallback) {
     if (debounceHandle) clearTimeout(debounceHandle);
     debounceHandle = setTimeout(doPush, DEBOUNCE_MS);
   });
-  window.addEventListener("beforeunload", (e) => {
-    if (!dirty) return;
-    e.preventDefault();
-    e.returnValue = "";
-  });
+  // No beforeunload confirm-dialog guard here (deliberately removed) — the visibilitychange
+  // safety-net push below already fires a push the moment the tab backgrounds/closes while dirty,
+  // so a reload/close is safely caught by auto-sync without needing to interrupt the user first.
   // Fires on tab close, tab switch, and app backgrounding alike (unlike beforeunload, which only
   // covers the close/navigate case and can't reliably await this async push anyway) — the earliest
   // reliable signal that the session might be ending, so the safety-net push happens here instead of

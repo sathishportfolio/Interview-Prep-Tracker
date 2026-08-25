@@ -6,6 +6,7 @@
  * sets) that never touches localStorage at all.
  * @typedef {import('../types.js').Question} Question
  * @typedef {import('../types.js').EmptyGroup} EmptyGroup
+ * @typedef {import('../types.js').Tombstone} Tombstone
  * @typedef {import('../types.js').FilterState} FilterState
  * @typedef {import('../types.js').GroupedTree} GroupedTree
  * @typedef {import('../types.js').FileRecord} FileRecord
@@ -25,6 +26,8 @@ export const appState = {
   rawData: [],
   /** @type {EmptyGroup[]} */
   emptyGroups: [],
+  /** @type {Tombstone[]} tombstones of the active file (mirrors the active FileRecord.tombstones) — see data/syncMerge.js */
+  tombstones: [],
   /** @type {FilterState} */
   filterState: emptyFilterState(),
   /** @type {GroupedTree} last computed grouped+filtered tree (render engine reads this) */
@@ -44,7 +47,7 @@ export const appState = {
     dragDropOn: true,
     editModeOn: true,
     tempMode: false,
-    autoExpandChildrenOn: false,
+    autoExpandChildrenOn: true,
     themeDark: true,
     autoDownloadOn: false,
   },
@@ -54,6 +57,12 @@ export const appState = {
 
   /** @type {import('../types.js').SyncConfig} */
   sync: { githubToken: null, configGistId: null, lastPushAt: null, lastPullAt: null, lastKnownRemoteUpdatedAt: null, knownVersion: 0, lastMetaPushedHash: null, lastRemoteActiveDevice: null, lastRemoteUpdateTimestamp: null, enabled: true, pullOnly: false },
+
+  /** @type {string[]} App-wide tag registry — see types.js's StorageSchemaV1.globalTags. */
+  globalTags: [],
+  /** @type {Record<string, string[]>} Directed tag -> related-tags map — see features/tags.js's
+   *  Manage Tags popup and StorageSchemaV1.globalTagRelations. */
+  globalTagRelations: {},
 
   // --- Transient (never persisted) UI state ---
   /** @type {Set<string>} question IDs currently bulk-selected */
@@ -72,6 +81,11 @@ export const appState = {
   childSelectModeKeys: new Set(),
   /** @type {string|null} */
   pendingFocusQid: null,
+  /** @type {{childLevel: "subject"|"topic"|"subTopic"|"question", parentScope: {subject?: string, topic?: string, subTopic?: string}, selections: string[]}|null}
+   *  Click-to-number Reorder mode session — see features/reorderMode.js. `selections` holds sibling
+   *  identity (Subject/Topic/SubTopic name, or Question id) in click order; null when no Reorder
+   *  session is active anywhere. */
+  reorderMode: null,
 };
 
 /**
@@ -82,11 +96,13 @@ export function loadFileIntoState(file) {
   appState.activeFileId = file.id;
   appState.rawData = file.rawData;
   appState.emptyGroups = file.emptyGroups;
+  appState.tombstones = file.tombstones ?? [];
   appState.filterState = file.filters;
   appState.openNodeKeys = new Set();
   appState.selectedQuestionIds = new Set();
   appState.selectedGroupKeys = new Set();
   appState.childSelectModeKeys = new Set();
+  appState.reorderMode = null;
 }
 
 /**

@@ -19,6 +19,12 @@ import * as bulkSelection from "./bulkSelection.js";
 import * as moveForm from "./moveForm.js";
 import * as groupPanels from "./groupPanels.js";
 import * as autoExpand from "./autoExpand.js";
+import * as difficulty from "./difficulty.js";
+import * as notImportant from "./notImportant.js";
+import * as reorderMode from "./reorderMode.js";
+import * as tags from "./tags.js";
+import * as questionLinks from "./questionLinks.js";
+import * as filters from "./filters.js";
 import { repaint } from "./refresh.js";
 import { scrollNodeIntoView } from "../render/accordion.js";
 import { appState, toggleNodeOpenExclusive } from "../state/appState.js";
@@ -29,13 +35,27 @@ export function buildTreeHandlers() {
     // itself lights up), so the extra flash-highlight is redundant here (unlike the 'r'/'s' keyboard
     // shortcuts in reviewShortcuts.js, which keep flashing since there's no click to see).
     onToggleStatus: (qid, flag) => statusFlags.toggleStatus(qid, flag, { flash: false }),
+    onMarkStatus: (qid, status, withNotes) => statusFlags.markStatusWithMenu(qid, status, withNotes),
+    onResetTriState: (qid) => statusFlags.resetTriState(qid),
+    onToggleQuestionTag: (qid, tag) => tags.toggleTagOnQuestion(qid, tag),
+    onCreateTag: (qid, tag) => tags.createAndAddTag(qid, tag),
+    onFilterByTag: (tag) => filters.toggleTagFilter(tag),
+    onRenameTag: (tag) => tags.renameTagPrompt(tag),
+    onDeleteTag: (tag) => tags.deleteTagPrompt(tag),
+    onAddQuestionLink: (qid) => questionLinks.addLinkPrompt(qid),
+    onEditQuestionLink: (qid, linkId, label, url) => questionLinks.editLinkPrompt(qid, linkId, label, url),
+    onRemoveQuestionLink: (qid, linkId, label) => questionLinks.removeLinkWithConfirm(qid, linkId, label),
+    onReorderQuestionLinks: (qid, orderedLinkIds) => questionLinks.reorderLinks(qid, orderedLinkIds),
+    onCycleDifficulty: (qid) => difficulty.cycleDifficulty(qid),
+    onReorderSelect: (level, scope) => reorderMode.selectForReorder(level, scope),
+    onToggleGroupNotImportant: (level, scope) => notImportant.toggleGroupNotImportant(level, scope),
     onEditAnswer: (qid) => answerEditor.openAnswerEditor(qid),
     onEditQuestionText: (qid) => editQuestionText.editQuestionTextPrompt(qid),
     onOpenMoveForm: (qid) => moveForm.openMoveForm(appState.selectedQuestionIds.has(qid) ? [...appState.selectedQuestionIds] : [qid]),
     onDeleteQuestion: (qid) => deleteGroupFeature.deleteQuestionWithConfirm(qid),
     onCopyQuestion: (qid) => copySingle.copyQuestionText(qid),
     onCopyAndSearch: (qid) => copySingle.copyAndSearch(qid),
-    onGoogleSearch: (qid) => copySingle.googleSearchQuestion(qid),
+    onGoogleSearch: (qid, mode) => copySingle.googleSearchQuestion(qid, mode),
     onMoveQuestionOrder: (qid, dir) => moveButtons.moveQuestion(qid, dir),
     onToggleActiveQuestion: (qid) => activeQuestion.toggleActiveQuestion(qid),
     // Single-open-accordion for question answer bodies, mirroring the Subject/Topic/SubTopic
