@@ -148,7 +148,7 @@ export function patchTopicNode(el, t, handlers) {
   el.classList.toggle("child-select-on", appState.childSelectModeKeys.has(groupKey("topic", { subject: t.subject, topic: t.topic })));
   el.classList.toggle("not-important", !!t.notImportant);
 
-  patchGroupCompleteButton(el.querySelector(":scope > .acc-header > .group-complete-indicator"), t.completePercent);
+  patchGroupCompleteButton(el.querySelector(":scope > .acc-header > .group-complete-indicator"), t.completePercent, t.doneCount, t.totalCount, t.ignoredCount);
 
   const scope = { subject: t.subject, topic: t.topic };
   const groupLinks = getGroupLinks(appState.groupLinks, scope.subject, scope.topic, null);

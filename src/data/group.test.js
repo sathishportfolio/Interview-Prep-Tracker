@@ -90,6 +90,23 @@ test("completePercent: SubTopic/Topic use a raw question-done fraction, Subject 
   assert.equal(tree.subjects[0].completePercent, 50);
 });
 
+test("completePercent excludes Not Important questions from both the numerator and denominator", () => {
+  // ST1: 1 real question done, 1 Not Important (undone) -> Not Important doesn't count, so 1/1 = 100%.
+  // ST2: all 2 questions Not Important -> nothing left to do, so 100% even though none are Done.
+  const rawData = [
+    q({ id: "a", subTopic: "ST1", done: true }),
+    q({ id: "b", subTopic: "ST1", done: false, notImportant: true }),
+    q({ id: "c", subTopic: "ST2", done: false, notImportant: true }),
+    q({ id: "d", subTopic: "ST2", done: false, notImportant: true }),
+  ];
+  const tree = groupData(rawData, []);
+  const t1 = tree.subjects[0].topics[0];
+  assert.equal(t1.subTopics.find((st) => st.subTopic === "ST1").completePercent, 100);
+  assert.equal(t1.subTopics.find((st) => st.subTopic === "ST2").completePercent, 100);
+  // Topic-level aggregate also excludes Not Important questions: 1 important question total (a), done.
+  assert.equal(t1.completePercent, 100);
+});
+
 test("empty groups merge in and sort after real siblings by creation order", () => {
   const rawData = [q({ id: "a", subTopic: "ST1" })];
   const emptyGroups = [

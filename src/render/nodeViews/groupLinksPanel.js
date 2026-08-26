@@ -8,6 +8,7 @@
  * @typedef {import('../../types.js').QuestionLink} QuestionLink
  */
 import { openPanel as coordinatorOpenPanel, panelClosed as coordinatorPanelClosed } from "../panelCoordinator.js";
+import { buildLinkChipIcon } from "../linkChipIcon.js";
 
 /**
  * Builds the header-controls icon button + its click-toggled edit panel (reorderable list + add-link
@@ -152,9 +153,7 @@ export function patchGroupLinksDisplayRow(row, links) {
     anchor.rel = "noopener noreferrer";
     anchor.className = "link-chip";
     anchor.title = link.url;
-    const linkIcon = document.createElement("i");
-    linkIcon.className = "fa-solid fa-arrow-up-right-from-square";
-    anchor.appendChild(linkIcon);
+    anchor.appendChild(buildLinkChipIcon(link.url));
     anchor.appendChild(document.createTextNode(` ${link.label || link.url}`));
     anchor.addEventListener("click", (e) => e.stopPropagation());
     row.appendChild(anchor);

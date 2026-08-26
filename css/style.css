@@ -157,11 +157,9 @@ body {
    (see .done-dropdown-panel/.done-dropdown-item, also used by the tree view's Done/Tags/Google
    Search menus) instead of inventing new styling for one more small popup. */
 .answer-heading-dropdown-btn i + i { margin-left: 0.2rem; font-size: 0.7em; }
-/* Formatting toggle buttons (Clean/Bulleted/Numbered/Minify/Plain) — same toolbar-button look as the
-   selection buttons before them, separated by a thin divider, but with a pressed/"on" state since
-   these persist rather than firing a one-shot action. */
+/* Formatting action buttons (Clean/Bulleted/Numbered/Minify) — same toolbar-button look and one-shot
+   click behavior as the selection buttons before them, just separated by a thin divider. */
 .answer-toolbar-divider { width: 1px; align-self: stretch; background: var(--border-soft); margin: 0 0.15rem; }
-.answer-toolbar-btn-toggle.is-active { background: var(--accent, #0d6efd); color: #fff; border-color: var(--accent, #0d6efd); }
 .answer-code-toolbar { margin-bottom: 0; }
 .answer-code-language-select { width: auto; }
 .answer-code-textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.82rem; }
@@ -470,11 +468,12 @@ body {
      - 0%    (neither modifier): a dashed grey outline ring — "not started".
      - 1-99% (.is-partial): a green conic-gradient pie slice (set via the --pct custom property, see
        render/groupCompleteButton.js's patchGroupCompleteButton) sweeping proportionally, with the
-       percentage as bold white text in the middle — a black outline (stacked text-shadows, not a
-       single soft blur) keeps the digits crisp against both the green slice and the grey remainder,
-       in both themes.
-     - 100%  (.is-complete): solid green fill with a white checkmark, same green as --done everywhere
-       else Done is shown.
+       percentage as plain white text in the middle — a single soft drop shadow keeps the digits
+       legible against both the green slice and the grey remainder without the hard black outline a
+       stacked text-shadow used to draw, so it reads as one clean badge rather than a stencil.
+     - 100%  (.is-complete): solid green fill with a white checkmark, sized/weighted to match the
+       partial state's digits (see below) so both states read as one consistent glyph rather than two
+       different treatments.
    SubTopic/Topic get their percentage from their own questions' Done fraction; Subject gets its
    percentage from how many child Topics are themselves fully (100%) done — see data/group.js. */
 .group-complete-indicator {
@@ -491,15 +490,16 @@ body {
   background: transparent;
   cursor: default;
 }
-.group-complete-indicator i { font-size: 0.72rem; line-height: 1; color: #fff; display: none; }
+.group-complete-indicator i,
 .group-complete-indicator .group-complete-pct {
-  display: none;
-  font-size: 0.6rem;
-  font-weight: 800;
+  font-size: 0.68rem;
+  font-weight: 700;
   line-height: 1;
   color: #fff;
-  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 0 3px rgba(0, 0, 0, 0.7);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 }
+.group-complete-indicator i { display: none; }
+.group-complete-indicator .group-complete-pct { display: none; }
 
 .group-complete-indicator.is-partial {
   border: none;
@@ -655,7 +655,13 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .question-links-row { display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0 0.6rem; margin-top: 0.3rem; }
 .link-chip { display: inline-flex; align-items: center; gap: 0.25rem; border: 1px solid var(--border); background: var(--bg-badge); color: var(--text-badge); border-radius: 1rem; padding: 0.1rem 0.55rem; font-size: 0.75rem; text-decoration: none; }
 .link-chip:hover { background: var(--bg-tint-accent-soft); border-color: var(--accent); color: var(--accent); }
-.link-chip i { font-size: 0.7em; }
+.link-chip i { font-size: 1.2em; }
+/* Leading favicon/YouTube icon (see render/linkChipIcon.js) — the favicon <img> needs explicit sizing
+   (no font-size to inherit from, unlike the FA glyph icons elsewhere in the chip) and middle alignment
+   to sit level with the label text instead of dropping to the image's own baseline. */
+.link-chip-icon { flex-shrink: 0; }
+.link-chip-favicon { width: 14px; height: 14px; vertical-align: middle; border-radius: 2px; }
+.link-chip-icon-youtube { color: #ff0000; }
 
 /* Tri-state count badge — small superscript-style number on the Done/Failed/Review Later icon, only
    shown once that status's own count > 0. Same badge class on all three; color follows whichever

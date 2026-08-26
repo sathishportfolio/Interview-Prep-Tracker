@@ -5,17 +5,22 @@
  * add/update/remove/reorderQuestionLink for the data side, then the shared refresh pipeline.
  */
 import { addQuestionLink, updateQuestionLink, removeQuestionLink, reorderQuestionLinks } from "../data/mutations.js";
+import { domainLabelFromUrl } from "../data/linkIcons.js";
 import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import { promptAction, confirmAction } from "./toast.js";
 
-/** @param {string} questionId */
+/**
+ * Only the URL is asked for — the label defaults to its bare hostname (see domainLabelFromUrl),
+ * editable afterward via the link's own pencil icon if the auto-derived label isn't descriptive
+ * enough (e.g. "MDN: Closures" instead of "developer.mozilla.org").
+ * @param {string} questionId
+ */
 export function addLinkPrompt(questionId) {
-  const label = promptAction("Link label (e.g. \"MDN: Closures\"):");
-  if (label === null || !label.trim()) return;
   const url = promptAction("Link URL:");
   if (url === null || !url.trim()) return;
-  const rawData = addQuestionLink(appState.rawData, questionId, { label: label.trim(), url: url.trim() });
+  const trimmedUrl = url.trim();
+  const rawData = addQuestionLink(appState.rawData, questionId, { label: domainLabelFromUrl(trimmedUrl), url: trimmedUrl });
   applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
 }
 

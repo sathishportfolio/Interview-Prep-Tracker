@@ -8,11 +8,14 @@
  */
 
 /**
- * @param {{title: string, bodyEl: HTMLElement, onSave?: () => void, saveLabel?: string, onClose?: () => void}} config
+ * @param {{title: string, bodyEl: HTMLElement, onSave?: () => void, saveLabel?: string, onClose?: () => void, closeOnBackdropClick?: boolean}} config
  *   `onClose` fires on every close path (Save, Cancel, the X button, Escape, and backdrop click) —
  *   for a caller that wired its own document-level listener scoped to "while this modal is open"
  *   (e.g. features/answerEditor.js's undo/redo keyboard shortcut) to tear it down symmetrically,
  *   since openModal has no other hook back to the caller once the modal is showing.
+ *   `closeOnBackdropClick` (default true): set false for a modal with content easy to lose (e.g. the
+ *   Answer editor's textareas) — Escape/the X button/Cancel still close it, only a backdrop click
+ *   stops doing so.
  * @returns {{close: () => void}}
  */
 export function openModal(config) {
@@ -81,9 +84,18 @@ export function openModal(config) {
   }
   document.addEventListener("keydown", handleKeydown);
   closeBtn.addEventListener("click", close);
-  backdrop.addEventListener("click", (e) => {
-    if (e.target === backdrop) close();
-  });
+  if (config.closeOnBackdropClick !== false) {
+    // Track where the mousedown started, not just where the click ends up — a text selection begun
+    // inside the box and dragged past its edge before releasing fires a "click" whose target is the
+    // backdrop even though the user never meant to click it at all.
+    let mousedownOnBackdrop = false;
+    backdrop.addEventListener("mousedown", (e) => {
+      mousedownOnBackdrop = e.target === backdrop;
+    });
+    backdrop.addEventListener("click", (e) => {
+      if (e.target === backdrop && mousedownOnBackdrop) close();
+    });
+  }
 
   return { close };
 }

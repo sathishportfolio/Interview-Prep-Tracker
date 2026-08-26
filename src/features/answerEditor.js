@@ -8,14 +8,18 @@
  * carry the explanation that used to be visible body text.
  *
  * Nothing here sanitizes automatically — what's saved is exactly what's in the textarea at Save
- * time. Every formatting toggle button (Clean formatting, Bulleted/Numbered list, Minify whitespace,
- * Plain HTML) lives right in the toolbar, after the Heading/Paragraph/Strong/Italic/Underline/Clear
- * selection buttons — and all of them follow the same rule: if there's a text selection when it's
- * applied, it only touches that selection; with nothing selected, it applies to the whole answer
- * (see wireToggle/wrapSelection/clearSelectionTags). Checking a toggle button applies it immediately;
- * unchecking restores the content from right before that transform was applied (a one-step undo, not
- * a full history) — see wireToggle. Reset restores the last-saved answer; Clear empties the editor
- * outright — see resetFieldsTo.
+ * time. Every formatting button (Clean formatting, Bulleted/Numbered list, Minify whitespace) is a
+ * plain one-shot action button — no checkbox/toggle state anywhere in this toolbar, so applying the
+ * same transform again never requires unchecking-then-rechecking it first — living right in the
+ * toolbar, after the Heading/Paragraph/Strong/Italic/Underline/Clear selection buttons. All of them
+ * follow the same rule: if there's a text selection when clicked, it only touches that selection;
+ * with nothing selected, it applies to the whole answer (see applyFormatAction/wrapSelection/
+ * clearSelectionTags). Unwanted results are undone via Undo (Ctrl+Z), not a built-in un-apply. Reset
+ * restores the last-saved answer; Clear empties the editor outright — see resetFieldsTo. The textarea
+ * shows the answer pretty-printed (see data/answerFormat.js's prettyPrintHtml) by default — one block
+ * element per line, indented, so a `<ul><li>...` list stays easy to read/edit line-by-line instead of
+ * landing as one long minified line; Minify is the one action that intentionally collapses it back
+ * down to that compact form for storage, same as what's actually persisted at Save time.
  *
  * Undo/Redo (Ctrl+Z / Ctrl+Y, or Cmd+Z / Cmd+Shift+Z on macOS) covers every one of the above as one
  * combined history — not just textarea typing — via a small snapshot-based history (see
@@ -40,6 +44,7 @@ import {
   linesToList,
   minifyHtml,
   cleanFormatting,
+  prettyPrintHtml,
   escapeHtml,
   appendCodeSnippet,
   splitTrailingCodeSnippet,
@@ -55,52 +60,30 @@ import { setActiveQuestionQuiet } from "./activeQuestion.js";
 import { highlightCodeBlocks } from "../render/codeHighlight.js";
 
 /**
- * Wires a toggle (checkbox or buildFormatToggleButton) to apply `transform` on check and restore the
- * exact pre-check value on uncheck. If there's a real selection in the textarea at the moment it's
- * checked, `transform` runs on just the selected text (same "selection if there is one, else the
- * whole thing" rule the H1-H5/Strong/etc. toolbar already follows) — otherwise it runs on the whole
- * value, same as before. Returns a `forceUncheck()` helper so a mutually-exclusive sibling control
- * (see the bulleted/numbered list pair, and Plain HTML below) can undo this one without the user
- * clicking it directly. Every value change fires a synthetic "input" event (plain `.value =`
- * assignment doesn't) so a live preview — and the undo/redo history, see makeEditorHistory —
- * listening on the textarea stays in sync with toggle-driven changes, not just typing.
- * @param {{checked: boolean, disabled: boolean, addEventListener: HTMLElement["addEventListener"], dispatchEvent: HTMLElement["dispatchEvent"]}} toggle
+ * Applies `transform` once, immediately — to just the current selection if there is one (re-selecting
+ * the result afterward, same convention as wrapSelection), or to the whole textarea value otherwise.
+ * No persistent on/off state: clicking the same format button again just re-applies it (e.g. Minify
+ * twice is a harmless no-op, not "must uncheck before it'll do anything again") — unwanted results are
+ * undone via Undo (Ctrl+Z/Cmd+Z), not a built-in single-step un-apply. Dispatches a synthetic "input"
+ * event (plain `.value =` assignment doesn't) so the live preview and undo/redo history stay in sync.
  * @param {HTMLTextAreaElement} textarea
  * @param {(value: string) => string} transform
  */
-function wireToggle(toggle, textarea, transform) {
-  let snapshot = /** @type {string|null} */ (null);
-  const apply = (value) => {
-    textarea.value = value;
+function applyFormatAction(textarea, transform) {
+  const { selectionStart, selectionEnd, value } = textarea;
+  if (selectionStart !== selectionEnd) {
+    const before = value.slice(0, selectionStart);
+    const selected = value.slice(selectionStart, selectionEnd);
+    const after = value.slice(selectionEnd);
+    const transformed = transform(selected);
+    textarea.value = `${before}${transformed}${after}`;
     textarea.dispatchEvent(new Event("input"));
-  };
-  toggle.addEventListener("change", () => {
-    if (toggle.checked) {
-      snapshot = textarea.value;
-      const { selectionStart, selectionEnd, value } = textarea;
-      if (selectionStart !== selectionEnd) {
-        const before = value.slice(0, selectionStart);
-        const selected = value.slice(selectionStart, selectionEnd);
-        const after = value.slice(selectionEnd);
-        const transformed = transform(selected);
-        apply(`${before}${transformed}${after}`);
-        textarea.focus();
-        textarea.setSelectionRange(before.length, before.length + transformed.length);
-      } else {
-        apply(transform(value));
-      }
-    } else if (snapshot !== null) {
-      apply(snapshot);
-      snapshot = null;
-    }
-  });
-  return {
-    forceUncheck() {
-      if (!toggle.checked) return;
-      toggle.checked = false;
-      toggle.dispatchEvent(new Event("change", { bubbles: true }));
-    },
-  };
+    textarea.focus();
+    textarea.setSelectionRange(before.length, before.length + transformed.length);
+  } else {
+    textarea.value = transform(value);
+    textarea.dispatchEvent(new Event("input"));
+  }
 }
 
 /**
@@ -210,53 +193,37 @@ function buildHeadingDropdown(textarea) {
   return dropdownWrap;
 }
 
-/** @typedef {HTMLButtonElement & {checked: boolean}} ToggleButton A plain button with a shimmed `.checked` (see buildFormatToggleButton) — everything else is the native HTMLButtonElement interface. */
-
 /**
- * A toolbar-styled toggle button standing in for what used to be a checkbox — mimics the exact
- * subset of the checkbox interface (.checked getter/setter, .disabled, "change" events) that
- * wireToggle/mutual-exclusion/Plain-HTML/undo-redo state all already use, so none of that logic
- * needed to change when these moved from labeled checkbox rows into toolbar icon buttons living
- * right alongside the H1-H5/Strong/etc. selection buttons.
+ * A plain one-shot toolbar icon button — no on/off state, just fires `onClick` (see
+ * applyFormatAction) every time it's clicked, same as the H1-H5/Strong/Italic/Underline buttons.
  * @param {string} iconClass
  * @param {string} title
- * @returns {ToggleButton}
+ * @param {() => void} onClick
+ * @returns {HTMLButtonElement}
  */
-function buildFormatToggleButton(iconClass, title) {
-  const btn = /** @type {ToggleButton} */ (document.createElement("button"));
+function buildFormatActionButton(iconClass, title, onClick) {
+  const btn = document.createElement("button");
   btn.type = "button";
-  btn.className = "btn btn-sm btn-outline-secondary answer-toolbar-btn answer-toolbar-btn-toggle";
+  btn.className = "btn btn-sm btn-outline-secondary answer-toolbar-btn";
   btn.innerHTML = `<i class="fa-solid ${iconClass}"></i>`;
   btn.title = title;
-  let isChecked = false;
-  Object.defineProperty(btn, "checked", {
-    get: () => isChecked,
-    set: (value) => {
-      isChecked = !!value;
-      btn.classList.toggle("is-active", isChecked);
-    },
-  });
-  btn.addEventListener("click", () => {
-    if (btn.disabled) return;
-    btn.checked = !btn.checked;
-    btn.dispatchEvent(new Event("change", { bubbles: true }));
-  });
+  btn.addEventListener("click", onClick);
   return btn;
 }
 
 /**
  * The answer card's slim icon toolbar: Heading/Paragraph/Strong/Italic/Underline/Clear-selection on
  * the left (all scoped to the textarea's current selection — see wrapSelection/clearSelectionTags/
- * wireToggle), then the whole-answer Formatting toggle buttons (Clean/Bulleted/Numbered/Minify/
- * Plain — same selection-or-whole-answer rule, see wireToggle) right after them, then Preview/Reset/
- * Clear-answer on the far right. One row instead of several stacked labeled sections, so the editor
- * reads as a compact tool strip rather than a form.
+ * applyFormatAction), then the whole-answer Formatting action buttons (Clean/Bulleted/Numbered/
+ * Minify — same selection-or-whole-answer rule, see applyFormatAction) right after them, then
+ * Preview/Reset/Clear-answer on the far right. One row instead of several stacked labeled sections,
+ * so the editor reads as a compact tool strip rather than a form.
  * @param {HTMLTextAreaElement} textarea
- * @param {HTMLElement[]} formatToggleButtons
+ * @param {HTMLElement[]} formatActionButtons
  * @param {HTMLElement[]} rightActions
  * @returns {HTMLElement}
  */
-function buildAnswerToolbar(textarea, formatToggleButtons, rightActions) {
+function buildAnswerToolbar(textarea, formatActionButtons, rightActions) {
   const row = document.createElement("div");
   row.className = "answer-toolbar";
 
@@ -280,11 +247,11 @@ function buildAnswerToolbar(textarea, formatToggleButtons, rightActions) {
   clearBtn.addEventListener("click", () => clearSelectionTags(textarea));
   left.appendChild(clearBtn);
 
-  if (formatToggleButtons.length > 0) {
+  if (formatActionButtons.length > 0) {
     const divider = document.createElement("span");
     divider.className = "answer-toolbar-divider";
     left.appendChild(divider);
-    for (const btn of formatToggleButtons) left.appendChild(btn);
+    for (const btn of formatActionButtons) left.appendChild(btn);
   }
   row.appendChild(left);
 
@@ -301,7 +268,7 @@ function buildAnswerToolbar(textarea, formatToggleButtons, rightActions) {
  * .value)` as HTML (matching how the real question body renders `answer`/code blocks via innerHTML,
  * including the same syntax highlighting — see highlightCodeBlocks). Only re-renders while actually
  * visible — toggling on refreshes immediately, and the textarea's own "input" listener (both real
- * typing and wireToggle's synthetic dispatch) keeps it live after that. `extraActions` (e.g. the
+ * typing and applyFormatAction's synthetic dispatch) keeps it live after that. `extraActions` (e.g. the
  * code preview's Copy button) render in their own row above the content, OUTSIDE the element that
  * gets overwritten by innerHTML on every refresh, so they survive re-renders.
  * @param {HTMLTextAreaElement} textarea
@@ -439,7 +406,9 @@ export function openAnswerEditor(questionId) {
   const textarea = document.createElement("textarea");
   textarea.className = "form-control answer-textarea";
   textarea.rows = 9;
-  textarea.value = initialBody;
+  // Shown pretty-printed (one block element per line, indented) by default — Minify (fa-compress) is
+  // the one action that intentionally collapses it back to the compact form actually saved.
+  textarea.value = prettyPrintHtml(initialBody);
 
   const answerPreview = buildLivePreview(textarea, (v) => v);
 
@@ -455,16 +424,36 @@ export function openAnswerEditor(questionId) {
   clearAnswerBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
   clearAnswerBtn.title = "Clear this answer completely — nothing is saved until you click Save";
 
-  // --- Formatting toggle buttons: every transform is opt-in and reversible (see wireToggle above),
-  // and applies to just the current selection if there is one, the whole answer otherwise — same
-  // rule the Heading/Paragraph/Strong/etc. selection buttons follow. ---
-  const cleanBtn = buildFormatToggleButton("fa-broom", "Clean formatting — strip inline styles/classes/attributes/comments and unwrap any tag that isn't ul/li/b/strong/em/u/p/h1-h5.");
-  const bulletBtn = buildFormatToggleButton("fa-list-ul", "Bulleted list — convert each line into its own <ul><li> bullet point.");
-  const numberedBtn = buildFormatToggleButton("fa-list-ol", "Numbered list — convert each line into its own <ol><li> numbered point.");
-  const minifyBtn = buildFormatToggleButton("fa-compress", "Minify whitespace — collapse extra whitespace/line breaks (code blocks are left untouched).");
-  const plainBtn = buildFormatToggleButton("fa-code", "Plain HTML — store exactly what's typed here, verbatim; disables every other formatting toggle here.");
+  // --- Formatting action buttons: one-shot, no on/off state (see applyFormatAction/
+  // buildFormatActionButton above) — applies to just the current selection if there is one, the whole
+  // answer otherwise, same rule the Heading/Paragraph/Strong/etc. selection buttons follow. Each
+  // click is its own commit()/undo step (Ctrl+Z undoes an unwanted result). ---
+  const cleanBtn = buildFormatActionButton(
+    "fa-broom",
+    "Clean formatting — strip inline styles/classes/attributes/comments and unwrap any tag that isn't ul/li/b/strong/em/u/p/h1-h5.",
+    () => {
+      applyFormatAction(textarea, cleanFormatting);
+      commit();
+    }
+  );
+  const bulletBtn = buildFormatActionButton("fa-list-ul", "Bulleted list — convert each line into its own <ul><li> bullet point.", () => {
+    applyFormatAction(textarea, (v) => linesToList(v, false));
+    commit();
+  });
+  const numberedBtn = buildFormatActionButton("fa-list-ol", "Numbered list — convert each line into its own <ol><li> numbered point.", () => {
+    applyFormatAction(textarea, (v) => linesToList(v, true));
+    commit();
+  });
+  const minifyBtn = buildFormatActionButton(
+    "fa-compress",
+    "Minify — collapse to the compact whitespace-free form this saves as (code blocks are left untouched); the textarea shows pretty-printed HTML otherwise.",
+    () => {
+      applyFormatAction(textarea, minifyHtml);
+      commit();
+    }
+  );
 
-  answerCard.appendChild(buildAnswerToolbar(textarea, [cleanBtn, bulletBtn, numberedBtn, minifyBtn, plainBtn], [answerPreview.toggleBtn, resetBtn, clearAnswerBtn]));
+  answerCard.appendChild(buildAnswerToolbar(textarea, [cleanBtn, bulletBtn, numberedBtn, minifyBtn], [answerPreview.toggleBtn, resetBtn, clearAnswerBtn]));
   answerCard.appendChild(textarea);
   answerCard.appendChild(answerPreview.previewEl);
 
@@ -495,42 +484,6 @@ export function openAnswerEditor(questionId) {
       // clipboard write failed (permissions/unsupported) — non-fatal, editor still opens normally
     });
   }
-
-  const cleanToggle = wireToggle(cleanBtn, textarea, cleanFormatting);
-  const minifyToggle = wireToggle(minifyBtn, textarea, minifyHtml);
-  const bulletToggle = wireToggle(bulletBtn, textarea, (v) => linesToList(v, false));
-  const numberedToggle = wireToggle(numberedBtn, textarea, (v) => linesToList(v, true));
-  const allFormatToggleButtons = [cleanBtn, bulletBtn, numberedBtn, minifyBtn, plainBtn];
-
-  // Bulleted/Numbered are mutually exclusive — checking one undoes the other first, rather than
-  // nesting a <ul> transform on top of an already-applied <ol> (or vice versa).
-  bulletBtn.addEventListener("change", () => {
-    if (bulletBtn.checked) numberedToggle.forceUncheck();
-  });
-  numberedBtn.addEventListener("change", () => {
-    if (numberedBtn.checked) bulletToggle.forceUncheck();
-  });
-
-  // Plain HTML passthrough undoes + disables every other option — they'd otherwise imply a cleanup
-  // pass the user just said NOT to run.
-  const toggleableFormatButtons = [cleanBtn, bulletBtn, numberedBtn, minifyBtn];
-  plainBtn.addEventListener("change", () => {
-    const disabled = plainBtn.checked;
-    if (disabled) {
-      cleanToggle.forceUncheck();
-      bulletToggle.forceUncheck();
-      numberedToggle.forceUncheck();
-      minifyToggle.forceUncheck();
-    }
-    for (const cb of toggleableFormatButtons) cb.disabled = disabled;
-  });
-
-  // Every formatting-toggle change is its own undo step — delegated once here (bubble phase, after
-  // wireToggle/mutual-exclusion listeners above have already settled the DOM) rather than one
-  // listener per button. Only the format toggle buttons in this card dispatch "change" at all (the
-  // Heading/Paragraph/etc. selection buttons are plain one-shot clicks), so nothing else needs
-  // filtering out here.
-  answerCard.addEventListener("change", commit);
 
   wrap.appendChild(answerCard);
 
@@ -617,14 +570,8 @@ export function openAnswerEditor(questionId) {
 
   wrap.appendChild(codeCard);
 
-  // Shared by Reset and Clear below — directly un-checking each toggle (rather than calling
-  // forceUncheck, which would re-apply that toggle's OWN undo-transform on top of the content
-  // being reset TO) avoids the two working against each other.
+  // Shared by Reset and Clear below.
   const resetFieldsTo = (body, code, language, codeEnabled) => {
-    for (const cb of allFormatToggleButtons) {
-      cb.checked = false;
-      cb.disabled = false;
-    }
     textarea.value = body;
     textarea.dispatchEvent(new Event("input"));
     codeTextarea.value = code;
@@ -635,11 +582,11 @@ export function openAnswerEditor(questionId) {
     codePreview.refresh();
   };
 
-  // Reset — discards every change made in this editor session (typed text, checkbox transforms,
+  // Reset — discards every change made in this editor session (typed text, formatting actions,
   // code snippet, language) and restores exactly what was open when the editor was opened.
   resetBtn.addEventListener("click", () => {
     if (!window.confirm("Reset to the last saved answer? Any unsaved changes here will be lost.")) return;
-    resetFieldsTo(initialBody, initialCode, initialLanguage, initialCodeEnabled);
+    resetFieldsTo(prettyPrintHtml(initialBody), initialCode, initialLanguage, initialCodeEnabled);
     commit();
     showToast("Answer editor reset to the last saved version.", "info");
   });
@@ -654,17 +601,14 @@ export function openAnswerEditor(questionId) {
     showToast("Answer cleared — click Save to make it permanent.", "info");
   });
 
-  // --- Undo/Redo history: one combined timeline across every field above, not just typing. ---
+  // --- Undo/Redo history: one combined timeline across every field above, not just typing. Format
+  // action buttons carry no state of their own anymore (see applyFormatAction) — their effect is
+  // just a change to `body`, so undoing/redoing that alone is enough to cover them. ---
   const getState = () => ({
     body: textarea.value,
     code: codeTextarea.value,
     language: languageSelect.value,
     codeEnabled: codeEnableCheckbox.checked,
-    clean: cleanBtn.checked,
-    bullet: bulletBtn.checked,
-    numbered: numberedBtn.checked,
-    minify: minifyBtn.checked,
-    plain: plainBtn.checked,
   });
   /** @param {ReturnType<typeof getState>} state */
   const applyState = (state) => {
@@ -673,19 +617,13 @@ export function openAnswerEditor(questionId) {
     languageSelect.value = state.language;
     codeEnableCheckbox.checked = state.codeEnabled;
     codeContentWrap.hidden = !state.codeEnabled;
-    cleanBtn.checked = state.clean;
-    bulletBtn.checked = state.bullet;
-    numberedBtn.checked = state.numbered;
-    minifyBtn.checked = state.minify;
-    plainBtn.checked = state.plain;
-    for (const cb of toggleableFormatButtons) cb.disabled = state.plain;
     if (!answerPreview.previewEl.hidden) answerPreview.refresh();
     codePreview.refresh();
   };
   history = makeEditorHistory(getState, applyState);
 
   // Typing commits on a short pause (so a burst of keystrokes is one undo step, not one per
-  // character) — every other change above (checkboxes, toolbar actions, language, Reset/Clear)
+  // character) — every other change above (formatting actions, checkboxes, language, Reset/Clear)
   // commits immediately at its own call site. A commit that finds no actual state change (e.g. this
   // debounce firing after an already-committed toolbar action) is a no-op — see makeEditorHistory.
   let typingDebounce = /** @type {ReturnType<typeof setTimeout>|null} */ (null);
@@ -721,6 +659,9 @@ export function openAnswerEditor(questionId) {
     title: q.answer ? "Edit Answer" : "Add Answer",
     bodyEl: wrap,
     saveLabel: "Save",
+    // A stray click on the backdrop while selecting text (or just clicking outside by mistake) must
+    // never lose an in-progress edit here — Escape, the X button, and Cancel are still all live.
+    closeOnBackdropClick: false,
     onSave: () => {
       const code = codeEnableCheckbox.checked ? codeTextarea.value : "";
       const answer = appendCodeSnippet(textarea.value, code, languageSelect.value);

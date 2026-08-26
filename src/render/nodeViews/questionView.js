@@ -11,6 +11,7 @@ import { isReorderTarget } from "../reorderEligibility.js";
 import { formatRelativeTime } from "../../data/relativeTime.js";
 import { openPanel as coordinatorOpenPanel, panelClosed as coordinatorPanelClosed } from "../panelCoordinator.js";
 import { highlightCodeBlocks } from "../codeHighlight.js";
+import { buildLinkChipIcon } from "../linkChipIcon.js";
 
 /** @returns {boolean} true on touch/coarse-pointer devices (no reliable hover) */
 const isCoarsePointer = () => window.matchMedia("(hover: none)").matches;
@@ -981,9 +982,7 @@ export function patchQuestionNode(el, q, handlers) {
       anchor.rel = "noopener noreferrer";
       anchor.className = "link-chip";
       anchor.title = link.url;
-      const linkIcon = document.createElement("i");
-      linkIcon.className = "fa-solid fa-arrow-up-right-from-square";
-      anchor.appendChild(linkIcon);
+      anchor.appendChild(buildLinkChipIcon(link.url));
       anchor.appendChild(document.createTextNode(` ${link.label || link.url}`));
       anchor.addEventListener("click", (e) => e.stopPropagation());
       linksDisplayRow.appendChild(anchor);

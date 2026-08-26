@@ -74,6 +74,11 @@ export function repaint() {
   // Starred's own row becomes "2/2".
   const hierarchyOnlyTree = filterGroupedData(appState.groupedUnfiltered, { ...appState.filterState, statuses: [], tags: [] });
   const hierarchyQuestions = flattenTreeQuestions(hierarchyOnlyTree);
+  // Not Important questions don't count toward the Done/Review/Failed progress bar at all — same
+  // exclusion data/group.js applies to each accordion's own completePercent — so a scope's bar (and
+  // its group-complete-pct counterparts) agree once nothing else differs between them.
+  const importantHierarchyQuestions = hierarchyQuestions.filter((q) => !q.notImportant);
+  const progressIgnoredCount = hierarchyQuestions.length - importantHierarchyQuestions.length;
   const { statuses, statusMode, tags } = appState.filterState;
   // Both Status and Tags narrow these fractions/the "Filtered" total together — clicking a Tags row
   // must move the Status rows' counts (and vice versa), not just its own, since both dimensions
@@ -94,6 +99,20 @@ export function repaint() {
   /** @param {string} tag @returns {{count: number, total: number}} */
   const tagFraction = (tag) => {
     const own = hierarchyQuestions.filter((q) => q.tags?.includes(tag));
+    const total = own.length;
+    const count = hasActiveStatusOrTagFilter ? own.filter(matchesFullActiveFilter).length : total;
+    return { count, total };
+  };
+  // Same shape as statusFraction, scoped to importantHierarchyQuestions instead — feeds only the
+  // stats-progress bar (see render/statsBadges.js's renderStatsProgress), not the Stats dropdown rows
+  // above (which intentionally still count Not Important questions, since "Not Important" is one of
+  // those rows).
+  /**
+   * @param {import('../types.js').StatusFilterKey} key
+   * @returns {{count: number, total: number}}
+   */
+  const progressStatusFraction = (key) => {
+    const own = importantHierarchyQuestions.filter((q) => matchesSingleStatus(q, key));
     const total = own.length;
     const count = hasActiveStatusOrTagFilter ? own.filter(matchesFullActiveFilter).length : total;
     return { count, total };
@@ -121,6 +140,12 @@ export function repaint() {
       tags: sortTagsByCount(appState.globalTags, tagFractionsByTag),
       activeTags: appState.filterState.tags,
       tagFractions: tagFractionsByTag,
+      // Not-Important-excluded counterparts for the stats-progress bar only — see progressStatusFraction.
+      progressTotal: importantHierarchyQuestions.length,
+      progressIgnoredCount,
+      progressDone: progressStatusFraction("done"),
+      progressReview: progressStatusFraction("reviewLater"),
+      progressFailed: progressStatusFraction("failed"),
     },
     statsHandlers
   );

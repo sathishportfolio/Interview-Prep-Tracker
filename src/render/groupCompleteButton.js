@@ -20,14 +20,29 @@ export function createGroupCompleteButton() {
 /**
  * @param {Element|null} el
  * @param {number} percent 0-100, from data/group.js's derived completePercent.
+ * @param {number} [doneCount] Raw count behind percent (data/group.js's doneCount) — Not Important
+ *   questions already excluded. Omit to fall back to the plain "Z% done" title (e.g. call sites that
+ *   haven't been updated yet).
+ * @param {number} [totalCount] Raw count behind percent (data/group.js's totalCount).
+ * @param {number} [ignoredCount] Not Important questions excluded from the percentage above (data/
+ *   group.js's ignoredCount) — called out in the title so it's clear why the fraction isn't out of
+ *   every question in scope.
+ * @param {string} [unitLabel] What doneCount/totalCount are counting — "questions" for SubTopic/Topic,
+ *   "Topics" for Subject (see data/group.js — Subject's percent counts fully-done child Topics, not
+ *   raw questions, so its title must say so rather than implying a question tally).
  */
-export function patchGroupCompleteButton(el, percent) {
+export function patchGroupCompleteButton(el, percent, doneCount, totalCount, ignoredCount, unitLabel = "questions") {
   if (!el) return;
   const clamped = Math.max(0, Math.min(100, Math.round(percent)));
   el.classList.toggle("is-complete", clamped >= 100);
   el.classList.toggle("is-partial", clamped > 0 && clamped < 100);
   /** @type {HTMLElement} */ (el).style.setProperty("--pct", String(clamped));
-  el.setAttribute("title", `${clamped}% done`);
+  let title = `${clamped}% done`;
+  if (totalCount != null && doneCount != null) {
+    title = `Done: ${doneCount} of ${totalCount} ${unitLabel} (${clamped}%)`;
+    if (ignoredCount) title += ` — ${ignoredCount} Not Important ignored`;
+  }
+  el.setAttribute("title", title);
   const pctText = el.querySelector(".group-complete-pct");
   if (pctText) pctText.textContent = clamped > 0 && clamped < 100 ? `${clamped}%` : "";
 }

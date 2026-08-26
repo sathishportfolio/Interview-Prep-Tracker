@@ -6,6 +6,7 @@
  * of a question id).
  */
 import { addGroupLink, updateGroupLink, removeGroupLink, reorderGroupLinks } from "../data/groupLinks.js";
+import { domainLabelFromUrl } from "../data/linkIcons.js";
 import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import { promptAction, confirmAction } from "./toast.js";
@@ -16,16 +17,18 @@ function scopeTriple(level, scope) {
 }
 
 /**
+ * Only the URL is asked for — the label defaults to its bare hostname (see domainLabelFromUrl),
+ * editable afterward via the link's own pencil icon if the auto-derived label isn't descriptive
+ * enough (e.g. "MDN: Closures" instead of "developer.mozilla.org").
  * @param {"subject"|"topic"|"subTopic"} level
  * @param {{subject: string, topic?: string, subTopic?: string}} scope
  */
 export function addGroupLinkPrompt(level, scope) {
-  const label = promptAction('Link label (e.g. "MDN: Closures"):');
-  if (label === null || !label.trim()) return;
   const url = promptAction("Link URL:");
   if (url === null || !url.trim()) return;
+  const trimmedUrl = url.trim();
   const [subject, topic, subTopic] = scopeTriple(level, scope);
-  const groupLinks = addGroupLink(appState.groupLinks, subject, topic, subTopic, { label: label.trim(), url: url.trim() });
+  const groupLinks = addGroupLink(appState.groupLinks, subject, topic, subTopic, { label: domainLabelFromUrl(trimmedUrl), url: trimmedUrl });
   applyDataChange({ rawData: appState.rawData, emptyGroups: appState.emptyGroups, groupLinks });
 }
 

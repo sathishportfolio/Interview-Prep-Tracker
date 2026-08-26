@@ -156,7 +156,7 @@ export function patchSubTopicNode(el, st, handlers) {
 
   el.classList.toggle("not-important", !!st.notImportant);
 
-  patchGroupCompleteButton(el.querySelector(":scope > .acc-header > .group-complete-indicator"), st.completePercent);
+  patchGroupCompleteButton(el.querySelector(":scope > .acc-header > .group-complete-indicator"), st.completePercent, st.doneCount, st.totalCount, st.ignoredCount);
 
   const scope = { subject: st.subject, topic: st.topic, subTopic: st.subTopic };
   const groupLinks = getGroupLinks(appState.groupLinks, scope.subject, scope.topic, scope.subTopic);

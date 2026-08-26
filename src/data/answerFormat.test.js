@@ -1,27 +1,87 @@
 // @ts-nocheck
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { linesToList, minifyHtml, stripAttributesAndComments, stripDisallowedTags, cleanFormatting, escapeHtml, unescapeHtml, buildCodeSnippetBlock, appendCodeSnippet, splitTrailingCodeSnippet, DEFAULT_CODE_LANGUAGE } from "./answerFormat.js";
+import { linesToList, minifyHtml, prettyPrintHtml, stripAttributesAndComments, stripDisallowedTags, cleanFormatting, escapeHtml, unescapeHtml, buildCodeSnippetBlock, appendCodeSnippet, splitTrailingCodeSnippet, DEFAULT_CODE_LANGUAGE } from "./answerFormat.js";
 
-test("linesToList wraps each non-blank line as its own <li> in a <ul>", () => {
-  assert.equal(linesToList("First point\nSecond point\nThird point", false), "<ul><li>First point</li><li>Second point</li><li>Third point</li></ul>");
+test("linesToList wraps each non-blank line as its own <li> in a <ul>, pretty-printed one per line", () => {
+  assert.equal(linesToList("First point\nSecond point\nThird point", false), "<ul>\n  <li>First point</li>\n  <li>Second point</li>\n  <li>Third point</li>\n</ul>");
 });
 
-test("linesToList wraps each non-blank line as its own <li> in an <ol> when ordered", () => {
-  assert.equal(linesToList("First point\nSecond point", true), "<ol><li>First point</li><li>Second point</li></ol>");
+test("linesToList wraps each non-blank line as its own <li> in an <ol> when ordered, pretty-printed one per line", () => {
+  assert.equal(linesToList("First point\nSecond point", true), "<ol>\n  <li>First point</li>\n  <li>Second point</li>\n</ol>");
 });
 
 test("linesToList drops blank lines", () => {
-  assert.equal(linesToList("First\n\n  \nSecond", false), "<ul><li>First</li><li>Second</li></ul>");
+  assert.equal(linesToList("First\n\n  \nSecond", false), "<ul>\n  <li>First</li>\n  <li>Second</li>\n</ul>");
 });
 
 test("linesToList trims each line's surrounding whitespace", () => {
-  assert.equal(linesToList("  First  \n  Second  ", false), "<ul><li>First</li><li>Second</li></ul>");
+  assert.equal(linesToList("  First  \n  Second  ", false), "<ul>\n  <li>First</li>\n  <li>Second</li>\n</ul>");
 });
 
 test("linesToList leaves a blank/whitespace-only input untouched", () => {
   assert.equal(linesToList("", false), "");
   assert.equal(linesToList("   ", false), "   ");
+});
+
+test("linesToList keeps a line's own nested/inline tags intact, pretty-printed", () => {
+  assert.equal(
+    linesToList("Plain line\n<strong>Bold</strong> line with <em>emphasis</em>", false),
+    "<ul>\n  <li>Plain line</li>\n  <li><strong>Bold</strong> line with <em>emphasis</em></li>\n</ul>"
+  );
+});
+
+test("linesToList is idempotent — clicking Bulleted list again on its own (pretty-printed) output doesn't nest a fresh <li> around every existing <li>/<ul> line", () => {
+  const once = linesToList("First point\nSecond point", false);
+  assert.equal(linesToList(once, false), once);
+});
+
+test("linesToList re-run on an already-minified (single-line) list is also idempotent", () => {
+  const minified = "<ul><li>First point</li><li>Second point</li></ul>";
+  assert.equal(linesToList(minified, false), "<ul>\n  <li>First point</li>\n  <li>Second point</li>\n</ul>");
+});
+
+test("linesToList switches an existing bulleted list to numbered (and vice versa) by re-deriving lines from its <li>s, not the raw pretty-printed markup", () => {
+  const bulleted = linesToList("First point\nSecond point", false);
+  assert.equal(linesToList(bulleted, true), "<ol>\n  <li>First point</li>\n  <li>Second point</li>\n</ol>");
+});
+
+test("prettyPrintHtml puts each block element on its own line, indented one level per nesting", () => {
+  assert.equal(prettyPrintHtml("<ul><li>One</li><li>Two</li></ul>"), "<ul>\n  <li>One</li>\n  <li>Two</li>\n</ul>");
+});
+
+test("prettyPrintHtml indents a nested list under its parent <li> — once an <li> has a block child, ALL its content (including its own leading text) moves onto indented lines rather than just the nested part", () => {
+  assert.equal(
+    prettyPrintHtml("<ul><li>Parent<ul><li>Child one</li><li>Child two</li></ul></li></ul>"),
+    "<ul>\n  <li>\n    Parent\n    <ul>\n      <li>Child one</li>\n      <li>Child two</li>\n    </ul>\n  </li>\n</ul>"
+  );
+});
+
+test("prettyPrintHtml keeps inline tags (b/strong/em/u/a) flowing on the same line as surrounding text", () => {
+  assert.equal(prettyPrintHtml("<p>Hello <strong>bold</strong> and <em>emphasis</em> world</p>"), "<p>Hello <strong>bold</strong> and <em>emphasis</em> world</p>");
+});
+
+test("prettyPrintHtml preserves a tag's attributes exactly (not stripped, just reflowed)", () => {
+  assert.equal(prettyPrintHtml('<p><a href="https://example.com">link</a></p>'), '<p><a href="https://example.com">link</a></p>');
+});
+
+test("prettyPrintHtml leaves <pre><code> block content byte-for-byte untouched, including its own whitespace", () => {
+  const input = '<p>Before</p><pre><code class="language-java">public class X {\n    int a = 1;\n}</code></pre>';
+  assert.equal(prettyPrintHtml(input), '<p>Before</p>\n<pre><code class="language-java">public class X {\n    int a = 1;\n}</code></pre>');
+});
+
+test("prettyPrintHtml is idempotent — pretty-printing already-pretty HTML doesn't add extra indentation", () => {
+  const once = prettyPrintHtml("<ul><li>One</li><li>Two<ul><li>Nested</li></ul></li></ul>");
+  assert.equal(prettyPrintHtml(once), once);
+});
+
+test("prettyPrintHtml leaves plain text with no tags untouched", () => {
+  assert.equal(prettyPrintHtml("Just plain text, no markup."), "Just plain text, no markup.");
+});
+
+test("prettyPrintHtml leaves blank input untouched", () => {
+  assert.equal(prettyPrintHtml(""), "");
+  assert.equal(prettyPrintHtml("   "), "   ");
 });
 
 test("minifyHtml collapses whitespace between tags", () => {

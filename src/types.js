@@ -262,6 +262,11 @@
  *   for that). Drives the pie-chart progress circle in the accordion header — purely a readout, never
  *   settable by clicking it; a question's `done` flag is only ever changed via its own action buttons
  *   (see data/group.js, render/groupCompleteButton.js).
+ * @property {number} doneCount  Raw count behind completePercent — number of fully-done child Topics
+ *   (NOT questions — see completePercent above).
+ * @property {number} totalCount  Raw count behind completePercent — total child Topics.
+ * @property {number} ignoredCount  Informational only (Subject's own percent is Topic-based, not
+ *   question-based) — total Not Important questions across every Topic underneath.
  * @property {number} order
  * @property {TopicGroup[]} topics
  */
@@ -274,7 +279,11 @@
  * @property {boolean} notImportant  Derived — see SubjectGroup.notImportant.
  * @property {number} completePercent  Derived, read-only, 0-100: % of every question under this Topic
  *   (across all its SubTopics) that has `done` set — unlike SubjectGroup.completePercent, this IS a
- *   raw question-done fraction, not a count of fully-done child SubTopics.
+ *   raw question-done fraction, not a count of fully-done child SubTopics. Not Important questions are
+ *   excluded from both the numerator and denominator (see data/group.js).
+ * @property {number} doneCount  Raw count behind completePercent — Done, non-Not-Important questions.
+ * @property {number} totalCount  Raw count behind completePercent — non-Not-Important questions.
+ * @property {number} ignoredCount  Not Important questions excluded from completePercent's fraction.
  * @property {number} order
  * @property {SubTopicGroup[]} subTopics
  */
@@ -288,6 +297,10 @@
  * @property {boolean} notImportant  Derived — see SubjectGroup.notImportant.
  * @property {number} completePercent  Derived, read-only, 0-100: % of this SubTopic's own questions
  *   with `done` set — same leaf-level fraction TopicGroup.completePercent aggregates across SubTopics.
+ *   Not Important questions are excluded from both the numerator and denominator (see data/group.js).
+ * @property {number} doneCount  Raw count behind completePercent — Done, non-Not-Important questions.
+ * @property {number} totalCount  Raw count behind completePercent — non-Not-Important questions.
+ * @property {number} ignoredCount  Not Important questions excluded from completePercent's fraction.
  * @property {number} order
  * @property {Question[]} questions   Sorted by persisted `order` only — notImportant/difficulty are
  *   labels, never tiering (see data/group.js).

@@ -94,6 +94,14 @@ function closeStatsDropdown() {
  *   the fixed rows above (see features/tags.js).
  * @property {string[]} activeTags appState.filterState.tags — which tag rows to mark selected.
  * @property {Record<string, StatusFraction>} tagFractions Per-tag counts, keyed by tag name.
+ * @property {number} progressTotal Same scope as `total` but with Not Important questions excluded —
+ *   the stats-progress bar's denominator (see renderStatsProgress), matching data/group.js's
+ *   completePercent exclusion so this bar and a single-scope group-complete-pct read the same %.
+ * @property {number} progressIgnoredCount `total - progressTotal` — Not Important questions excluded
+ *   from the stats-progress bar, called out in each segment's title.
+ * @property {StatusFraction} progressDone Same as `done` but scoped to non-Not-Important questions.
+ * @property {StatusFraction} progressReview Same as `review` but scoped to non-Not-Important questions.
+ * @property {StatusFraction} progressFailed Same as `failed` but scoped to non-Not-Important questions.
  */
 
 /**
@@ -253,11 +261,12 @@ export function renderStatsBadges(stats, handlers) {
 }
 
 /**
- * Bootstrap multi-segment progress bar: Done/Review/Failed as % of `stats.total` (the current
- * Subject/Topic/SubTopic scope, ignoring Status — same fixed denominator every dropdown row's
- * fraction uses; the target = 100%). A question can be Done AND Review Later AND Failed at once,
- * so the segment widths aren't guaranteed to sum to <=100% — each segment is independently "this
- * status's share of the scope", not a mutually-exclusive partition.
+ * Bootstrap multi-segment progress bar: Done/Review/Failed as % of `stats.progressTotal` (the current
+ * Subject/Topic/SubTopic scope, ignoring Status, with Not Important questions excluded entirely — same
+ * exclusion data/group.js applies to each accordion's own completePercent, so this bar and a matching
+ * single-scope group-complete-pct read the same percentage). A question can be Done AND Review Later
+ * AND Failed at once, so the segment widths aren't guaranteed to sum to <=100% — each segment is
+ * independently "this status's share of the scope", not a mutually-exclusive partition.
  * @param {StatsData} stats
  */
 function renderStatsProgress(stats) {
@@ -277,17 +286,17 @@ function renderStatsProgress(stats) {
   // Same Bootstrap color variant as each stat's own badge above, so the segment reads as "that badge,
   // stretched into a bar" rather than an unrelated new color scheme.
   const segments = [
-    { variant: "success", label: "Done", count: stats.done.count },
-    { variant: "warning", label: "Review", count: stats.review.count },
-    { variant: "danger", label: "Failed", count: stats.failed.count },
+    { variant: "success", label: "Done", count: stats.progressDone.count },
+    { variant: "warning", label: "Review", count: stats.progressReview.count },
+    { variant: "danger", label: "Failed", count: stats.progressFailed.count },
   ];
   for (const { variant, label, count } of segments) {
-    const percent = stats.total > 0 ? Math.round((count / stats.total) * 100) : 0;
+    const percent = stats.progressTotal > 0 ? Math.round((count / stats.progressTotal) * 100) : 0;
     const segment = document.createElement("div");
     segment.className = `progress-bar progress-bar-striped progress-bar-animated bg-${variant}`;
     segment.style.width = `${percent}%`;
     segment.textContent = percent > 0 ? `${label} ${percent}%` : "";
-    segment.title = `${label}: ${count} of ${stats.total} (${percent}%)`;
+    segment.title = `${label}: ${count} of ${stats.progressTotal} (${percent}%)${stats.progressIgnoredCount ? ` — ${stats.progressIgnoredCount} Not Important ignored` : ""}`;
     bar.appendChild(segment);
   }
   progressBarEl.appendChild(bar);
@@ -362,7 +371,7 @@ export function renderGlobalActions(toggles, handlers) {
 
   const select = document.createElement("select");
   select.className = "form-select form-select-sm";
-  select.style.maxWidth = "200px";
+  select.style.maxWidth = "180px";
 
   // A real, always-selectable option (not a disabled placeholder) — it IS the control's resting
   // state, and re-selecting it (even from itself) fires the default "plain" copy, same as the old
