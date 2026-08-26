@@ -85,6 +85,9 @@ function attachHoverIntentPanel(wrap, panel) {
  * @property {(level: "subject"|"topic"|"subTopic", scope: any) => void} onRenameGroup
  * @property {(level: "subject"|"topic"|"subTopic", scope: any) => void} onDeleteGroup
  * @property {(level: "subject"|"topic"|"subTopic", scope: any) => void} onToggleGroupNotImportant
+ * @property {(level: "subject"|"topic"|"subTopic", scope: any) => void} onAddGroupLink
+ * @property {(level: "subject"|"topic"|"subTopic", scope: any, linkId: string, label: string, url: string) => void} onEditGroupLink
+ * @property {(level: "subject"|"topic"|"subTopic", scope: any, linkId: string, label: string) => void} onRemoveGroupLink
  */
 
 // "notImportant" is deliberately not in this list — its icon lives next to the Google Search

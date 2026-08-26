@@ -88,6 +88,7 @@ export function bootstrapFromStorage() {
     appState.activeFileId = null;
     appState.rawData = [];
     appState.emptyGroups = [];
+    appState.groupLinks = [];
     appState.tombstones = [];
     appState.filterState = emptyFilterState();
   }
@@ -124,6 +125,7 @@ export function loadCsvAsNewFile(fileName, csvText) {
     gistFileName: null,
     lastPushedHash: null,
     tombstones: [],
+    groupLinks: [],
   };
   appState.files = [...appState.files, file];
   appState.activeFileId = file.id;
@@ -226,6 +228,7 @@ export function clearActiveFile() {
   appState.activeFileId = null;
   appState.rawData = [];
   appState.emptyGroups = [];
+  appState.groupLinks = [];
   appState.tombstones = [];
   appState.filterState = emptyFilterState();
   persistFiles();
@@ -237,6 +240,7 @@ export function syncActiveFileBackIntoRecord() {
   if (!file) return;
   file.rawData = appState.rawData;
   file.emptyGroups = appState.emptyGroups;
+  file.groupLinks = appState.groupLinks;
   file.tombstones = appState.tombstones;
   file.filters = appState.filterState;
 }
@@ -326,6 +330,7 @@ export function deleteFile(fileId) {
       appState.activeFileId = null;
       appState.rawData = [];
       appState.emptyGroups = [];
+      appState.groupLinks = [];
       appState.tombstones = [];
       appState.filterState = emptyFilterState();
     }

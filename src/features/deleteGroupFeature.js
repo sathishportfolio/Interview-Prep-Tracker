@@ -7,6 +7,7 @@
  * calls `deleteGroup.js`.)
  */
 import { deleteGroup as deleteGroupMutation, deleteQuestion } from "../data/mutations.js";
+import { removeGroupLinksForScope } from "../data/groupLinks.js";
 import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import { confirmAction, showToast } from "./toast.js";
@@ -23,7 +24,8 @@ export function deleteGroupWithGuard(level, scope) {
     return;
   }
   if (!confirmAction(`Delete ${level} "${name}"? This cannot be undone.`)) return;
-  applyDataChange({ rawData: result.rawData, emptyGroups: result.emptyGroups });
+  const groupLinks = removeGroupLinksForScope(appState.groupLinks, level, scope);
+  applyDataChange({ rawData: result.rawData, emptyGroups: result.emptyGroups, groupLinks });
   showToast(`Deleted "${name}".`, "success");
 }
 

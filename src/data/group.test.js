@@ -69,6 +69,27 @@ test("notImportant never reorders siblings — a mixed-flag SubTopic keeps persi
   assert.deepEqual(ids, ["b", "a"]);
 });
 
+test("completePercent: SubTopic/Topic use a raw question-done fraction, Subject uses a fraction of fully-complete child Topics", () => {
+  // Subject S1: Topic T1 has 2 SubTopics, one 2/2 done (ST1) and one 0/2 done (ST2) -> T1 is 2/4 = 50%
+  // question-done, and NOT itself complete (ST2 isn't 100%). Topic T2 is fully done -> 100%, complete.
+  // Subject S1 then has 1 of 2 Topics fully complete -> completePercent 50%.
+  const rawData = [
+    q({ id: "a", topic: "T1", subTopic: "ST1", done: true }),
+    q({ id: "b", topic: "T1", subTopic: "ST1", done: true }),
+    q({ id: "c", topic: "T1", subTopic: "ST2", done: false }),
+    q({ id: "d", topic: "T1", subTopic: "ST2", done: false }),
+    q({ id: "e", topic: "T2", subTopic: "ST1", done: true }),
+  ];
+  const tree = groupData(rawData, []);
+  const t1 = tree.subjects[0].topics.find((t) => t.topic === "T1");
+  const t2 = tree.subjects[0].topics.find((t) => t.topic === "T2");
+  assert.equal(t1.subTopics.find((st) => st.subTopic === "ST1").completePercent, 100);
+  assert.equal(t1.subTopics.find((st) => st.subTopic === "ST2").completePercent, 0);
+  assert.equal(t1.completePercent, 50);
+  assert.equal(t2.completePercent, 100);
+  assert.equal(tree.subjects[0].completePercent, 50);
+});
+
 test("empty groups merge in and sort after real siblings by creation order", () => {
   const rawData = [q({ id: "a", subTopic: "ST1" })];
   const emptyGroups = [

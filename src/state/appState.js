@@ -6,6 +6,7 @@
  * sets) that never touches localStorage at all.
  * @typedef {import('../types.js').Question} Question
  * @typedef {import('../types.js').EmptyGroup} EmptyGroup
+ * @typedef {import('../types.js').GroupLinkEntry} GroupLinkEntry
  * @typedef {import('../types.js').Tombstone} Tombstone
  * @typedef {import('../types.js').FilterState} FilterState
  * @typedef {import('../types.js').GroupedTree} GroupedTree
@@ -28,6 +29,8 @@ export const appState = {
   rawData: [],
   /** @type {EmptyGroup[]} */
   emptyGroups: [],
+  /** @type {GroupLinkEntry[]} groupLinks of the active file (mirrors the active FileRecord.groupLinks) — see data/groupLinks.js */
+  groupLinks: [],
   /** @type {Tombstone[]} tombstones of the active file (mirrors the active FileRecord.tombstones) — see data/syncMerge.js */
   tombstones: [],
   /** @type {FilterState} */
@@ -98,6 +101,7 @@ export function loadFileIntoState(file) {
   appState.activeFileId = file.id;
   appState.rawData = file.rawData;
   appState.emptyGroups = file.emptyGroups;
+  appState.groupLinks = file.groupLinks ?? [];
   appState.tombstones = file.tombstones ?? [];
   appState.filterState = file.filters;
   appState.openNodeKeys = new Set();

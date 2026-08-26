@@ -131,9 +131,12 @@ export function markStatusWithMenu(questionId, status, withNotes) {
 
 /**
  * Ctrl/Cmd+click or long-press on ANY of the Done/Failed/Review Later buttons: after a confirm()
- * warning, clears all three flags plus each of their counters/full history timelines for this
- * question (see data/mutations.js resetTriStateHistory — deliberately not scoped to just the button
- * clicked). Mirrors unmarking Done's SRS reset.
+ * warning, resets this question's ENTIRE progress — all three tri-state flags plus each of their
+ * counters/full history timelines (see data/mutations.js resetTriStateHistory — deliberately not
+ * scoped to just the button clicked), Visited, and spaced-repetition scheduling (srsDue/srsStreak
+ * cleared to null/0, not just rescheduled) — the same full "clean slate" data/mutations.js's
+ * resetProgress gives a question, just reachable per-question from any of the three buttons instead
+ * of only via the app-wide Reset Progress action.
  * @param {string} questionId
  */
 export function resetTriState(questionId) {
@@ -145,8 +148,7 @@ export function resetTriState(questionId) {
     q.reviewLaterCount ? `Review Later: ${q.reviewLaterCount}` : null,
   ].filter(Boolean);
   const countsLabel = counts.length > 0 ? ` (currently ${counts.join(", ")})` : "";
-  if (!window.confirm(`Reset Done/Failed/Review Later history for this question${countsLabel}? This clears every counter and its full timeline. This cannot be undone.`)) return;
-  const rawData0 = resetTriStateHistory(appState.rawData, questionId);
-  const rawData = scheduleReview(rawData0, questionId, "reset");
+  if (!window.confirm(`Reset all progress for this question${countsLabel}? This clears Done/Failed/Review Later, Visited, spaced-repetition scheduling, and every counter/timeline. This cannot be undone.`)) return;
+  const rawData = resetTriStateHistory(appState.rawData, questionId);
   applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
 }

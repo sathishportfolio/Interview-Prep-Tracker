@@ -17,6 +17,7 @@
  *    enableSubjectSelectMode), not tracked in childSelectModeKeys.
  */
 import { deleteGroupCascade, deleteQuestions, moveGroup, moveQuestions, countQuestionsIn } from "../data/mutations.js";
+import { removeGroupLinksForScope, moveGroupLinksScope } from "../data/groupLinks.js";
 import { groupKey, parseGroupKey } from "../data/selectionKeys.js";
 import { applyDataChange, repaint } from "./refresh.js";
 import { appState } from "../state/appState.js";
@@ -308,11 +309,15 @@ export function bulkDeleteSelected() {
   if (!confirmAction(`Delete ${summary}?${nestedNote} This cannot be undone here, but Undo will still work.`)) return;
 
   let data = { rawData: appState.rawData, emptyGroups: appState.emptyGroups, tombstones: appState.tombstones };
-  for (const g of groups) data = deleteGroupCascade(data, g.level, g.scope);
+  let groupLinks = appState.groupLinks;
+  for (const g of groups) {
+    data = deleteGroupCascade(data, g.level, g.scope);
+    groupLinks = removeGroupLinksForScope(groupLinks, g.level, g.scope);
+  }
   if (questionIds.length > 0) data = deleteQuestions(data, questionIds);
 
   clearAllSelections();
-  applyDataChange(data);
+  applyDataChange({ ...data, groupLinks });
   showToast(`Deleted ${summary}.`, "success");
 }
 
@@ -324,13 +329,15 @@ export function bulkDeleteSelected() {
  */
 export function applySelectionMove(selection, destination) {
   let data = { rawData: appState.rawData, emptyGroups: appState.emptyGroups };
+  let groupLinks = appState.groupLinks;
   for (const g of selection.groups) {
     const dest = g.level === "subTopic" ? { subject: destination.subject, topic: destination.topic } : { subject: destination.subject };
     data = moveGroup(data, g.level, g.scope, dest);
+    groupLinks = moveGroupLinksScope(groupLinks, g.level, g.scope, dest);
   }
   if (selection.questionIds.length > 0) {
     data = moveQuestions(data, selection.questionIds, /** @type {any} */ (destination));
   }
   clearAllSelections();
-  applyDataChange(data);
+  applyDataChange({ ...data, groupLinks });
 }

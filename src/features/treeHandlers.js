@@ -21,6 +21,7 @@ import * as groupPanels from "./groupPanels.js";
 import * as autoExpand from "./autoExpand.js";
 import * as difficulty from "./difficulty.js";
 import * as notImportant from "./notImportant.js";
+import * as groupLinks from "./groupLinks.js";
 import * as reorderMode from "./reorderMode.js";
 import * as tags from "./tags.js";
 import * as questionLinks from "./questionLinks.js";
@@ -49,6 +50,9 @@ export function buildTreeHandlers() {
     onCycleDifficulty: (qid) => difficulty.cycleDifficulty(qid),
     onReorderSelect: (level, scope) => reorderMode.selectForReorder(level, scope),
     onToggleGroupNotImportant: (level, scope) => notImportant.toggleGroupNotImportant(level, scope),
+    onAddGroupLink: (level, scope) => groupLinks.addGroupLinkPrompt(level, scope),
+    onEditGroupLink: (level, scope, linkId, label, url) => groupLinks.editGroupLinkPrompt(level, scope, linkId, label, url),
+    onRemoveGroupLink: (level, scope, linkId, label) => groupLinks.removeGroupLinkWithConfirm(level, scope, linkId, label),
     onEditAnswer: (qid) => answerEditor.openAnswerEditor(qid),
     onEditQuestionText: (qid) => editQuestionText.editQuestionTextPrompt(qid),
     onOpenMoveForm: (qid) => moveForm.openMoveForm(appState.selectedQuestionIds.has(qid) ? [...appState.selectedQuestionIds] : [qid]),

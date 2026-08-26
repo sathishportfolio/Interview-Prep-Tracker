@@ -454,13 +454,70 @@ body {
 .acc-item { border: 1px solid var(--border); border-radius: 0.4rem; margin-bottom: 0.4rem; background: var(--bg-surface); }
 .acc-header { position: relative; display: flex; align-items: center; gap: 0.4rem; padding: 0.55rem 0.7rem; cursor: pointer; background: var(--bg-surface-alt); user-select: none; border-radius: 0.35rem 0.35rem 0 0; }
 .acc-header:hover { background: var(--bg-hover); }
-.acc-header .acc-caret { transition: transform 0.15s ease; flex-shrink: 0; }
-.acc-header.expanded .acc-caret { transform: rotate(90deg); }
+/* The expand/collapse chevron is redundant now that every accordion header carries its own Mark
+   Complete progress circle (see .group-complete-indicator below) — one circular glyph per header
+   instead of two competing ones. The header itself (and its .expanded class) still drives
+   open/close; this only removes the extra visual glyph. */
+.acc-header .acc-caret { display: none; }
 .acc-title { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acc-body { display: none; padding: 0.5rem 0.7rem 0.7rem 1.2rem; }
 .acc-body.open { display: block; }
 .acc-header-controls { display: flex; align-items: center; gap: 0.25rem; z-index: 1; }
 .acc-header-controls .btn { padding: 0.1rem 0.35rem; font-size: 0.75rem; }
+/* The Related Links control (see render/nodeViews/groupLinksPanel.js) sits as the LAST icon in
+   header-controls, which itself hugs the right edge of a full-width accordion header — a left-aligned
+   dropdown panel (the question-level default) would overflow past the viewport there. Right-align it
+   instead so it opens leftward, staying on-screen regardless of header width. */
+.acc-header-controls .links-dropdown-panel { left: auto; right: 0; }
+
+/* Mark Complete progress indicator (Subject/Topic/SubTopic accordion header) — a small circle,
+   always visible (unlike the edit-gated icons in .acc-header-controls, since this is a review
+   readout, not an editing control), that doubles as a progress pie chart. READ-ONLY: it's a `<span>`,
+   not a button — nothing here is clickable, and it never mutates any question. A question's own
+   `done` flag only ever changes via that question's own Done button (see
+   render/groupCompleteButton.js). Three states:
+     - 0%    (neither modifier): a dashed grey outline ring — "not started".
+     - 1-99% (.is-partial): a green conic-gradient pie slice (set via the --pct custom property, see
+       render/groupCompleteButton.js's patchGroupCompleteButton) sweeping proportionally, with the
+       percentage as bold white text in the middle — a black outline (stacked text-shadows, not a
+       single soft blur) keeps the digits crisp against both the green slice and the grey remainder,
+       in both themes.
+     - 100%  (.is-complete): solid green fill with a white checkmark, same green as --done everywhere
+       else Done is shown.
+   SubTopic/Topic get their percentage from their own questions' Done fraction; Subject gets its
+   percentage from how many child Topics are themselves fully (100%) done — see data/group.js. */
+.group-complete-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 1.7rem;
+  height: 1.7rem;
+  margin-right: 0.25rem;
+  border-radius: 50%;
+  border: 2px dashed var(--text-faint-3);
+  background: transparent;
+  cursor: default;
+}
+.group-complete-indicator i { font-size: 0.72rem; line-height: 1; color: #fff; display: none; }
+.group-complete-indicator .group-complete-pct {
+  display: none;
+  font-size: 0.6rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 0 3px rgba(0, 0, 0, 0.7);
+}
+
+.group-complete-indicator.is-partial {
+  border: none;
+  background: conic-gradient(var(--done) calc(var(--pct) * 1%), var(--bg-badge) 0);
+}
+.group-complete-indicator.is-partial .group-complete-pct { display: inline; }
+
+.group-complete-indicator.is-complete { border: none; background: var(--done); }
+.group-complete-indicator.is-complete i { display: inline; }
 
 .level-subject > .acc-header { background: var(--bg-tint-subject); }
 .level-topic > .acc-header { background: var(--bg-tint-topic); }
@@ -643,6 +700,39 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .acc-item.not-important > .acc-header { opacity: 0.55; border-left: 3px dashed var(--not-important); }
 .acc-item.not-important > .acc-header .acc-title::after,
 .question-item.not-important > .question-header .q-text::after { content: " (Not Important)"; font-size: 0.75em; font-style: italic; opacity: 0.85; }
+
+/* Group Related Links — read-only chip row for a Subject/Topic/SubTopic's own links (see
+   render/nodeViews/groupLinksPanel.js), reusing .link-chip's exact look from the question-level
+   version. Sits right before .status-summary-row in the body (see subjectView.js/topicView.js/
+   subTopicView.js's patch functions) — no divider of its own, since the summary row's dashed top
+   border directly beneath it already separates the two. Hidden entirely (not just empty) when the
+   group has no links yet, same [hidden]-driven approach as the summary row. */
+.group-links-row { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.5rem; }
+.group-links-row[hidden] { display: none; }
+
+/* Status Summary row — small "Done 3 · Failed 1 · Review 2 ..." chip readout at the bottom of a
+   Subject/Topic/SubTopic accordion body (see render/statusSummary.js), summarizing every descendant
+   question's status flags. Deliberately small/muted (font-size below body copy, faint border) so it
+   reads as supplementary insight rather than competing with the accordion's own content — each chip
+   only appears once its count is non-zero (see patchStatusSummary), and the whole row hides itself
+   when nothing has been marked yet. Sits after the child list in DOM order (last thing in the body)
+   so it never displaces content above it as counts change. */
+.status-summary-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.5rem; margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px dashed var(--border-soft); }
+.status-summary-row[hidden] { display: none; }
+.status-summary-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: var(--bg-surface-alt-2);
+  border: 1px solid var(--border-soft);
+}
+.status-summary-chip[hidden] { display: none; }
+.status-summary-dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--chip-color); flex-shrink: 0; }
 
 /* Reorder mode — small numbered badge shown on eligible accordions while a Reorder session (see
    features/reorderMode.js) is active for that level/parent. Hollow/dim when eligible-but-unpicked,

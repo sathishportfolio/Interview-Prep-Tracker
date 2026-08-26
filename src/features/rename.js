@@ -5,6 +5,7 @@
  * via data/mutations.js.renameGroup.
  */
 import { renameGroup } from "../data/mutations.js";
+import { renameInGroupLinks } from "../data/groupLinks.js";
 import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import { promptAction, showToast } from "./toast.js";
@@ -23,7 +24,8 @@ export function renameGroupPrompt(level, scope) {
   // used to patch the active filter selection below matches exactly what actually got stored.
   const newName = toTitleCase(newNameRaw.trim());
   const result = renameGroup({ rawData: appState.rawData, emptyGroups: appState.emptyGroups }, level, scope, newName);
-  applyDataChange(result);
+  const groupLinks = renameInGroupLinks(appState.groupLinks, { level, subject: scope.subject, topic: scope.topic, subTopic: scope.subTopic, newName });
+  applyDataChange({ ...result, groupLinks });
 
   // If the renamed Subject/Topic/SubTopic was itself part of the active filter selection, swap it in
   // place — otherwise the filter keeps pointing at a name no longer present in the data and silently

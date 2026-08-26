@@ -9,6 +9,10 @@ import { createTopicNode, patchTopicNode } from "./topicView.js";
 import { appState } from "../../state/appState.js";
 import { groupKey } from "../../data/selectionKeys.js";
 import { isReorderTarget } from "../reorderEligibility.js";
+import { createStatusSummary, patchStatusSummary } from "../statusSummary.js";
+import { createGroupLinksControl, patchGroupLinksControl, createGroupLinksDisplayRow, patchGroupLinksDisplayRow } from "./groupLinksPanel.js";
+import { getGroupLinks } from "../../data/groupLinks.js";
+import { createGroupCompleteButton, patchGroupCompleteButton } from "../groupCompleteButton.js";
 
 /**
  * @param {SubjectGroup} s
@@ -36,9 +40,12 @@ export function createSubjectNode(s, handlers) {
   });
   header.insertBefore(selectBox, header.children[1]);
 
+  const completeBtn = createGroupCompleteButton();
+  header.insertBefore(completeBtn, header.children[2]);
+
   const reorderBadge = document.createElement("span");
   reorderBadge.className = "reorder-badge";
-  header.insertBefore(reorderBadge, header.children[2]);
+  header.insertBefore(reorderBadge, header.children[3]);
 
   // Reorder-mode click interception — capture phase, fires before the normal expand/collapse
   // listener bindHeader already wired inside createAccordionShell. See features/reorderMode.js.
@@ -77,13 +84,18 @@ export function createSubjectNode(s, handlers) {
     e.stopPropagation();
     handlers.onToggleChildSelectMode("subject", { subject: s.subject });
   }, true));
+  headerControls.appendChild(createGroupLinksControl("subject", { subject: s.subject }, handlers));
 
   const bulkAddMount = document.createElement("div");
   bulkAddMount.className = "bulk-add-mount edit-gated";
   const topicList = document.createElement("div");
   topicList.className = "topic-list";
+  const groupLinksRow = createGroupLinksDisplayRow();
+  const statusSummary = createStatusSummary();
   body.appendChild(bulkAddMount);
   body.appendChild(topicList);
+  body.appendChild(groupLinksRow);
+  body.appendChild(statusSummary);
 
   patchSubjectNode(item, s, handlers);
   return item;
@@ -112,6 +124,11 @@ function countQuestions(s) {
   return { total, notImportant };
 }
 
+/** @param {SubjectGroup} s @returns {import('../../types.js').Question[]} every question under this Subject */
+function collectQuestions(s) {
+  return s.topics.flatMap((t) => t.subTopics.flatMap((st) => st.questions));
+}
+
 /**
  * @param {HTMLElement} el
  * @param {SubjectGroup} s
@@ -133,6 +150,15 @@ export function patchSubjectNode(el, s, handlers) {
   }
   el.classList.toggle("child-select-on", appState.childSelectModeKeys.has(groupKey("subject", { subject: s.subject })));
   el.classList.toggle("not-important", !!s.notImportant);
+
+  patchGroupCompleteButton(el.querySelector(":scope > .acc-header > .group-complete-indicator"), s.completePercent);
+
+  const scope = { subject: s.subject };
+  const groupLinks = getGroupLinks(appState.groupLinks, scope.subject, null, null);
+  const linksControl = el.querySelector(":scope > .acc-header > .acc-header-controls > .links-dropdown-wrap");
+  if (linksControl) patchGroupLinksControl(/** @type {HTMLElement} */ (linksControl), "subject", scope, groupLinks, handlers);
+  const groupLinksRow = /** @type {HTMLElement|null} */ (el.querySelector(":scope > .acc-body > .group-links-row"));
+  if (groupLinksRow) patchGroupLinksDisplayRow(groupLinksRow, groupLinks);
 
   const selectBox = /** @type {HTMLInputElement|null} */ (el.querySelector(":scope > .acc-header > .group-select-checkbox"));
   if (selectBox) selectBox.checked = appState.selectedGroupKeys.has(groupKey("subject", { subject: s.subject }));
@@ -162,4 +188,7 @@ export function patchSubjectNode(el, s, handlers) {
       (tEl, t) => patchTopicNode(tEl, t, handlers)
     );
   }
+
+  const statusSummary = /** @type {HTMLElement|null} */ (el.querySelector(":scope > .acc-body > .status-summary-row"));
+  if (statusSummary) patchStatusSummary(statusSummary, collectQuestions(s));
 }

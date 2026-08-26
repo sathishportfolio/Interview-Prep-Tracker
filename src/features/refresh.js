@@ -139,36 +139,39 @@ export function repaint() {
   if (afterRepaintHook) afterRepaintHook();
 }
 
-/** @type {((prevRawData: any[], prevEmptyGroups: any[], prevTombstones: any[]) => void)|null} */
+/** @type {((prevRawData: any[], prevEmptyGroups: any[], prevTombstones: any[], prevGroupLinks: any[]) => void)|null} */
 let beforeChangeHook = null;
 
 /**
- * Registers a callback invoked with the PRE-mutation {rawData, emptyGroups, tombstones} right
- * before every applyDataChange call — undoRedo.js's single hook point, so every mutation call site
- * is covered without each one remembering to push its own snapshot.
- * @param {(prevRawData: any[], prevEmptyGroups: any[], prevTombstones: any[]) => void} fn
+ * Registers a callback invoked with the PRE-mutation {rawData, emptyGroups, tombstones, groupLinks}
+ * right before every applyDataChange call — undoRedo.js's single hook point, so every mutation call
+ * site is covered without each one remembering to push its own snapshot.
+ * @param {(prevRawData: any[], prevEmptyGroups: any[], prevTombstones: any[], prevGroupLinks: any[]) => void} fn
  */
 export function setBeforeChangeHook(fn) {
   beforeChangeHook = fn;
 }
 
 /**
- * Applies a new {rawData, emptyGroups, tombstones?} pair: updates appState, recomputes, persists
- * (unless tempMode — persistCurrentProgress itself no-ops appropriately via the store backend
- * swap), and repaints. This is the ONE place undoRedo.js needs to wrap to cover every mutation.
- * `tombstones` is optional on the incoming pair — most mutations never touch it, so appState.tombstones
- * is left as-is when absent (only the delete-family mutators in data/mutations.js return it).
- * @param {{rawData: any[], emptyGroups: any[], tombstones?: any[]}} pair
+ * Applies a new {rawData, emptyGroups, tombstones?, groupLinks?} pair: updates appState, recomputes,
+ * persists (unless tempMode — persistCurrentProgress itself no-ops appropriately via the store
+ * backend swap), and repaints. This is the ONE place undoRedo.js needs to wrap to cover every
+ * mutation. `tombstones`/`groupLinks` are optional on the incoming pair — most mutations never touch
+ * either, so the matching appState field is left as-is when absent (only the delete-family mutators
+ * in data/mutations.js return tombstones; only Related Links / rename / delete / move group call
+ * sites return groupLinks — see data/groupLinks.js).
+ * @param {{rawData: any[], emptyGroups: any[], tombstones?: any[], groupLinks?: any[]}} pair
  * @param {{skipUndoSnapshot?: boolean}} [options] Internal: undoRedo.js itself uses this to apply
  *   a restored snapshot without recording ANOTHER undo step for the undo/redo action itself.
  */
 export function applyDataChange(pair, options = {}) {
   if (!options.skipUndoSnapshot && beforeChangeHook) {
-    beforeChangeHook(appState.rawData, appState.emptyGroups, appState.tombstones);
+    beforeChangeHook(appState.rawData, appState.emptyGroups, appState.tombstones, appState.groupLinks);
   }
   appState.rawData = pair.rawData;
   appState.emptyGroups = pair.emptyGroups;
   if (pair.tombstones) appState.tombstones = pair.tombstones;
+  if (pair.groupLinks) appState.groupLinks = pair.groupLinks;
   recompute();
   fileManager.persistCurrentProgress();
   repaint();

@@ -109,16 +109,20 @@ test("markStatus(failed)/markStatus(reviewLater) track their own independent cou
   assert.equal(q.reviewLaterCount, 1);
 });
 
-test("resetTriStateHistory clears done/failed/reviewLater flags and all three counters/histories together", () => {
+test("resetTriStateHistory clears done/failed/reviewLater flags, all three counters/histories, Visited, and SRS scheduling together", () => {
   const data = addQuestion(emptyData(), { subject: "S1", topic: "T1", subTopic: "ST1", question: "Q1" });
   const id = data.question.id;
   let rawData = markStatus(data.rawData, id, "done", "note");
   rawData = markStatus(rawData, id, "failed"); // leaves a stray doneCount/doneHistory behind
+  rawData = updateQuestion(rawData, id, { visited: true, srsDue: "2099-01-01", srsStreak: 3 });
   const reset = resetTriStateHistory(rawData, id);
   const q = reset.find((x) => x.id === id);
   assert.equal(q.done, false);
   assert.equal(q.failed, false);
   assert.equal(q.reviewLater, false);
+  assert.equal(q.visited, false);
+  assert.equal(q.srsDue, null);
+  assert.equal(q.srsStreak, 0);
   assert.equal(q.doneCount, 0);
   assert.deepEqual(q.doneHistory, []);
   assert.equal(q.failedCount, 0);

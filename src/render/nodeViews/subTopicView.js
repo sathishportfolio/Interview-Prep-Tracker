@@ -12,6 +12,10 @@ import { createQuestionNode, patchQuestionNode } from "./questionView.js";
 import { appState } from "../../state/appState.js";
 import { groupKey } from "../../data/selectionKeys.js";
 import { isReorderTarget } from "../reorderEligibility.js";
+import { createStatusSummary, patchStatusSummary } from "../statusSummary.js";
+import { createGroupLinksControl, patchGroupLinksControl, createGroupLinksDisplayRow, patchGroupLinksDisplayRow } from "./groupLinksPanel.js";
+import { getGroupLinks } from "../../data/groupLinks.js";
+import { createGroupCompleteButton, patchGroupCompleteButton } from "../groupCompleteButton.js";
 
 /**
  * @param {SubTopicGroup} st
@@ -41,9 +45,12 @@ export function createSubTopicNode(st, handlers) {
   });
   header.insertBefore(selectBox, header.children[1]);
 
+  const completeBtn = createGroupCompleteButton();
+  header.insertBefore(completeBtn, header.children[2]);
+
   const reorderBadge = document.createElement("span");
   reorderBadge.className = "reorder-badge";
-  header.insertBefore(reorderBadge, header.children[2]);
+  header.insertBefore(reorderBadge, header.children[3]);
 
   header.addEventListener(
     "click",
@@ -86,6 +93,7 @@ export function createSubTopicNode(st, handlers) {
       handlers.onToggleChildSelectMode("subTopic", { subject: st.subject, topic: st.topic, subTopic: st.subTopic });
     }, true)
   );
+  headerControls.appendChild(createGroupLinksControl("subTopic", { subject: st.subject, topic: st.topic, subTopic: st.subTopic }, handlers));
 
   const bulkAddMount = document.createElement("div");
   bulkAddMount.className = "bulk-add-mount edit-gated";
@@ -93,10 +101,14 @@ export function createSubTopicNode(st, handlers) {
   selectBar.className = "select-count-bar-mount";
   const questionList = document.createElement("div");
   questionList.className = "question-list";
+  const groupLinksRow = createGroupLinksDisplayRow();
+  const statusSummary = createStatusSummary();
 
   body.appendChild(selectBar);
   body.appendChild(bulkAddMount);
   body.appendChild(questionList);
+  body.appendChild(groupLinksRow);
+  body.appendChild(statusSummary);
 
   patchSubTopicNode(item, st, handlers);
   return item;
@@ -144,6 +156,15 @@ export function patchSubTopicNode(el, st, handlers) {
 
   el.classList.toggle("not-important", !!st.notImportant);
 
+  patchGroupCompleteButton(el.querySelector(":scope > .acc-header > .group-complete-indicator"), st.completePercent);
+
+  const scope = { subject: st.subject, topic: st.topic, subTopic: st.subTopic };
+  const groupLinks = getGroupLinks(appState.groupLinks, scope.subject, scope.topic, scope.subTopic);
+  const linksControl = el.querySelector(":scope > .acc-header > .acc-header-controls > .links-dropdown-wrap");
+  if (linksControl) patchGroupLinksControl(/** @type {HTMLElement} */ (linksControl), "subTopic", scope, groupLinks, handlers);
+  const groupLinksRow = /** @type {HTMLElement|null} */ (el.querySelector(":scope > .acc-body > .group-links-row"));
+  if (groupLinksRow) patchGroupLinksDisplayRow(groupLinksRow, groupLinks);
+
   const selectBox = /** @type {HTMLInputElement|null} */ (el.querySelector(":scope > .acc-header > .group-select-checkbox"));
   if (selectBox) selectBox.checked = appState.selectedGroupKeys.has(groupKey("subTopic", { subject: st.subject, topic: st.topic, subTopic: st.subTopic }));
 
@@ -172,4 +193,7 @@ export function patchSubTopicNode(el, st, handlers) {
       (qEl, q) => patchQuestionNode(qEl, q, handlers)
     );
   }
+
+  const statusSummary = /** @type {HTMLElement|null} */ (el.querySelector(":scope > .acc-body > .status-summary-row"));
+  if (statusSummary) patchStatusSummary(statusSummary, st.questions);
 }

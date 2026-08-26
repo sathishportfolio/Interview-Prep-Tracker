@@ -22,6 +22,7 @@
  */
 import { reorderSiblingsByIdList, applyGroupReorder } from "../data/order.js";
 import { moveQuestions, moveGroup, reorderQuestionLinks } from "../data/mutations.js";
+import { moveGroupLinksScope, reorderGroupLinks as reorderGroupLinksMutation } from "../data/groupLinks.js";
 import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import { showDropTargetHighlight, clearDropTargetHighlight } from "../render/highlight.js";
@@ -72,6 +73,11 @@ export function refreshSortables() {
   // Question cross-hierarchy machinery above: same-list reorder only, no cross-hierarchy drop.
   document.querySelectorAll(".related-links-list").forEach((el) => initLinksSortable(el, Sortable));
 
+  // Same, but for a Subject/Topic/SubTopic's own Related Links (see
+  // render/nodeViews/groupLinksPanel.js's editList) — scoped via the container's own
+  // level/subject/topic/subTopic dataset instead of a question id.
+  document.querySelectorAll(".group-related-links-list").forEach((el) => initGroupLinksSortable(el, Sortable));
+
   attachDocumentDragTracking();
 }
 
@@ -92,6 +98,32 @@ function initLinksSortable(el, Sortable) {
         .filter((id) => id !== undefined);
       const rawData = reorderQuestionLinks(appState.rawData, questionId, orderedLinkIds);
       applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
+    },
+  });
+}
+
+/**
+ * @param {Element} el
+ * @param {any} Sortable
+ */
+function initGroupLinksSortable(el, Sortable) {
+  if (initializedContainers.has(el)) return;
+  initializedContainers.add(el);
+  Sortable.create(el, {
+    handle: ".drag-handle",
+    animation: 150,
+    onEnd: () => {
+      const ds = /** @type {HTMLElement} */ (el).dataset;
+      const level = /** @type {"subject"|"topic"|"subTopic"} */ (ds.level);
+      const scope = { subject: /** @type {string} */ (ds.subject), topic: ds.topic, subTopic: ds.subTopic };
+      const orderedLinkIds = Array.from(el.children)
+        .map((c) => /** @type {HTMLElement} */ (c).dataset.linkId)
+        .filter((id) => id !== undefined);
+      const subject = scope.subject;
+      const topic = level === "subject" ? null : /** @type {string} */ (scope.topic);
+      const subTopic = level === "subTopic" ? /** @type {string} */ (scope.subTopic) : null;
+      const groupLinks = reorderGroupLinksMutation(appState.groupLinks, subject, topic, subTopic, orderedLinkIds);
+      applyDataChange({ rawData: appState.rawData, emptyGroups: appState.emptyGroups, groupLinks });
     },
   });
 }
@@ -336,6 +368,7 @@ function finishDrop(target) {
   if (state.kind === "question") {
     applyDataChange(moveQuestions(data, state.ids, match.destination));
   } else {
-    applyDataChange(moveGroup(data, state.kind, state.source, match.destination));
+    const groupLinks = moveGroupLinksScope(appState.groupLinks, state.kind, state.source, match.destination);
+    applyDataChange({ ...moveGroup(data, state.kind, state.source, match.destination), groupLinks });
   }
 }

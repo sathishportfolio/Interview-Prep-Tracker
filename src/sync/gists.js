@@ -51,8 +51,8 @@ function hashString(str) {
 
 /** @param {FileRecord} file @returns {string} JSON content this file's gist blob should hold. */
 function serializeFileContent(file) {
-  const { id, fileName, rawData, emptyGroups, filters, lastExportVersion, lastExportDate, tombstones } = file;
-  return JSON.stringify({ id, fileName, rawData, emptyGroups, filters, lastExportVersion, lastExportDate, tombstones: tombstones ?? [] });
+  const { id, fileName, rawData, emptyGroups, filters, lastExportVersion, lastExportDate, tombstones, groupLinks } = file;
+  return JSON.stringify({ id, fileName, rawData, emptyGroups, filters, lastExportVersion, lastExportDate, tombstones: tombstones ?? [], groupLinks: groupLinks ?? [] });
 }
 
 /**
@@ -221,6 +221,7 @@ export function applyRemotePullResult(result) {
         rawData: mergedRawData,
         tombstones: mergedTombstones,
         emptyGroups: pruneEmptyGroups(content.emptyGroups, mergedRawData),
+        groupLinks: Array.isArray(content.groupLinks) ? content.groupLinks : [],
       };
       byId.set(content.id, {
         ...mergedContent,

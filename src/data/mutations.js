@@ -182,7 +182,9 @@ export function markStatus(rawData, questionId, status, note) {
  * already (only one can be true), but a stray earlier count on either of the other two (e.g. left
  * over from before an undo, or from before this question's current state) would otherwise survive
  * silently — resetting is meant to give the question a clean slate, not just clear whichever one
- * happens to be currently set.
+ * happens to be currently set. Also clears Visited and spaced-repetition scheduling (srsDue/
+ * srsStreak) — same fields resetProgress clears — since a full "clean slate" reset should remove
+ * every trace of review progress on this question, not just the tri-state itself.
  * @param {Question[]} rawData
  * @param {string} questionId
  * @returns {Question[]}
@@ -192,7 +194,7 @@ export function resetTriStateHistory(rawData, questionId) {
     q.id === questionId
       ? {
           ...q,
-          done: false, failed: false, reviewLater: false,
+          done: false, failed: false, reviewLater: false, visited: false, srsDue: null, srsStreak: 0,
           doneCount: 0, doneHistory: [],
           failedCount: 0, failedHistory: [],
           reviewLaterCount: 0, reviewLaterHistory: [],

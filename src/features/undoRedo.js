@@ -10,14 +10,14 @@ import { applyDataChange, setBeforeChangeHook } from "./refresh.js";
 
 const MAX_HISTORY = 50;
 
-/** @type {Array<{rawData: any[], emptyGroups: any[], tombstones: any[]}>} */
+/** @type {Array<{rawData: any[], emptyGroups: any[], tombstones: any[], groupLinks: any[]}>} */
 let undoStack = [];
-/** @type {Array<{rawData: any[], emptyGroups: any[], tombstones: any[]}>} */
+/** @type {Array<{rawData: any[], emptyGroups: any[], tombstones: any[], groupLinks: any[]}>} */
 let redoStack = [];
 
 export function initUndoRedo() {
-  setBeforeChangeHook((prevRawData, prevEmptyGroups, prevTombstones) => {
-    undoStack.push({ rawData: prevRawData, emptyGroups: prevEmptyGroups, tombstones: prevTombstones });
+  setBeforeChangeHook((prevRawData, prevEmptyGroups, prevTombstones, prevGroupLinks) => {
+    undoStack.push({ rawData: prevRawData, emptyGroups: prevEmptyGroups, tombstones: prevTombstones, groupLinks: prevGroupLinks });
     if (undoStack.length > MAX_HISTORY) undoStack.shift();
     redoStack = [];
   });
@@ -25,15 +25,15 @@ export function initUndoRedo() {
 
 export function undo() {
   if (undoStack.length === 0) return;
-  const prev = /** @type {{rawData: any[], emptyGroups: any[], tombstones: any[]}} */ (undoStack.pop());
-  redoStack.push({ rawData: appState.rawData, emptyGroups: appState.emptyGroups, tombstones: appState.tombstones });
+  const prev = /** @type {{rawData: any[], emptyGroups: any[], tombstones: any[], groupLinks: any[]}} */ (undoStack.pop());
+  redoStack.push({ rawData: appState.rawData, emptyGroups: appState.emptyGroups, tombstones: appState.tombstones, groupLinks: appState.groupLinks });
   applyDataChange(prev, { skipUndoSnapshot: true });
 }
 
 export function redo() {
   if (redoStack.length === 0) return;
-  const next = /** @type {{rawData: any[], emptyGroups: any[], tombstones: any[]}} */ (redoStack.pop());
-  undoStack.push({ rawData: appState.rawData, emptyGroups: appState.emptyGroups, tombstones: appState.tombstones });
+  const next = /** @type {{rawData: any[], emptyGroups: any[], tombstones: any[], groupLinks: any[]}} */ (redoStack.pop());
+  undoStack.push({ rawData: appState.rawData, emptyGroups: appState.emptyGroups, tombstones: appState.tombstones, groupLinks: appState.groupLinks });
   applyDataChange(next, { skipUndoSnapshot: true });
 }
 

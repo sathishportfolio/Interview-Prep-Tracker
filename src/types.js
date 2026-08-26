@@ -70,6 +70,18 @@
  */
 
 /**
+ * Related Links attached to a Subject/Topic/SubTopic itself (not to any one question underneath
+ * it) — see data/groupLinks.js. Tracked as its own flat array, keyed by scope the same way
+ * EmptyGroup is (`topic`/`subTopic` null = a Subject-/Topic-level entry), since a group has no
+ * question row of its own to carry a `links` array on.
+ * @typedef {Object} GroupLinkEntry
+ * @property {string} subject
+ * @property {string|null} topic
+ * @property {string|null} subTopic
+ * @property {QuestionLink[]} links
+ */
+
+/**
  * A per-file record of a deleted question id, so a pull-merge can distinguish "never existed on
  * this device" from "existed here but was deleted elsewhere" — without this, a device that never
  * saw the delete would resurrect the question on its next sync. See data/syncMerge.js.
@@ -132,6 +144,11 @@
  * @property {Tombstone[]} tombstones   Deleted question ids for this file, each with a deletedAt
  *   timestamp — see data/mutations.js's deleteQuestion/deleteQuestions/deleteGroupCascade (the only
  *   writers) and data/syncMerge.js (the only reader, on pull-merge).
+ * @property {GroupLinkEntry[]} [groupLinks]   Related Links scoped to a Subject/Topic/SubTopic
+ *   itself — see data/groupLinks.js. Optional so older persisted files (from before this existed)
+ *   still typecheck/load; every reader defaults a missing value to `[]`. Synced the same
+ *   remote-replaces-local way as `emptyGroups`/`filters` (see sync/gists.js's serializeFileContent) —
+ *   no per-link merge attempted.
  */
 
 /**
@@ -240,6 +257,11 @@
  * @property {boolean} notImportant  Derived: true iff every Topic under this Subject is notImportant
  *   (or, for a childless placeholder, its EmptyGroup marker's own notImportant). Display-only, never
  *   affects order/visibility — see data/group.js.
+ * @property {number} completePercent  Derived, read-only, 0-100: % of this Subject's child Topics
+ *   that are themselves fully done (NOT a raw question-done fraction — see TopicGroup.completePercent
+ *   for that). Drives the pie-chart progress circle in the accordion header — purely a readout, never
+ *   settable by clicking it; a question's `done` flag is only ever changed via its own action buttons
+ *   (see data/group.js, render/groupCompleteButton.js).
  * @property {number} order
  * @property {TopicGroup[]} topics
  */
@@ -250,6 +272,9 @@
  * @property {string} topic
  * @property {boolean} isEmpty
  * @property {boolean} notImportant  Derived — see SubjectGroup.notImportant.
+ * @property {number} completePercent  Derived, read-only, 0-100: % of every question under this Topic
+ *   (across all its SubTopics) that has `done` set — unlike SubjectGroup.completePercent, this IS a
+ *   raw question-done fraction, not a count of fully-done child SubTopics.
  * @property {number} order
  * @property {SubTopicGroup[]} subTopics
  */
@@ -261,6 +286,8 @@
  * @property {string} subTopic
  * @property {boolean} isEmpty
  * @property {boolean} notImportant  Derived — see SubjectGroup.notImportant.
+ * @property {number} completePercent  Derived, read-only, 0-100: % of this SubTopic's own questions
+ *   with `done` set — same leaf-level fraction TopicGroup.completePercent aggregates across SubTopics.
  * @property {number} order
  * @property {Question[]} questions   Sorted by persisted `order` only — notImportant/difficulty are
  *   labels, never tiering (see data/group.js).
