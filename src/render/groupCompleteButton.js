@@ -27,9 +27,8 @@ export function createGroupCompleteButton() {
  * @param {number} [ignoredCount] Not Important questions excluded from the percentage above (data/
  *   group.js's ignoredCount) — called out in the title so it's clear why the fraction isn't out of
  *   every question in scope.
- * @param {string} [unitLabel] What doneCount/totalCount are counting — "questions" for SubTopic/Topic,
- *   "Topics" for Subject (see data/group.js — Subject's percent counts fully-done child Topics, not
- *   raw questions, so its title must say so rather than implying a question tally).
+ * @param {string} [unitLabel] What doneCount/totalCount are counting — "questions" for every level
+ *   (Subject/Topic/SubTopic all share the same Not-Important-excluded question-based basis).
  */
 export function patchGroupCompleteButton(el, percent, doneCount, totalCount, ignoredCount, unitLabel = "questions") {
   if (!el) return;

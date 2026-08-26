@@ -69,10 +69,10 @@ test("notImportant never reorders siblings — a mixed-flag SubTopic keeps persi
   assert.deepEqual(ids, ["b", "a"]);
 });
 
-test("completePercent: SubTopic/Topic use a raw question-done fraction, Subject uses a fraction of fully-complete child Topics", () => {
+test("completePercent: Subject/Topic/SubTopic all use a raw question-done fraction (Not Important excluded)", () => {
   // Subject S1: Topic T1 has 2 SubTopics, one 2/2 done (ST1) and one 0/2 done (ST2) -> T1 is 2/4 = 50%
   // question-done, and NOT itself complete (ST2 isn't 100%). Topic T2 is fully done -> 100%, complete.
-  // Subject S1 then has 1 of 2 Topics fully complete -> completePercent 50%.
+  // Subject S1 aggregates every question underneath (Not Important excluded) -> 3 of 5 done = 60%.
   const rawData = [
     q({ id: "a", topic: "T1", subTopic: "ST1", done: true }),
     q({ id: "b", topic: "T1", subTopic: "ST1", done: true }),
@@ -87,7 +87,7 @@ test("completePercent: SubTopic/Topic use a raw question-done fraction, Subject 
   assert.equal(t1.subTopics.find((st) => st.subTopic === "ST2").completePercent, 0);
   assert.equal(t1.completePercent, 50);
   assert.equal(t2.completePercent, 100);
-  assert.equal(tree.subjects[0].completePercent, 50);
+  assert.equal(tree.subjects[0].completePercent, 60);
 });
 
 test("completePercent excludes Not Important questions from both the numerator and denominator", () => {
