@@ -399,6 +399,19 @@ export function createQuestionNode(q, handlers) {
     handlers.onToggleActiveQuestion(q.id);
   });
 
+  // Edit question text — lives directly in the header (edit-gated, right before the Done button)
+  // instead of down in the answer body's statusControls row, so it's reachable without opening the
+  // accordion first.
+  const editTextBtn = document.createElement("button");
+  editTextBtn.type = "button";
+  editTextBtn.className = "icon-btn icon-edit-text edit-gated";
+  editTextBtn.title = "Edit question text";
+  editTextBtn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
+  editTextBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    handlers.onEditQuestionText(q.id);
+  });
+
   const reorderBadge = document.createElement("span");
   reorderBadge.className = "reorder-badge";
 
@@ -452,6 +465,7 @@ export function createQuestionNode(q, handlers) {
   header.appendChild(qTextWrap);
   header.appendChild(updatedAtHeader);
   header.appendChild(difficultyDot);
+  header.appendChild(editTextBtn);
   header.appendChild(doneWrap);
   header.appendChild(headerMoreBtn);
   header.appendChild(headerActionsWrap);
@@ -733,14 +747,13 @@ export function createQuestionNode(q, handlers) {
   const statusControls = document.createElement("div");
   statusControls.className = "status-controls edit-gated";
 
-  const editTextBtn = mkBtn("fa-pen-to-square", "Edit question text", () => handlers.onEditQuestionText(q.id));
   const moveBtn = mkBtn("fa-arrows-turn-right icon-move", "Move to different Subject/Topic/SubTopic", () => handlers.onOpenMoveForm(q.id));
   const upBtn = mkBtn("fa-arrow-up", "Move up", () => handlers.onMoveQuestionOrder(q.id, "up"));
   const downBtn = mkBtn("fa-arrow-down", "Move down", () => handlers.onMoveQuestionOrder(q.id, "down"));
   const topBtn = mkBtn("fa-angles-up", "Move to top", () => handlers.onMoveQuestionOrder(q.id, "top"));
   const bottomBtn = mkBtn("fa-angles-down", "Move to bottom", () => handlers.onMoveQuestionOrder(q.id, "bottom"));
   const deleteBtn = mkBtn("fa-trash icon-duplicate", "Delete question", () => handlers.onDeleteQuestion(q.id));
-  [editTextBtn, moveBtn, upBtn, downBtn, topBtn, bottomBtn, deleteBtn].forEach((b) => statusControls.appendChild(b));
+  [moveBtn, upBtn, downBtn, topBtn, bottomBtn, deleteBtn].forEach((b) => statusControls.appendChild(b));
 
   // statusControls nests INSIDE answerEditRow (not a separate body child) so both button groups
   // share one row — edit-gated hiding still applies to just the statusControls buttons.

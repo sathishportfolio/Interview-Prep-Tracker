@@ -97,13 +97,24 @@ body {
 .app-main { max-width: 1100px; margin: 0 auto; padding: 1rem; }
 
 .card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.75rem; margin-bottom: 0.75rem; }
-.toolbar-row { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
-.toolbar-row-secondary { justify-content: flex-start; margin-top: 0.2rem; }
-.toolbar-card { padding-bottom: 0.25rem; }
-.file-switcher { max-width: 220px; }
-.temp-mode-wrap { display: flex; align-items: center; }
-.auto-download-wrap { display: flex; align-items: center; }
-.auto-download-wrap .form-check-label { margin-left: 0.35rem; cursor: pointer; }
+
+/* Files menu — replaces the old always-visible toolbar card. Lives in the header next to Sync (same
+   button+dropdown-panel shell, .sync-menu-panel), showing just the active file's name at rest and
+   folding Upload/Load Sample/switch-file/Export/Temp-Test-Mode/Auto-Download/reset actions into one
+   panel instead of 7+ same-weight buttons competing for space above the tree. */
+.files-menu-wrap { position: relative; }
+.files-menu-current-label { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: middle; }
+.files-menu-current-row { margin-bottom: 0.65rem; }
+.files-menu-current-name { font-weight: 600; font-size: 0.9rem; margin-bottom: 0.4rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.files-menu-panel .file-switcher { width: 100%; max-width: none; }
+
+/* Settings toggles + Danger Zone actions, shared content styling reused inside .files-menu-panel. */
+.toolbar-more-section { display: flex; flex-direction: column; gap: 0.45rem; margin-bottom: 0.6rem; }
+.toolbar-more-switch { display: flex; align-items: center; gap: 0.5rem; margin: 0; cursor: pointer; }
+.toolbar-more-switch .form-check-label { font-size: 0.82rem; cursor: pointer; }
+.toolbar-more-divider { height: 1px; background: var(--border-soft); margin-bottom: 0.6rem; }
+.toolbar-more-section-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint-2); font-weight: 600; margin-bottom: 0.45rem; }
+.toolbar-more-item { justify-content: flex-start; text-align: left; }
 
 /* Add/Edit Answer popup (features/answerEditor.js) — widened so the answer textarea, its live
    preview, and the separate Code Snippet card all have room to breathe. Redesigned as two quiet
@@ -185,33 +196,12 @@ body {
 .answer-option-check .form-check-label { cursor: pointer; margin-left: 0.35rem; font-size: 0.82rem; }
 .answer-code-enable-row .form-check-label { font-weight: 600; font-size: 0.88rem; }
 .answer-code-content-wrap { margin-top: 0.5rem; }
-.export-btn-wrap { position: relative; display: flex; gap: 0.4rem; }
-.export-menu-panel {
-  position: absolute;
-  top: calc(100% + 0.35rem);
-  left: 0;
-  z-index: 60;
-  min-width: 190px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  box-shadow: 0 0.5rem 1.25rem var(--shadow);
-  padding: 0.4rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-.export-menu-item { justify-content: flex-start; border: none; }
 .last-synced-label { font-size: 0.75rem; opacity: 0.8; }
 /* Sits between the sync-menu-status toggle group and the Push/Pull buttons — the top border reads
    as a section divider so this line doesn't blur into either neighbor. */
 .last-synced-detail-label { font-size: 0.72rem; opacity: 0.65; padding-top: 0.55rem; border-top: 1px dashed var(--border-soft); margin: 0 0 0.7rem; }
 
 .app-footer { text-align: center; padding: 0.6rem 1rem 1rem; }
-/* Lives in .toolbar-row-secondary now (alongside the Temp/Test Mode and Auto Download toggles) —
-   `margin: 0 auto` centers it independently of those two flex-row siblings without touching the
-   row's own `justify-content` (which would re-center the toggles too). */
-.footer-last-synced-detail { display: block; font-size: 0.7rem; opacity: 0.65; margin: 0 auto; text-align: center; }
 
 .bulk-select-menu-wrap { position: relative; display: inline-block; }
 .bulk-select-menu-panel {
@@ -232,9 +222,10 @@ body {
 .bulk-select-menu-item { justify-content: flex-start; border: none; }
 
 .sync-menu-wrap { position: relative; }
-/* Sync button now lives in the right-aligned .header-timer cluster (sticky header) — anchor its
-   panel off the right edge instead of the left so it stays inside the viewport there. */
-.header-timer .sync-menu-panel { left: auto; right: 0; }
+/* Sync/Files buttons now live in the right-aligned .header-timer cluster (sticky header) — anchor
+   their panels off the right edge instead of the left so they stay inside the viewport there. */
+.header-timer .sync-menu-panel,
+.header-timer .files-menu-panel { left: auto; right: 0; }
 .sync-status-dot { display: inline-block; width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--review); margin-left: 0.2rem; vertical-align: middle; }
 .sync-menu-panel {
   position: absolute;
@@ -889,7 +880,10 @@ body.bulk-bar-visible { padding-bottom: 3.5rem; }
 @media (max-width: 640px) {
   .app-title { font-size: 0.95rem; }
   .filter-row { flex-direction: column; align-items: stretch; }
-  .toolbar-row { gap: 0.3rem; }
+  /* .sync-menu-panel/.files-menu-panel have a fixed 292px width — clamp it on narrow phones so it
+     doesn't overflow the viewport's right edge (both are right-anchored there via
+     .header-timer .sync-menu-panel/.files-menu-panel). */
+  .sync-menu-panel { width: min(292px, calc(100vw - 2rem)); }
   .app-main { padding: 0.6rem; }
   /* Single-line ellipsis truncation reads fine on desktop's wider rows, but on a narrow phone
      screen it hides most of the question text — wrap it so a quick review pass doesn't require

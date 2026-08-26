@@ -36,6 +36,50 @@
     <h1 class="app-title"><i class="fa-solid fa-layer-group"></i> Interview Prep Tracker</h1>
     <div id="headerBreadcrumb" class="header-breadcrumb"></div>
     <div class="header-timer">
+      <div class="files-menu-wrap">
+        <button id="filesMenuBtn" class="btn btn-outline-secondary btn-sm" title="Files" aria-haspopup="true" aria-expanded="false">
+          <i class="fa-solid fa-folder-open"></i> <span id="filesMenuCurrentLabel" class="files-menu-current-label">No file</span>
+        </button>
+        <div id="filesMenuPanel" class="sync-menu-panel files-menu-panel" hidden>
+          <div class="files-menu-current-row">
+            <div id="filesMenuCurrentName" class="files-menu-current-name">No file loaded</div>
+            <select id="fileSwitcher" class="form-select form-select-sm file-switcher"></select>
+          </div>
+
+          <div class="sync-menu-actions">
+            <label class="btn btn-sm btn-primary">
+              <i class="fa-solid fa-file-csv"></i> Upload CSV
+              <input type="file" id="csvFileInput" accept=".csv" hidden>
+            </label>
+            <button id="loadSampleBtn" type="button" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-flask"></i> Load Sample</button>
+          </div>
+
+          <div class="sync-menu-actions">
+            <button id="downloadProgressBtn" type="button" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-download"></i> Download CSV</button>
+            <button id="copyProgressCsvBtn" type="button" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-copy"></i> Copy CSV</button>
+          </div>
+
+          <div class="toolbar-more-divider"></div>
+          <div class="toolbar-more-section">
+            <label class="form-check form-switch toolbar-more-switch" title="Nothing you do is saved while this is on — safe for trying things out">
+              <input class="form-check-input" type="checkbox" id="tempModeToggle" aria-label="Temp/Test Mode">
+              <span class="form-check-label">Temp/Test Mode</span>
+            </label>
+            <label class="form-check form-switch toolbar-more-switch" title="Auto-download the current file as CSV every minute">
+              <input class="form-check-input" type="checkbox" id="autoDownloadToggle" aria-label="Auto Download Every Minute">
+              <span class="form-check-label">Auto Download (every min)</span>
+            </label>
+          </div>
+
+          <div class="toolbar-more-divider"></div>
+          <div class="toolbar-more-section-label">Danger Zone</div>
+          <div class="toolbar-more-section">
+            <button id="resetProgressBtn" type="button" class="btn btn-sm btn-outline-warning toolbar-more-item" title="Clear Done, Review Later, Visited, spaced-repetition scheduling, and Done History for the currently filtered questions (all questions if no filter is active) — keeps all questions, Starred, and other flags untouched"><i class="fa-solid fa-rotate-left"></i> Reset Progress</button>
+            <button id="resetAllKeepSyncBtn" type="button" class="btn btn-sm btn-outline-danger toolbar-more-item" title="Wipe every file, all progress, and every setting — but keep the Cross-Device Sync connection so you don't have to reconnect it"><i class="fa-solid fa-trash-can"></i> Reset (Keep Sync)</button>
+            <button id="resetAllBtn" type="button" class="btn btn-sm btn-outline-danger toolbar-more-item" title="Wipe every file, all progress, and every setting — including Cross-Device Sync"><i class="fa-solid fa-trash"></i> Reset All</button>
+          </div>
+        </div>
+      </div>
       <div class="sync-menu-wrap">
         <button id="syncMenuBtn" class="btn btn-outline-secondary btn-sm" title="Cloud Sync" aria-haspopup="true" aria-expanded="false">
           <i class="fa-solid fa-cloud"></i> Sync
@@ -80,43 +124,6 @@
 </header>
 
 <main class="app-main">
-
-  <section id="toolbarCard" class="toolbar-card card">
-    <div class="toolbar-row">
-      <label class="btn btn-primary btn-sm">
-        <i class="fa-solid fa-file-csv"></i> Upload CSV
-        <input type="file" id="csvFileInput" accept=".csv" hidden>
-      </label>
-      <button id="loadSampleBtn" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-flask"></i> Load Sample</button>
-
-      <select id="fileSwitcher" class="form-select form-select-sm file-switcher"></select>
-
-      <div class="export-btn-wrap">
-        <button id="exportMenuBtn" class="btn btn-outline-success btn-sm" aria-haspopup="true" aria-expanded="false"><i class="fa-solid fa-file-export"></i> Export</button>
-        <div id="exportMenuPanel" class="export-menu-panel" hidden>
-          <button id="downloadProgressBtn" type="button" class="btn btn-sm btn-outline-secondary export-menu-item"><i class="fa-solid fa-download"></i> Download as CSV</button>
-          <button id="copyProgressCsvBtn" type="button" class="btn btn-sm btn-outline-secondary export-menu-item"><i class="fa-solid fa-copy"></i> Copy as CSV</button>
-        </div>
-      </div>
-
-      <button id="resetProgressBtn" class="btn btn-outline-warning btn-sm" title="Clear Done, Review Later, Visited, spaced-repetition scheduling, and Done History for the currently filtered questions (all questions if no filter is active) — keeps all questions, Starred, and other flags untouched"><i class="fa-solid fa-rotate-left"></i> Reset Progress</button>
-      <button id="resetAllBtn" class="btn btn-outline-danger btn-sm" title="Wipe every file, all progress, and every setting — including Cross-Device Sync"><i class="fa-solid fa-trash"></i> Reset All</button>
-      <button id="resetAllKeepSyncBtn" class="btn btn-outline-danger btn-sm" title="Wipe every file, all progress, and every setting — but keep the Cross-Device Sync connection so you don't have to reconnect it"><i class="fa-solid fa-trash-can"></i> Reset (Keep Sync)</button>
-    </div>
-    <div class="toolbar-row toolbar-row-secondary">
-      <div class="temp-mode-wrap" title="Temp/Test Mode">
-        <label class="form-check form-switch mb-0">
-          <input class="form-check-input" type="checkbox" id="tempModeToggle" aria-label="Temp/Test Mode">
-        </label>
-      </div>
-      <div class="auto-download-wrap" title="Auto-download the current file as CSV every minute">
-        <label class="form-check form-switch mb-0">
-          <input class="form-check-input" type="checkbox" id="autoDownloadToggle" aria-label="Auto Download Every Minute">
-        </label>
-      </div>
-      <span id="footerLastSyncedDetail" class="footer-last-synced-detail"></span>
-    </div>
-  </section>
 
   <section id="filterCard" class="filter-card card">
     <button id="filterCardToggle" class="filter-card-toggle btn btn-sm btn-outline-secondary">

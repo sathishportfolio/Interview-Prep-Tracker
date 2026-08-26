@@ -54,23 +54,20 @@ function $(id) {
 /**
  * Reflects the cloud data's freshness inside the Sync menu — the compact relative-time label (e.g.
  * "5 min ago") plus the explicit "Synced at [Timestamp] from [activeDevice]" detail line underneath.
- * The same detail line is mirrored into the page footer (#footerLastSyncedDetail) so it stays visible
- * without opening the Sync menu. Called after every push/pull, manual or background (see
- * autoPush.js's onPushed callback and the manualPush/manualPull/session-start-pull handlers below),
- * so both stay current the moment a sync actually happens, not just on next menu open.
+ * Called after every push/pull, manual or background (see autoPush.js's onPushed callback and the
+ * manualPush/manualPull/session-start-pull handlers below), so both stay current the moment a sync
+ * actually happens, not just on next menu open.
  */
 function updateSyncStatusLabel() {
   const menuBtn = $("syncMenuBtn");
   const label = $("lastSyncedLabel");
   const detailLabel = $("lastSyncedDetailLabel");
-  const footerDetailLabel = $("footerLastSyncedDetail");
   const text = syncConfig.lastSyncedLabel();
   const title = text === "Never synced" ? text : `Last sync with cloud: ${text}`;
   const detailText = syncConfig.lastSyncedDetailLabel();
   if (menuBtn) menuBtn.title = title;
   if (label) label.textContent = text;
   if (detailLabel) detailLabel.textContent = detailText;
-  if (footerDetailLabel) footerDetailLabel.textContent = detailText;
 }
 
 /** Toggles the setup-prompt vs. connected views inside the Sync menu panel to match current config. */
@@ -313,14 +310,16 @@ function init() {
     if (!result.ok) showToast(result.error || "Failed to load CSV.", "error");
   });
 
-  // Single "Export" menu: click to choose Download or Copy, instead of two separate toolbar buttons.
-  const exportMenu = initDropdownMenu("exportMenuBtn", "exportMenuPanel");
+  // Single "Files" menu: current file name/switcher, Upload/Load Sample, Export, and the rarer
+  // Temp/Test Mode + Auto Download toggles + Reset Progress/Reset All/Reset (Keep Sync) actions —
+  // one button+panel (same shell as the Sync menu) instead of a permanently-visible toolbar card.
+  const filesMenu = initDropdownMenu("filesMenuBtn", "filesMenuPanel");
   $("downloadProgressBtn")?.addEventListener("click", () => {
-    exportMenu.close();
+    filesMenu.close();
     fileManager.downloadProgressCsv();
   });
   $("copyProgressCsvBtn")?.addEventListener("click", () => {
-    exportMenu.close();
+    filesMenu.close();
     fileManager.copyProgressCsvToClipboard();
   });
 
@@ -339,6 +338,7 @@ function init() {
     }
     applyDataChange({ rawData: resetProgress(appState.rawData, filteredIds), emptyGroups: appState.emptyGroups });
     showToast(`Progress reset for ${filteredIds.length} question(s).`, "success");
+    filesMenu.close();
   });
 
   $("resetAllBtn")?.addEventListener("click", () => {
@@ -581,6 +581,13 @@ function renderFileSwitcher() {
   // step; once real data exists it's just clutter next to Upload CSV.
   const loadSampleBtn = $("loadSampleBtn");
   if (loadSampleBtn) loadSampleBtn.hidden = appState.files.length > 0;
+
+  const activeFile = appState.files.find((f) => f.id === appState.activeFileId);
+  const activeName = activeFile ? activeFile.fileName : "No file";
+  const currentLabel = $("filesMenuCurrentLabel");
+  if (currentLabel) currentLabel.textContent = activeName;
+  const currentName = $("filesMenuCurrentName");
+  if (currentName) currentName.textContent = activeFile ? activeFile.fileName : "No file loaded";
 
   if (!select) return;
 
