@@ -25,6 +25,7 @@ import * as groupLinks from "./groupLinks.js";
 import * as reorderMode from "./reorderMode.js";
 import * as tags from "./tags.js";
 import * as questionLinks from "./questionLinks.js";
+import * as youtubePlayer from "./youtubePlayer.js";
 import * as filters from "./filters.js";
 import { repaint } from "./refresh.js";
 import { scrollNodeIntoView } from "../render/accordion.js";
@@ -41,12 +42,11 @@ export function buildTreeHandlers() {
     onToggleQuestionTag: (qid, tag) => tags.toggleTagOnQuestion(qid, tag),
     onCreateTag: (qid, tag) => tags.createAndAddTag(qid, tag),
     onFilterByTag: (tag) => filters.toggleTagFilter(tag),
-    onRenameTag: (tag) => tags.renameTagPrompt(tag),
-    onDeleteTag: (tag) => tags.deleteTagPrompt(tag),
     onAddQuestionLink: (qid) => questionLinks.addLinkPrompt(qid),
     onEditQuestionLink: (qid, linkId, label, url) => questionLinks.editLinkPrompt(qid, linkId, label, url),
     onRemoveQuestionLink: (qid, linkId, label) => questionLinks.removeLinkWithConfirm(qid, linkId, label),
     onReorderQuestionLinks: (qid, orderedLinkIds) => questionLinks.reorderLinks(qid, orderedLinkIds),
+    onOpenYouTubePlayer: (qid, link) => youtubePlayer.openYouTubePlayer(qid, link),
     onCycleDifficulty: (qid) => difficulty.cycleDifficulty(qid),
     onReorderSelect: (level, scope) => reorderMode.selectForReorder(level, scope),
     onToggleGroupNotImportant: (level, scope) => notImportant.toggleGroupNotImportant(level, scope),

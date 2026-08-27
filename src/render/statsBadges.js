@@ -1,18 +1,23 @@
 // @ts-check
 /**
- * render/statsBadges.js — Global stats dropdown (Total, plus rows grouped into Untriaged
- * [Unmarked/Without Answer/No Difficulty/Not Visited — every "nothing set yet" signal in one place],
- * Answer [With Answer], Status [Done/Failed/Review/Starred/Visited/Not Important], and Difficulty
- * [Easy/Medium/Hard], in that render order, each group under its own divider label — click any row
- * to toggle it in/out of the Status filter, additive/multi-select just like statusFilterMount, both
- * sharing appState.filterState.statuses, combined via
- * appState.filterState.statusMode's AND/OR/NOT — see filters.js's toggleStatusFilter). Each row shows
- * its own plain count by default; once 1+ statuses are active, every row switches to a
- * "count/total" fraction where `total` is THAT ROW'S OWN fixed count (unaffected by which row(s)
- * are active) and `count` is how many also match the full active filter (see features/refresh.js's
- * `statusFraction`) — currently-selected rows are additionally marked active. Plus the global
- * actions group (Edit Mode toggle, Flatten toggle, Drag-and-drop toggle, Auto-Expand toggle, Find
- * Duplicates, Copy Visible).
+ * render/statsBadges.js — TWO adjacent stats dropdowns (split so a long tag list doesn't push
+ * Status/Difficulty rows out of easy reach, and vice versa):
+ *  - Status & Difficulty dropdown: Total/Filtered toggle, then rows grouped into Untriaged
+ *    [Unmarked/Without Answer/No Difficulty/Not Visited — every "nothing set yet" signal in one
+ *    place], Answer [With/Without Answer, With Tags, With/Without Links, With/Without YouTube Link],
+ *    Status [Done/Failed/Review/Starred/Visited/Not Important], and Difficulty [Easy/Medium/Hard],
+ *    in that render order, each group under its own divider label.
+ *  - Tags dropdown: just the Tags rows, one per appState.globalTags entry, own toggle button.
+ * Both share the exact same interaction model: click any row to toggle it in/out of the SAME active
+ * filter (Status rows -> appState.filterState.statuses, Tag rows -> appState.filterState.tags),
+ * additive/multi-select just like statusFilterMount/tagFilterMount, statuses combined via
+ * appState.filterState.statusMode's AND/OR/NOT (see filters.js's toggleStatusFilter/toggleTagFilter).
+ * Each row shows its own plain count by default; once 1+ statuses/tags are active anywhere, every
+ * row in BOTH dropdowns switches to a "count/total" fraction where `total` is THAT ROW'S OWN fixed
+ * count (unaffected by which row(s) are active) and `count` is how many also match the full active
+ * filter (see features/refresh.js's `statusFraction`/`tagFraction`) — currently-selected rows are
+ * additionally marked active. Plus the global actions group (Edit Mode toggle, Flatten toggle,
+ * Drag-and-drop toggle, Auto-Expand toggle, Find Duplicates, Copy Visible).
  * Render-only; every click calls a handler. Deliberately NOT edit-gated (unlike per-node controls in
  * render/nodeViews/*) — these are view/read toggles and a non-destructive copy action, not edits, so
  * they stay usable whether or not Edit Mode is on.
@@ -24,10 +29,12 @@ let badgesEl = null;
 let actionsEl = null;
 let progressBarEl = null;
 /** Preserved across repaints (badgesEl is rebuilt from scratch every render) so re-rendering to
- *  reflect updated counts doesn't also close a dropdown the user just opened. */
-let statsDropdownOpen = false;
+ *  reflect updated counts doesn't also close a dropdown the user just opened. Independent of each
+ *  other — opening/closing one dropdown never touches the other's own state. */
+let statusDropdownOpen = false;
+let tagsDropdownOpen = false;
 /** Last args renderStatsBadges was called with, so the toggle/outside-click handlers below can
- *  re-render with the same data after just flipping statsDropdownOpen. */
+ *  re-render with the same data after just flipping one of the open flags above. */
 let lastStats = null;
 let lastHandlers = null;
 
@@ -42,18 +49,19 @@ export function initStatsBadges(badgesContainer, actionsContainer, progressBarCo
   progressBarEl = progressBarContainer || null;
 
   document.addEventListener("click", (e) => {
-    if (!statsDropdownOpen) return;
+    if (!statusDropdownOpen && !tagsDropdownOpen) return;
     const target = /** @type {Element|null} */ (e.target);
     if (target && target.closest(".stats-dropdown")) return;
-    closeStatsDropdown();
+    closeStatsDropdowns();
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && statsDropdownOpen) closeStatsDropdown();
+    if (e.key === "Escape" && (statusDropdownOpen || tagsDropdownOpen)) closeStatsDropdowns();
   });
 }
 
-function closeStatsDropdown() {
-  statsDropdownOpen = false;
+function closeStatsDropdowns() {
+  statusDropdownOpen = false;
+  tagsDropdownOpen = false;
   if (lastStats) renderStatsBadges(lastStats, lastHandlers);
 }
 
@@ -89,6 +97,10 @@ function closeStatsDropdown() {
  * @property {StatusFraction} failed
  * @property {StatusFraction} withAnswer
  * @property {StatusFraction} withoutAnswer
+ * @property {StatusFraction} withTags Questions carrying 1+ tags.
+ * @property {StatusFraction} withLinks Questions carrying 1+ Related Links.
+ * @property {StatusFraction} withYouTubeLink Questions carrying 1+ YouTube Related Links.
+ * @property {StatusFraction} withoutYouTubeLink Questions carrying zero YouTube Related Links.
  * @property {StatusFraction} unmarked Questions with none of Done/Failed/Review Later set.
  * @property {string[]} tags appState.globalTags — every known tag, rendered as its own section below
  *   the fixed rows above (see features/tags.js).
@@ -104,27 +116,62 @@ function closeStatsDropdown() {
  * @property {StatusFraction} progressFailed Same as `failed` but scoped to non-Not-Important questions.
  */
 
+/** @typedef {{statusKey: string, label: string, fraction: StatusFraction, colorClass: string|null, onClick: () => void}} StatItem */
+
 /**
+ * Shared by both dropdowns below: renders one "Label — count/total" row, active-highlighted via
+ * `.filter-active` when `isActive`, colored via the same icon-* classes render/nodeViews/
+ * questionView.js's status icons use when `colorClass` is given (see .stats-dropdown-item's CSS,
+ * mirroring .icon-btn.is-active).
+ * @param {StatItem} item
+ * @param {boolean} isActive
+ * @param {(fraction: StatusFraction) => string} fractionText
+ */
+function buildStatsRow(item, isActive, fractionText) {
+  const row = document.createElement("button");
+  row.type = "button";
+  row.className = `stats-dropdown-item${item.colorClass ? ` ${item.colorClass} is-active` : ""}${isActive ? " filter-active" : ""}`;
+  row.setAttribute("aria-pressed", String(isActive));
+  row.innerHTML = `<span class="stats-dropdown-label">${item.label}</span><span class="stats-dropdown-count">${fractionText(item.fraction)}</span>`;
+  row.addEventListener("click", (e) => {
+    e.stopPropagation();
+    item.onClick();
+  });
+  return row;
+}
+
+/**
+ * @param {HTMLElement} panel
+ * @param {string} label
+ * @param {StatItem[]} items
+ * @param {(key: string) => boolean} isActive
+ * @param {(fraction: StatusFraction) => string} fractionText
+ */
+function appendStatsGroup(panel, label, items, isActive, fractionText) {
+  if (items.length === 0) return;
+  const divider = document.createElement("div");
+  divider.className = "stats-dropdown-divider";
+  divider.textContent = label;
+  panel.appendChild(divider);
+  for (const item of items) panel.appendChild(buildStatsRow(item, isActive(item.statusKey), fractionText));
+}
+
+/**
+ * Status & Difficulty dropdown: everything except Tags — Untriaged (every "nothing set yet" signal
+ * in one place: Unmarked/Without Answer/No Difficulty/Not Visited), Answer (With/Without Answer,
+ * With Tags, With/Without Links, With/Without YouTube Link), Status
+ * (Done/Failed/Review/Starred/Visited/Not Important), and Difficulty (Easy/Medium/Hard), in that
+ * render order. Its own Total/Filtered toggle button, since with multi-select there's no single
+ * "active row" to spotlight there the way each row below is individually marked.
  * @param {StatsData} stats
  * @param {Record<string, any>} handlers
+ * @param {(fraction: StatusFraction) => string} fractionText
+ * @returns {HTMLElement}
  */
-export function renderStatsBadges(stats, handlers) {
-  if (!badgesEl) return;
-  lastStats = stats;
-  lastHandlers = handlers;
-  badgesEl.textContent = "";
-
+function buildStatusDifficultyDropdown(stats, handlers, fractionText) {
   const dropdownWrap = document.createElement("div");
   dropdownWrap.className = "stats-dropdown";
 
-  // `colorClass` reuses the exact same icon-* classes render/nodeViews/questionView.js's status
-  // icons use, so a dropdown row and its matching per-question icon are always the same color
-  // (see .stats-dropdown-item's CSS, mirroring .icon-btn.is-active). Grouped into four sections —
-  // Untriaged, Answer, Status, Difficulty (in THAT render order) — each under its own divider label,
-  // same pattern as the Tags section. Untriaged pulls together every "nothing set yet" signal
-  // (Unmarked/Without Answer/No Difficulty/Not Visited) that would otherwise be scattered across the
-  // other three groups, so it's the first thing shown.
-  /** @typedef {{statusKey: string, label: string, fraction: StatusFraction, colorClass: string|null, onClick: () => void}} StatItem */
   /** @type {StatItem[]} */
   const untriagedItems = [
     { statusKey: "unmarked", label: "Unmarked", fraction: stats.unmarked, colorClass: null, onClick: () => handlers.onStatusBadgeClick("unmarked") },
@@ -133,7 +180,13 @@ export function renderStatsBadges(stats, handlers) {
     { statusKey: "notVisited", label: "Not Visited", fraction: stats.notVisited, colorClass: null, onClick: () => handlers.onStatusBadgeClick("notVisited") },
   ];
   /** @type {StatItem[]} */
-  const answerItems = [{ statusKey: "hasAnswer", label: "With Answer", fraction: stats.withAnswer, colorClass: "icon-has-answer", onClick: () => handlers.onStatusBadgeClick("hasAnswer") }];
+  const answerItems = [
+    { statusKey: "hasAnswer", label: "With Answer", fraction: stats.withAnswer, colorClass: "icon-has-answer", onClick: () => handlers.onStatusBadgeClick("hasAnswer") },
+    { statusKey: "hasTags", label: "With Tags", fraction: stats.withTags, colorClass: "icon-tags", onClick: () => handlers.onStatusBadgeClick("hasTags") },
+    { statusKey: "hasLinks", label: "With Links", fraction: stats.withLinks, colorClass: "icon-links", onClick: () => handlers.onStatusBadgeClick("hasLinks") },
+    { statusKey: "hasYouTubeLink", label: "With YouTube Link", fraction: stats.withYouTubeLink, colorClass: "icon-youtube", onClick: () => handlers.onStatusBadgeClick("hasYouTubeLink") },
+    { statusKey: "noYouTubeLink", label: "Without YouTube Link", fraction: stats.withoutYouTubeLink, colorClass: null, onClick: () => handlers.onStatusBadgeClick("noYouTubeLink") },
+  ];
   /** @type {StatItem[]} */
   const statusItems = [
     { statusKey: "done", label: "Done", fraction: stats.done, colorClass: "icon-done", onClick: () => handlers.onStatusBadgeClick("done") },
@@ -150,95 +203,104 @@ export function renderStatsBadges(stats, handlers) {
     { statusKey: "difficultyHard", label: "Hard", fraction: stats.difficultyHard, colorClass: "icon-difficulty-hard", onClick: () => handlers.onStatusBadgeClick("difficultyHard") },
   ];
   const activeStatuses = new Set(stats.activeStatuses || []);
-  // Status and Tags combine into the SAME active filter (see features/refresh.js's repaint()), so a
-  // Tags-only selection must also switch every row (Status rows included) into its "count/total"
-  // fraction display, not just the Tags rows.
   const hasActiveFilter = activeStatuses.size > 0 || (stats.activeTags && stats.activeTags.length > 0);
 
-  /** @param {StatusFraction} fraction */
-  const fractionText = (fraction) => (hasActiveFilter ? `${fraction.count}/${fraction.total}` : `${fraction.count}`);
-
-  // The toggle button reads "Total: N" (N = count matching the current Subject/Topic/SubTopic
-  // scope, ignoring Status) when nothing's active, or "Filtered: N" (N = that same scope narrowed
-  // by the full active Status filter) once 1+ statuses are toggled on — with multi-select there's
-  // no single "active row" to spotlight here, unlike each dropdown row below, which is individually
-  // marked selected/unselected via `.filter-active` and shows its own count/total fraction.
   const toggleBtn = document.createElement("button");
   toggleBtn.type = "button";
   toggleBtn.className = "btn btn-sm btn-outline-secondary stats-dropdown-toggle";
   const toggleText = hasActiveFilter ? `Filtered: ${stats.filtered}` : `Total: ${stats.total}`;
   toggleBtn.innerHTML = `<i class="fa-solid fa-list-check"></i> ${toggleText} <i class="fa-solid fa-caret-down"></i>`;
-  toggleBtn.setAttribute("aria-expanded", String(statsDropdownOpen));
+  toggleBtn.setAttribute("aria-expanded", String(statusDropdownOpen));
   toggleBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    statsDropdownOpen = !statsDropdownOpen;
+    statusDropdownOpen = !statusDropdownOpen;
     renderStatsBadges(stats, handlers);
   });
   dropdownWrap.appendChild(toggleBtn);
 
   const panel = document.createElement("div");
   panel.className = "stats-dropdown-panel";
-  panel.hidden = !statsDropdownOpen;
-
-  /**
-   * @param {string} label
-   * @param {StatusFraction} fraction
-   * @param {string|null} colorClass
-   * @param {boolean} isActive
-   * @param {() => void} onClick
-   */
-  const buildRow = (label, fraction, colorClass, isActive, onClick) => {
-    const row = document.createElement("button");
-    row.type = "button";
-    row.className = `stats-dropdown-item${colorClass ? ` ${colorClass} is-active` : ""}${isActive ? " filter-active" : ""}`;
-    row.setAttribute("aria-pressed", String(isActive));
-    row.innerHTML = `<span class="stats-dropdown-label">${label}</span><span class="stats-dropdown-count">${fractionText(fraction)}</span>`;
-    row.addEventListener("click", (e) => {
-      e.stopPropagation();
-      onClick();
-    });
-    return row;
-  };
-
-  /**
-   * @param {string} label
-   * @param {StatItem[]} items
-   * @param {(key: string) => boolean} isActive
-   */
-  const appendGroup = (label, items, isActive) => {
-    if (items.length === 0) return;
-    const divider = document.createElement("div");
-    divider.className = "stats-dropdown-divider";
-    divider.textContent = label;
-    panel.appendChild(divider);
-    for (const item of items) {
-      panel.appendChild(buildRow(item.label, item.fraction, item.colorClass, isActive(item.statusKey), item.onClick));
-    }
-  };
+  panel.hidden = !statusDropdownOpen;
 
   const isStatusActive = (key) => activeStatuses.has(key);
-  appendGroup("Untriaged", untriagedItems, isStatusActive);
-  appendGroup("Answer", answerItems, isStatusActive);
-  appendGroup("Status", statusItems, isStatusActive);
-  appendGroup("Difficulty", difficultyItems, isStatusActive);
-
-  if (stats.tags && stats.tags.length > 0) {
-    const activeTags = new Set(stats.activeTags || []);
-    /** @type {StatItem[]} */
-    const tagItems = stats.tags.map((tag) => ({
-      statusKey: tag,
-      label: tag,
-      fraction: stats.tagFractions[tag] || { count: 0, total: 0 },
-      colorClass: null,
-      onClick: () => handlers.onTagBadgeClick(tag),
-    }));
-    appendGroup("Tags", tagItems, (tag) => activeTags.has(tag));
-  }
+  appendStatsGroup(panel, "Untriaged", untriagedItems, isStatusActive, fractionText);
+  appendStatsGroup(panel, "Answer", answerItems, isStatusActive, fractionText);
+  appendStatsGroup(panel, "Status", statusItems, isStatusActive, fractionText);
+  appendStatsGroup(panel, "Difficulty", difficultyItems, isStatusActive, fractionText);
 
   dropdownWrap.appendChild(panel);
-  badgesEl.appendChild(dropdownWrap);
+  return dropdownWrap;
+}
 
-  // Sits next to the Stats dropdown — toggles the segmented breakdown progress bar below (see
+/**
+ * Tags dropdown: one row per appState.globalTags entry, split out from the Status & Difficulty
+ * dropdown so a long tag list doesn't push every other row out of easy reach (and vice versa). Own
+ * toggle button, reading "Tags: N" (N = number of known tags) — there's no single Total/Filtered
+ * reading meaningful to just this dropdown the way the other one has.
+ * @param {StatsData} stats
+ * @param {Record<string, any>} handlers
+ * @param {(fraction: StatusFraction) => string} fractionText
+ * @returns {HTMLElement}
+ */
+function buildTagsDropdown(stats, handlers, fractionText) {
+  const dropdownWrap = document.createElement("div");
+  dropdownWrap.className = "stats-dropdown";
+
+  const toggleBtn = document.createElement("button");
+  toggleBtn.type = "button";
+  toggleBtn.className = "btn btn-sm btn-outline-secondary stats-dropdown-toggle";
+  toggleBtn.innerHTML = `<i class="fa-solid fa-tags"></i> Tags: ${stats.tags.length} <i class="fa-solid fa-caret-down"></i>`;
+  toggleBtn.setAttribute("aria-expanded", String(tagsDropdownOpen));
+  toggleBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    tagsDropdownOpen = !tagsDropdownOpen;
+    renderStatsBadges(stats, handlers);
+  });
+  dropdownWrap.appendChild(toggleBtn);
+
+  const panel = document.createElement("div");
+  panel.className = "stats-dropdown-panel";
+  panel.hidden = !tagsDropdownOpen;
+
+  const activeTags = new Set(stats.activeTags || []);
+  /** @type {StatItem[]} */
+  const tagItems = stats.tags.map((tag) => ({
+    statusKey: tag,
+    label: tag,
+    fraction: stats.tagFractions[tag] || { count: 0, total: 0 },
+    colorClass: null,
+    onClick: () => handlers.onTagBadgeClick(tag),
+  }));
+  for (const item of tagItems) panel.appendChild(buildStatsRow(item, activeTags.has(item.statusKey), fractionText));
+
+  dropdownWrap.appendChild(panel);
+  return dropdownWrap;
+}
+
+/**
+ * @param {StatsData} stats
+ * @param {Record<string, any>} handlers
+ */
+export function renderStatsBadges(stats, handlers) {
+  if (!badgesEl) return;
+  lastStats = stats;
+  lastHandlers = handlers;
+  badgesEl.textContent = "";
+
+  const activeStatuses = new Set(stats.activeStatuses || []);
+  // Status and Tags combine into the SAME active filter (see features/refresh.js's repaint()), so a
+  // Tags-only selection must also switch every row in BOTH dropdowns into its "count/total" fraction
+  // display, not just the Tags rows.
+  const hasActiveFilter = activeStatuses.size > 0 || (stats.activeTags && stats.activeTags.length > 0);
+  /** @param {StatusFraction} fraction */
+  const fractionText = (fraction) => (hasActiveFilter ? `${fraction.count}/${fraction.total}` : `${fraction.count}`);
+
+  badgesEl.appendChild(buildStatusDifficultyDropdown(stats, handlers, fractionText));
+  if (stats.tags && stats.tags.length > 0) {
+    badgesEl.appendChild(buildTagsDropdown(stats, handlers, fractionText));
+  }
+
+  // Sits next to the two dropdowns — toggles the segmented breakdown progress bar below (see
   // renderStatsProgress), separate from any single dropdown item's own click. Persisted globally
   // (appState.toggles.statsProgressVisible), like themeDark/autoDownloadOn/filterCardOpen, so the
   // shown/hidden state carries across devices instead of resetting on reload.
@@ -360,6 +422,14 @@ export function renderGlobalActions(toggles, handlers) {
   findDupesBtn.innerHTML = '<i class="fa-solid fa-clone"></i>';
   findDupesBtn.addEventListener("click", () => handlers.onFindDuplicates());
   iconsWrap.appendChild(findDupesBtn);
+
+  const playGroupBtn = document.createElement("button");
+  playGroupBtn.type = "button";
+  playGroupBtn.className = "btn btn-sm btn-outline-secondary";
+  playGroupBtn.title = "Play every YouTube video in the current filtered view, in sequence";
+  playGroupBtn.innerHTML = '<i class="fa-brands fa-youtube"></i>';
+  playGroupBtn.addEventListener("click", () => handlers.onPlayGroupVideos());
+  iconsWrap.appendChild(playGroupBtn);
 
   const formats = [
     ["plain", "Questions (plain)"],

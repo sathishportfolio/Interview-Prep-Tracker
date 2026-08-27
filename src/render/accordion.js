@@ -140,6 +140,17 @@ export function scrollNodeIntoView(key) {
 }
 
 /**
+ * A Subject/Topic/SubTopic's own header element (for scroll+flash reveal — see
+ * features/activeQuestion.js's revealGroup), looked up the same dataset-attribute way as
+ * findNodeElement/scrollNodeIntoView above.
+ * @param {string} key
+ * @returns {HTMLElement|null}
+ */
+export function findGroupHeaderEl(key) {
+  return findNodeElement(key)?.querySelector(":scope > .acc-header") ?? null;
+}
+
+/**
  * Looks up a Subject/Topic/SubTopic's own `.acc-item` element by its dataset attributes (never by
  * building a CSS selector out of arbitrary subject/topic/subTopic text, which could contain
  * characters that break selector syntax).

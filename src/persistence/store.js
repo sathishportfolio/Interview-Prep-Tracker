@@ -133,6 +133,12 @@ export function writeGlobalTagRelations(globalTagRelations) {
   writeSchema({ ...schema, globalTagRelations });
 }
 
+/** @param {Record<string, {icon?: string}>} globalTagMeta */
+export function writeGlobalTagMeta(globalTagMeta) {
+  const schema = readSchema();
+  writeSchema({ ...schema, globalTagMeta });
+}
+
 /** Wipes all persisted data (Reset All Data). */
 export function clearAll() {
   writeSchema(emptySchema());

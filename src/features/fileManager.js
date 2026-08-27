@@ -53,6 +53,7 @@ export function bootstrapFromStorage() {
   appState.sync = schema.sync;
   appState.globalTags = schema.globalTags;
   appState.globalTagRelations = schema.globalTagRelations;
+  appState.globalTagMeta = schema.globalTagMeta;
 
   let anyChanged = false;
   let migratedGlobalTags = appState.globalTags;

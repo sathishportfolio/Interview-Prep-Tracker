@@ -8,7 +8,7 @@
 import { appState } from "../state/appState.js";
 import * as store from "../persistence/store.js";
 import { repaint } from "./refresh.js";
-import { openNode } from "../render/accordion.js";
+import { openNode, findGroupHeaderEl } from "../render/accordion.js";
 import { scrollAndFlash } from "../render/highlight.js";
 import { findQuestionHeaderEl } from "../render/treeRenderer.js";
 
@@ -76,8 +76,19 @@ export function clearActiveQuestion() {
 /** @param {{openAnswer: boolean}} options */
 function revealActiveQuestion({ openAnswer }) {
   if (!appState.activeQuestion) return;
-  const activeQuestionId = appState.activeQuestion.questionId;
-  const q = appState.rawData.find((x) => x.id === activeQuestionId);
+  revealQuestion(appState.activeQuestion.questionId, { openAnswer });
+}
+
+/**
+ * Expands a question's ancestor Subject/Topic/SubTopic and scrolls+flashes its header — same reveal
+ * revealActiveQuestion does, but for any question id, independent of the Active Question pointer.
+ * Used by features/youtubeGroupPlayer.js's playlist "jump to question" action, where the target
+ * question isn't (and shouldn't become) the Active Question.
+ * @param {string} questionId
+ * @param {{openAnswer?: boolean}} [options]
+ */
+export function revealQuestion(questionId, { openAnswer = false } = {}) {
+  const q = appState.rawData.find((x) => x.id === questionId);
   if (!q) return;
   openNode(`S::${q.subject}`);
   openNode(`${q.subject}::T::${q.topic}`);
@@ -85,6 +96,26 @@ function revealActiveQuestion({ openAnswer }) {
   if (openAnswer) openNode(`Q::${q.id}`);
   repaint();
   const el = findQuestionHeaderEl(q.id);
+  if (el) scrollAndFlash(el);
+}
+
+/**
+ * Expands a Subject/Topic/SubTopic itself (not a question) and scrolls+flashes its own header — the
+ * group-level counterpart to revealQuestion, used by features/youtubeGroupPlayer.js's playlist
+ * "jump" action for a Subject/Topic/SubTopic-level YouTube link (data/groupLinks.js), where there's
+ * no question to reveal.
+ * @param {"subject"|"topic"|"subTopic"} level
+ * @param {string} subject
+ * @param {string} [topic]
+ * @param {string} [subTopic]
+ */
+export function revealGroup(level, subject, topic, subTopic) {
+  openNode(`S::${subject}`);
+  if (level !== "subject") openNode(`${subject}::T::${topic}`);
+  if (level === "subTopic") openNode(`${subject}::${topic}::ST::${subTopic}`);
+  repaint();
+  const key = level === "subject" ? `S::${subject}` : level === "topic" ? `${subject}::T::${topic}` : `${subject}::${topic}::ST::${subTopic}`;
+  const el = findGroupHeaderEl(key);
   if (el) scrollAndFlash(el);
 }
 

@@ -31,6 +31,7 @@ export function emptySchema() {
       autoDownloadOn: false,
       filterCardOpen: false,
       statsProgressVisible: false,
+      youtubeAutoplayOn: false,
     },
     activeQuestion: null,
     sync: {
@@ -60,6 +61,10 @@ export function emptySchema() {
     // to a question auto-applies every tag it's mapped to here too (data/mutations.js's
     // toggleQuestionTag).
     globalTagRelations: {},
+    // Per-tag display metadata (custom FA icon class) set from the Manage Tags popup — see
+    // data/tagIcon.js's pickDisplayTagIcon, which shows a question's FIRST tag's icon (if it has
+    // one) before its text.
+    globalTagMeta: {},
   };
 }
 
@@ -83,6 +88,7 @@ export function coerceSchema(raw) {
     timer: { ...base.timer, ...(raw.timer || {}) },
     globalTags: Array.isArray(raw.globalTags) ? raw.globalTags : base.globalTags,
     globalTagRelations: raw.globalTagRelations && typeof raw.globalTagRelations === "object" ? raw.globalTagRelations : base.globalTagRelations,
+    globalTagMeta: raw.globalTagMeta && typeof raw.globalTagMeta === "object" ? raw.globalTagMeta : base.globalTagMeta,
   };
 }
 

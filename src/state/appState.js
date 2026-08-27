@@ -68,6 +68,10 @@ export const appState = {
   /** @type {Record<string, string[]>} Directed tag -> related-tags map — see features/tags.js's
    *  Manage Tags popup and StorageSchemaV1.globalTagRelations. */
   globalTagRelations: {},
+  /** @type {Record<string, {icon?: string, createdAt?: number, modifiedAt?: number, lastTaggedAt?: number}>}
+   *  Per-tag metadata (icon + sort timestamps) — see features/tagManager.js's Manage Tags popup and
+   *  StorageSchemaV1.globalTagMeta. */
+  globalTagMeta: {},
 
   // --- Transient (never persisted) UI state ---
   /** @type {Set<string>} question IDs currently bulk-selected */

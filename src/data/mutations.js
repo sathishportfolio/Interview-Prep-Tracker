@@ -8,7 +8,7 @@
  * @typedef {import('../types.js').EmptyGroup} EmptyGroup
  * @typedef {import('../types.js').Tombstone} Tombstone
  */
-import { newQuestionId, newLinkId } from "./id.js";
+import { newQuestionId, newLinkId, newBookmarkId } from "./id.js";
 import { nextQuestionOrder, nextGroupOrder } from "./order.js";
 import { markGroupEmpty, unmarkGroupEmpty, pruneEmptyGroups, renameInEmptyGroups, markGroupsNotImportant } from "./emptyGroups.js";
 import { toTitleCase } from "./textCase.js";
@@ -321,6 +321,112 @@ export function reorderQuestionLinks(rawData, questionId, orderedLinkIds) {
     const byId = new Map(q.links.map((l) => [l.id, l]));
     const reordered = orderedLinkIds.map((id) => byId.get(id)).filter((l) => l !== undefined);
     return { ...q, links: reordered, updatedAt: Date.now() };
+  });
+}
+
+/**
+ * Appends a new YouTube timestamp bookmark to one of a question's links (features/
+ * youtubePlayer.js's "Add Bookmark at Current Time").
+ * @param {Question[]} rawData
+ * @param {string|null} questionId Null (a Subject/Topic/SubTopic-level link — Group Playback only,
+ *   see features/youtubePlayer.js) never matches any question, so this is a harmless no-op — the
+ *   caller is expected to gate bookmark-editing UI off entirely in that case rather than rely on it.
+ * @param {string} linkId
+ * @param {{start: number, end?: number|null, label?: string}} input
+ * @returns {Question[]}
+ */
+export function addLinkBookmark(rawData, questionId, linkId, input) {
+  return rawData.map((q) => {
+    if (q.id !== questionId || !q.links) return q;
+    return {
+      ...q,
+      links: q.links.map((l) =>
+        l.id !== linkId
+          ? l
+          : {
+              ...l,
+              bookmarks: [
+                ...(l.bookmarks ?? []),
+                { id: newBookmarkId(), start: input.start, end: input.end ?? null, label: input.label || "", starred: false, createdAt: Date.now() },
+              ],
+            }
+      ),
+      updatedAt: Date.now(),
+    };
+  });
+}
+
+/**
+ * Patches one existing bookmark's start/end/label/starred fields in place.
+ * @param {Question[]} rawData
+ * @param {string|null} questionId See addLinkBookmark's questionId doc — null is a harmless no-op.
+ * @param {string} linkId
+ * @param {string} bookmarkId
+ * @param {Partial<{start: number, end: number|null, label: string, starred: boolean}>} patch
+ * @returns {Question[]}
+ */
+export function updateLinkBookmark(rawData, questionId, linkId, bookmarkId, patch) {
+  return rawData.map((q) => {
+    if (q.id !== questionId || !q.links) return q;
+    return {
+      ...q,
+      links: q.links.map((l) =>
+        l.id !== linkId ? l : { ...l, bookmarks: (l.bookmarks ?? []).map((b) => (b.id === bookmarkId ? { ...b, ...patch } : b)) }
+      ),
+      updatedAt: Date.now(),
+    };
+  });
+}
+
+/**
+ * Overwrites one link's ENTIRE bookmarks list from bulk-edited text-area input (features/
+ * youtubePlayer.js's raw-text toggle, data/youtubeTime.js's parseBookmarkLines) — a line's `id`/
+ * `starred`/`createdAt` are preserved by matching it against an existing bookmark with the exact
+ * same start+end (best-effort identity, since the bulk text format has no id of its own); a line
+ * with no such match is treated as newly added and gets a fresh id/createdAt/starred:false. Any
+ * existing bookmark with no matching line is dropped (bulk edit doubles as bulk delete).
+ * @param {Question[]} rawData
+ * @param {string|null} questionId See addLinkBookmark's questionId doc — null is a harmless no-op.
+ * @param {string} linkId
+ * @param {{start: number, end: number|null, label: string}[]} parsedBookmarks
+ * @returns {Question[]}
+ */
+export function setLinkBookmarks(rawData, questionId, linkId, parsedBookmarks) {
+  return rawData.map((q) => {
+    if (q.id !== questionId || !q.links) return q;
+    return {
+      ...q,
+      links: q.links.map((l) => {
+        if (l.id !== linkId) return l;
+        const existing = l.bookmarks ?? [];
+        const nextBookmarks = parsedBookmarks.map((pb) => {
+          const match = existing.find((b) => b.start === pb.start && (b.end ?? null) === (pb.end ?? null));
+          if (match) return { ...match, label: pb.label || match.label };
+          return { id: newBookmarkId(), start: pb.start, end: pb.end ?? null, label: pb.label || "", starred: false, createdAt: Date.now() };
+        });
+        return { ...l, bookmarks: nextBookmarks };
+      }),
+      updatedAt: Date.now(),
+    };
+  });
+}
+
+/**
+ * Removes one bookmark from one of a question's links.
+ * @param {Question[]} rawData
+ * @param {string|null} questionId See addLinkBookmark's questionId doc — null is a harmless no-op.
+ * @param {string} linkId
+ * @param {string} bookmarkId
+ * @returns {Question[]}
+ */
+export function removeLinkBookmark(rawData, questionId, linkId, bookmarkId) {
+  return rawData.map((q) => {
+    if (q.id !== questionId || !q.links) return q;
+    return {
+      ...q,
+      links: q.links.map((l) => (l.id !== linkId ? l : { ...l, bookmarks: (l.bookmarks ?? []).filter((b) => b.id !== bookmarkId) })),
+      updatedAt: Date.now(),
+    };
   });
 }
 

@@ -18,8 +18,12 @@ import { toTitleCase } from "../data/textCase.js";
  * @param {string} tag
  */
 export function toggleTagOnQuestion(questionId, tag) {
+  // Only stamp lastTaggedAt (see touchTagMeta) when the tag is being turned ON, not off — checked
+  // against the PRE-toggle state, since toggleQuestionTag below flips it either way.
+  const turningOn = !appState.rawData.find((q) => q.id === questionId)?.tags?.includes(tag);
   const rawData = toggleQuestionTag(appState.rawData, questionId, tag, appState.globalTagRelations);
   applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
+  if (turningOn) touchTagMeta(tag, { lastTaggedAt: Date.now() });
 }
 
 /**
@@ -35,6 +39,7 @@ export function createAndAddTag(questionId, rawTag) {
   if (!appState.globalTags.some((t) => t.toLowerCase() === tag.toLowerCase())) {
     appState.globalTags = [...appState.globalTags, tag];
     store.writeGlobalTags(appState.globalTags);
+    stampTagCreated(tag);
     refreshTagOptions();
   }
   toggleTagOnQuestion(questionId, tag);
@@ -56,6 +61,7 @@ export function createGlobalTag(rawTag) {
   }
   appState.globalTags = [...appState.globalTags, tag];
   store.writeGlobalTags(appState.globalTags);
+  stampTagCreated(tag);
   refreshTagOptions();
   showToast(`Tag "${tag}" added.`, "success");
   return true;
@@ -70,6 +76,51 @@ export function getRelatedTags(tag) {
 }
 
 /**
+ * @param {string} tag
+ * @returns {{icon?: string, createdAt?: number, modifiedAt?: number, lastTaggedAt?: number}}
+ *   appState.globalTagMeta[tag], or {} if unset.
+ */
+export function getTagMeta(tag) {
+  return appState.globalTagMeta[tag] || {};
+}
+
+/**
+ * Merges `patch` into `tag`'s meta and persists — the shared write path every meta-touching action
+ * below (icon edits, related-tag edits, tagging a question) funnels through, so appState/storage
+ * never fall out of sync with each other.
+ * @param {string} tag
+ * @param {Record<string, any>} patch
+ */
+function touchTagMeta(tag, patch) {
+  appState.globalTagMeta = { ...appState.globalTagMeta, [tag]: { ...getTagMeta(tag), ...patch } };
+  store.writeGlobalTagMeta(appState.globalTagMeta);
+}
+
+/**
+ * Stamps a freshly-created tag's createdAt (for the Manage Tags popup's "Recently Added" sort) and
+ * modifiedAt (creation counts as this tag's own first "modification" too, for "Recently Modified" —
+ * see features/tagManager.js's sortTags).
+ * @param {string} tag
+ */
+function stampTagCreated(tag) {
+  const now = Date.now();
+  touchTagMeta(tag, { createdAt: now, modifiedAt: now });
+}
+
+/**
+ * Sets (or, given an empty/whitespace-only string, clears) `tag`'s custom FontAwesome icon class
+ * (e.g. "fa-solid fa-clock") — see data/tagIcon.js's pickDisplayTagIcon for how it's picked for
+ * display: always the FIRST tag in a question's own tag list, so there's never a conflict between
+ * several icon-bearing tags to resolve.
+ * @param {string} tag
+ * @param {string} iconClass
+ */
+export function setTagIcon(tag, iconClass) {
+  const icon = (iconClass || "").trim();
+  touchTagMeta(tag, { icon: icon || undefined, modifiedAt: Date.now() });
+}
+
+/**
  * Maps `relatedTag` onto `tag` — adding `tag` to a question will also auto-apply `relatedTag` (and
  * transitively, whatever `relatedTag` itself maps to — see data/mutations.js's toggleQuestionTag).
  * @param {string} tag
@@ -81,6 +132,7 @@ export function addRelatedTag(tag, relatedTag) {
   if (current.includes(relatedTag)) return;
   appState.globalTagRelations = { ...appState.globalTagRelations, [tag]: [...current, relatedTag] };
   store.writeGlobalTagRelations(appState.globalTagRelations);
+  touchTagMeta(tag, { modifiedAt: Date.now() });
 }
 
 /**
@@ -93,6 +145,7 @@ export function removeRelatedTag(tag, relatedTag) {
   const next = getRelatedTags(tag).filter((t) => t !== relatedTag);
   appState.globalTagRelations = { ...appState.globalTagRelations, [tag]: next };
   store.writeGlobalTagRelations(appState.globalTagRelations);
+  touchTagMeta(tag, { modifiedAt: Date.now() });
 }
 
 /**
@@ -138,13 +191,45 @@ function removeTagFromRelations(relations, tag) {
 }
 
 /**
+ * Carries `oldTag`'s icon meta over to `newTag` — mirrors renameTagInRelations above, but
+ * meta is single-valued (not a list to union), so a rename-into-existing-tag merge just keeps
+ * whichever meta `newTag` already had rather than combining the two.
+ * @param {Record<string, {icon?: string, createdAt?: number, modifiedAt?: number, lastTaggedAt?: number}>} meta
+ * @param {string} oldTag
+ * @param {string} newTag
+ * @returns {Record<string, {icon?: string, createdAt?: number, modifiedAt?: number, lastTaggedAt?: number}>}
+ */
+function renameTagInMeta(meta, oldTag, newTag) {
+  if (!(oldTag in meta)) return meta;
+  const next = { ...meta };
+  const oldMeta = next[oldTag];
+  delete next[oldTag];
+  if (!next[newTag]) next[newTag] = oldMeta;
+  return next;
+}
+
+/**
+ * Strips `tag`'s meta entry out entirely — mirrors removeTagFromRelations above.
+ * @param {Record<string, {icon?: string, createdAt?: number, modifiedAt?: number, lastTaggedAt?: number}>} meta
+ * @param {string} tag
+ * @returns {Record<string, {icon?: string, createdAt?: number, modifiedAt?: number, lastTaggedAt?: number}>}
+ */
+function removeTagFromMeta(meta, tag) {
+  if (!(tag in meta)) return meta;
+  const next = { ...meta };
+  delete next[tag];
+  return next;
+}
+
+/**
  * Counts how many questions across every loaded file currently carry `tag` — used to warn before a
- * rename/delete. Reads the active file off `appState.rawData` (the live working copy) rather than
- * its possibly-stale FileRecord entry, and every other file's own `rawData` as persisted.
+ * rename/delete, and by features/tagManager.js's "Most Tagged" sort. Reads the active file off
+ * `appState.rawData` (the live working copy) rather than its possibly-stale FileRecord entry, and
+ * every other file's own `rawData` as persisted.
  * @param {string} tag
  * @returns {number}
  */
-function countQuestionsWithTag(tag) {
+export function countQuestionsWithTag(tag) {
   let count = 0;
   for (const file of appState.files) {
     const rawData = file.id === appState.activeFileId ? appState.rawData : file.rawData;
@@ -190,6 +275,10 @@ export function renameTagPrompt(oldTag) {
   appState.globalTagRelations = renameTagInRelations(appState.globalTagRelations, oldTag, newTag);
   store.writeGlobalTagRelations(appState.globalTagRelations);
 
+  appState.globalTagMeta = renameTagInMeta(appState.globalTagMeta, oldTag, newTag);
+  store.writeGlobalTagMeta(appState.globalTagMeta);
+  touchTagMeta(newTag, { modifiedAt: Date.now() });
+
   applyTagChangeAcrossFiles((rawData) => renameTag(rawData, oldTag, newTag));
   refreshTagOptions();
   // If the renamed tag was itself part of the active Tags filter, swap it in place and re-apply —
@@ -219,6 +308,9 @@ export function deleteTagPrompt(tag) {
 
   appState.globalTagRelations = removeTagFromRelations(appState.globalTagRelations, tag);
   store.writeGlobalTagRelations(appState.globalTagRelations);
+
+  appState.globalTagMeta = removeTagFromMeta(appState.globalTagMeta, tag);
+  store.writeGlobalTagMeta(appState.globalTagMeta);
 
   applyTagChangeAcrossFiles((rawData) => rawData.map((q) => (q.tags?.includes(tag) ? { ...q, tags: q.tags.filter((t) => t !== tag), updatedAt: Date.now() } : q)));
   refreshTagOptions();

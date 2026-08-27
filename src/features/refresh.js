@@ -136,6 +136,10 @@ export function repaint() {
       failed: statusFraction("failed"),
       withAnswer: statusFraction("hasAnswer"),
       withoutAnswer: statusFraction("noAnswer"),
+      withTags: statusFraction("hasTags"),
+      withLinks: statusFraction("hasLinks"),
+      withYouTubeLink: statusFraction("hasYouTubeLink"),
+      withoutYouTubeLink: statusFraction("noYouTubeLink"),
       unmarked: statusFraction("unmarked"),
       tags: sortTagsByCount(appState.globalTags, tagFractionsByTag),
       activeTags: appState.filterState.tags,
@@ -160,6 +164,8 @@ export function repaint() {
   // own change handler.
   const autoDownloadToggleEl = /** @type {HTMLInputElement|null} */ (document.getElementById("autoDownloadToggle"));
   if (autoDownloadToggleEl) autoDownloadToggleEl.checked = !!appState.toggles.autoDownloadOn;
+  const youtubeAutoplayToggleEl = /** @type {HTMLInputElement|null} */ (document.getElementById("youtubeAutoplayToggle"));
+  if (youtubeAutoplayToggleEl) youtubeAutoplayToggleEl.checked = !!appState.toggles.youtubeAutoplayOn;
 
   if (afterRepaintHook) afterRepaintHook();
 }

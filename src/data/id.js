@@ -31,3 +31,8 @@ export function newFileId() {
 export function newLinkId() {
   return generateId("l");
 }
+
+/** @returns {string} */
+export function newBookmarkId() {
+  return generateId("bm");
+}

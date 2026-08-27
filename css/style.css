@@ -531,11 +531,31 @@ body.edit-mode-off .edit-gated { display: none !important; }
 
 .question-item { border: 1px solid var(--border-soft); border-radius: 0.4rem; margin-bottom: 0.35rem; background: var(--bg-surface); }
 .question-item.no-answer { border-left: 5px solid #dc354585; }
+/* Subtle left-border accent (same treatment as .no-answer above, different color) marking a
+   question that has 1+ Related Links — a passive at-a-glance signal, not an interactive control, so
+   it can't be missed the way the small header link icon can without disturbing the row's layout. */
+.question-item.with-attachement { border-left: 5px solid #0d6efd85; }
+/* Both signals at once: a single border-left color can only show one, so split the 5px strip into
+   two color halves (top = no-answer, bottom = with-attachement) via the standard "gradient border"
+   trick — border-left itself goes transparent (still reserving the same 5px of layout space), and a
+   background gradient clipped to the border box paints through it; a second, opaque background
+   layer clipped to just the padding box keeps that gradient confined to the border strip alone
+   rather than washing across the item's own background (moot in practice, since header/body already
+   cover that area edge-to-edge, but keeps this correct if that ever changes). Higher specificity
+   than either single-class rule above, so it wins outright without relying on source order. */
+.question-item.no-answer.with-attachement {
+  border-left: 5px solid transparent;
+  background-image: linear-gradient(var(--bg-surface), var(--bg-surface)), linear-gradient(to bottom, #dc354585 50%, #0d6efd85 50%);
+  background-clip: padding-box, border-box;
+}
 .question-header { position: relative; display: flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.6rem; cursor: pointer; }
 .question-header:hover { background: var(--bg-row-hover); }
 /* q-text-wrap (not q-text itself) is the flex:1 item — it holds the question text plus, on mobile
    only, the last-updated line stacked directly under it (see .q-updated-inline below). */
 .q-text-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.q-text-line { display: flex; align-items: baseline; gap: 0.35rem; min-width: 0; }
+.q-tag-icon { flex-shrink: 0; color: var(--text-accent, currentColor); opacity: 0.85; }
+.q-tag-icon[hidden] { display: none; }
 .q-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .status-icon-row { display: flex; gap: 0.3rem; align-items: center; }
 /* Not scoped to .status-icon-row — .icon-flag (Active Question) sits as its own sibling in the
@@ -556,6 +576,7 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .icon-has-answer.is-active { color: var(--has-answer); }
 .icon-tags.is-active { color: var(--accent); }
 .icon-links.is-active { color: var(--accent); }
+.icon-youtube.is-active { color: #ff0000; }
 
 /* Difficulty dot control (question header) — small colored-circle cycle button, same visual
    language as .sync-status-dot. Grey/hollow when unset, filled with the matching difficulty color
@@ -662,6 +683,62 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .link-chip-icon { flex-shrink: 0; }
 .link-chip-favicon { width: 14px; height: 14px; vertical-align: middle; border-radius: 2px; }
 .link-chip-icon-youtube { color: #ff0000; }
+/* Bookmark badge (render/linkChipIcon.js's hasBookmarks) — a small bookmark glyph pinned to the
+   YouTube icon's corner, so a video with saved timestamps is spottable without opening the player. */
+.link-chip-icon-wrap { position: relative; display: inline-flex; flex-shrink: 0; margin-right: 0.3em; }
+.link-chip-bookmark-badge { position: absolute; right: -0.4em; bottom: -0.3em; font-size: 0.6em !important; color: var(--starred); text-shadow: 0 0 2px var(--bg-surface), 0 0 2px var(--bg-surface); }
+
+/* YouTube embedded-player modal (features/youtubePlayer.js) — a wide, responsive 16:9 player plus a
+   timestamp-bookmark list underneath. Widened past the default .modal-box max-width so the player
+   actually reads as "embedded video", not a cramped thumbnail. */
+.modal-host .modal-box:has(.youtube-player-modal) { max-width: min(96vw, 900px); width: 96%; }
+.youtube-player-embed-wrap { position: relative; width: 100%; padding-bottom: 56.25%; height: 0; background: #000; border-radius: 0.4rem; overflow: hidden; }
+.youtube-player-embed-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+/* flex-wrap here (not nowrap) so the button row folds onto a second line rather than overflowing
+   once the modal is narrower than all four buttons + the current-time readout fit on one line —
+   matters most on mobile (see the @media block below) but is harmless at any width. */
+.youtube-player-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-top: 0.6rem; }
+/* Global Autoplay toggle (appState.toggles.youtubeAutoplayOn) — same "outline until active, filled
+   once on" affordance as .stats-progress-toggle.active elsewhere in the app. */
+.youtube-player-controls button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.youtube-player-current-time { font-variant-numeric: tabular-nums; color: var(--text-muted); font-size: 0.85rem; margin-left: 0.2rem; }
+/* Manual Bookmark Entry — a compact inline form (time + optional label + add) sitting between the
+   player controls and the bookmark list, for a timestamp typed/pasted from elsewhere rather than
+   captured live off the player's own current time. The time input's own width is set inline
+   (features/youtubePlayer.js), not here. */
+.yt-bookmark-manual-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin-top: 0.5rem; }
+.youtube-bookmark-list { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.75rem; max-height: 260px; overflow-y: auto; }
+.yt-bookmark-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; border: 1px solid var(--border-soft); border-radius: 0.4rem; padding: 0.3rem 0.4rem; }
+.yt-bookmark-time-input { width: 8.5em; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.yt-bookmark-label-input { flex: 1; min-width: 120px; }
+/* Save Floppy Disk Color — the row's Save button (features/youtubePlayer.js's refreshDirtyState)
+   only lights up once timeInput/labelInput's live values diverge from the bookmark's last-saved
+   ones, so unsaved rows are spottable at a glance instead of every row's Save button looking the
+   same regardless of edit state. */
+.yt-bookmark-save-btn.is-dirty { color: var(--starred); border-color: var(--starred); }
+/* Text Area Toggle — bulk view/edit as "MM:SS-MM:SS - Label" lines (data/youtubeTime.js's
+   formatBookmarkLines/parseBookmarkLines), replacing the row list in listMount while active. */
+.yt-bookmark-textarea { width: 100%; font-family: monospace; font-size: 0.82rem; resize: vertical; }
+.yt-bookmark-textarea-actions { display: flex; gap: 0.4rem; margin-top: 0.4rem; }
+
+/* Group Playback playlist panel (features/youtubeGroupPlayer.js opens the player with a playlist —
+   see features/youtubePlayer.js's buildPlaylistPanel) — a YouTube-style "up next" list under the
+   player/bookmarks, current video highlighted, each row tagged with WHERE it's attached
+   (Subject/Topic/SubTopic/Question) and jumpable back there, grouped under a divider whenever that
+   attachment point changes between consecutive rows so a Subject-level video is never mistaken for a
+   specific question's. */
+.youtube-playlist-panel { margin-top: 0.85rem; border-top: 1px solid var(--border-soft); padding-top: 0.6rem; }
+.youtube-playlist-heading { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.4rem; }
+.youtube-playlist-items { display: flex; flex-direction: column; gap: 0.35rem; max-height: 340px; overflow-y: auto; }
+.youtube-playlist-item { display: flex; align-items: flex-start; gap: 0.5rem; border: 1px solid var(--border-soft); border-radius: 0.4rem; padding: 0.4rem; }
+.youtube-playlist-item.is-current { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.youtube-playlist-thumb { width: 88px; height: 50px; object-fit: cover; border-radius: 0.3rem; flex: 0 0 auto; background: #000; }
+.youtube-playlist-item-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+.youtube-playlist-item-title { font-size: 0.88rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.youtube-playlist-level-badge { align-self: flex-start; font-size: 0.72rem; color: var(--text-muted); border: 1px solid var(--border-soft); border-radius: 0.3rem; padding: 0 0.3rem; }
+.youtube-playlist-item-breadcrumb { font-size: 0.78rem; color: var(--text-muted); white-space: normal; overflow-wrap: anywhere; }
+.youtube-playlist-item-linklabel { font-size: 0.76rem; color: var(--text-muted); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.youtube-playlist-item-actions { display: flex; flex-direction: column; gap: 0.25rem; flex: 0 0 auto; }
 
 /* Tri-state count badge — small superscript-style number on the Done/Failed/Review Later icon, only
    shown once that status's own count > 0. Same badge class on all three; color follows whichever
@@ -870,18 +947,29 @@ body.bulk-bar-visible { padding-bottom: 3.5rem; }
 .modal-host .modal-backdrop-custom { position: fixed; inset: 0; background: var(--overlay-backdrop); display: flex; align-items: center; justify-content: center; z-index: 90; }
 .modal-host .modal-box { background: var(--bg-surface); color: var(--text); border-radius: 0.5rem; padding: 1rem; max-width: 480px; width: 92%; max-height: 85vh; overflow: auto; }
 
-/* Manage Tags popup (features/tagManager.js) — CRUD list + per-tag related-tags editor. */
+/* Manage Tags popup (features/tagManager.js) — CRUD list + per-tag related-tags editor, plus a
+   Search+Sort toolbar (see SORT_OPTIONS) that keeps a longer tag list findable. The toolbar sticks
+   to the top of .modal-box's own scroll (its nearest scrolling ancestor — see modal.js's bodyEl
+   nesting) so it stays reachable while scrolling a long list, without needing its own separate
+   scroll region. */
 .modal-host .modal-box:has(.tag-manager) { max-width: 560px; }
-.tag-manager-add-row { display: flex; gap: 0.4rem; margin-bottom: 0.75rem; }
+.tag-manager-add-row { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; }
 .tag-manager-add-row input { flex: 1; }
+.tag-manager-toolbar { display: flex; gap: 0.4rem; margin-bottom: 0.75rem; position: sticky; top: 0; background: var(--bg-surface); padding-bottom: 0.4rem; z-index: 1; }
+.tag-manager-search { flex: 1; }
+.tag-manager-sort { flex: 0 0 auto; width: auto; max-width: 170px; }
 .tag-manager-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .tag-manager-row { border: 1px solid var(--border-soft); border-radius: 0.4rem; padding: 0.5rem 0.6rem; }
 .tag-manager-row-head { display: flex; align-items: center; gap: 0.4rem; }
 .tag-manager-name { font-weight: 600; flex: 1; }
+.tag-manager-count-badge { background: var(--bg-tint-accent-soft); border-radius: 1rem; padding: 0.05rem 0.5rem; font-size: 0.75rem; color: var(--text-faint-3); }
+.tag-manager-icon-row { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border-soft); }
+.tag-manager-icon-preview { width: 1.5em; text-align: center; color: var(--text-muted); font-size: 0.95rem; }
+.tag-manager-icon-preview-empty { opacity: 0.35; }
+.tag-manager-icon-input { flex: 1; font-size: 0.8rem; }
 .tag-manager-related { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border-soft); }
 .tag-manager-related-label { width: 100%; margin-bottom: 0.1rem; }
-.tag-manager-related-chip { background: var(--bg-tint-accent-soft); }
-.tag-manager-related-select { width: auto; max-width: 160px; font-size: 0.8rem; }
+.tag-manager-related-select { flex: 1; min-width: 180px; font-size: 0.8rem; }
 
 @media (max-width: 640px) {
   .app-title { font-size: 0.95rem; }
@@ -931,4 +1019,33 @@ body.bulk-bar-visible { padding-bottom: 3.5rem; }
      .q-updated-inline, stacked directly under the question text within .q-text-wrap. */
   .q-updated-header { display: none; }
   .q-updated-inline { display: flex; align-items: center; gap: 0.3rem; color: var(--text-faint-3); font-size: 0.78rem; margin-top: 0.15rem; }
+
+  /* YouTube embedded-player modal (features/youtubePlayer.js) — the desktop layout (multi-column
+     bookmark rows, a fixed-height inner scroll region) gets cramped/double-scrolly on a phone. */
+  .modal-host .modal-box:has(.youtube-player-modal) { padding: 0.75rem; }
+  /* Group Playback specifically (.has-playlist — a plain single-video open stays the normal centered
+     modal) fills the whole viewport on mobile instead of floating as a small centered card, so the
+     video + playlist read as one continuous full-screen "now playing" surface rather than a cramped
+     dialog. features/youtubePlayer.js reuses the same iframe/YT.Player instance across track changes
+     (switchToEntry/loadVideoById) specifically so nothing here ever gets torn down and rebuilt
+     mid-playlist — that would silently exit fullscreen too. */
+  .modal-host .modal-box:has(.youtube-player-modal.has-playlist) {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
+    margin: 0;
+    border-radius: 0;
+  }
+  /* The bookmark list no longer scrolls as its own nested region — on touch, a scrollable area
+     inside an already-scrollable modal is easy to get "stuck" in. Letting it grow naturally means
+     the modal's own outer scroll (.modal-box's max-height: 85vh; overflow: auto) is the only
+     scroll gesture the user ever has to fight. */
+  .youtube-bookmark-list { max-height: none; overflow-y: visible; }
+  /* Each bookmark row's timestamp/label inputs go full-width on their own line instead of trying to
+     fit alongside 6 icon buttons — the icon buttons (star/seek/save/mark start/mark end/delete)
+     still wrap together above/below them via .yt-bookmark-row's own flex-wrap. */
+  .yt-bookmark-row .yt-bookmark-time-input,
+  .yt-bookmark-row .yt-bookmark-label-input { flex: 1 1 100%; width: auto; }
+  .yt-bookmark-manual-row .yt-bookmark-label-input { flex: 1 1 100%; }
 }

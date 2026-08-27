@@ -40,6 +40,22 @@ export function editLinkPrompt(questionId, linkId, currentLabel, currentUrl) {
 }
 
 /**
+ * Label-only rename — prompts once (unlike editLinkPrompt's label-then-URL pair), for contexts where
+ * re-typing the URL too would be an unnecessary extra step. Used by features/youtubePlayer.js's
+ * Group Playback playlist panel to rename a video's display label mid-playback.
+ * @param {string} questionId
+ * @param {string} linkId
+ * @param {string} currentLabel
+ * @param {string} url unchanged — carried through as-is, since updateQuestionLink requires both fields.
+ */
+export function renameLinkPrompt(questionId, linkId, currentLabel, url) {
+  const label = promptAction("Link label:", currentLabel);
+  if (label === null || !label.trim()) return;
+  const rawData = updateQuestionLink(appState.rawData, questionId, linkId, { label: label.trim(), url });
+  applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
+}
+
+/**
  * @param {string} questionId
  * @param {string} linkId
  * @param {string} label

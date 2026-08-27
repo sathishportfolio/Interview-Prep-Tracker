@@ -6,6 +6,9 @@
  * faviconUrlFor — a public favicon service keyed by hostname, not anything fetched/cached by this
  * app, so it's identical on every device with nothing new to sync), falling back to the plain
  * external-link glyph if that favicon 404s/fails to load or the URL has no determinable hostname.
+ * A YouTube link with 1+ saved timestamp bookmarks additionally gets a small bookmark-glyph badge
+ * (`hasBookmarks` — see questionView.js's call site and types.js's QuestionLink.bookmarks) so a
+ * question with marked-up videos is spottable without opening the player.
  */
 import { isYouTubeUrl, faviconUrlFor } from "../data/linkIcons.js";
 
@@ -18,13 +21,21 @@ function buildFallbackIcon() {
 
 /**
  * @param {string} url
+ * @param {boolean} [hasBookmarks] YouTube links only — see module doc above.
  * @returns {HTMLElement}
  */
-export function buildLinkChipIcon(url) {
+export function buildLinkChipIcon(url, hasBookmarks) {
   if (isYouTubeUrl(url)) {
     const icon = document.createElement("i");
     icon.className = "fa-brands fa-youtube link-chip-icon link-chip-icon-youtube";
-    return icon;
+    if (!hasBookmarks) return icon;
+    const wrap = document.createElement("span");
+    wrap.className = "link-chip-icon-wrap";
+    const badge = document.createElement("i");
+    badge.className = "fa-solid fa-bookmark link-chip-bookmark-badge";
+    badge.title = "Has saved timestamp bookmarks";
+    wrap.append(icon, badge);
+    return wrap;
   }
   const faviconUrl = faviconUrlFor(url);
   if (!faviconUrl) return buildFallbackIcon();

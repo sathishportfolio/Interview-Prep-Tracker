@@ -14,7 +14,7 @@ import * as fileManager from "./fileManager.js";
 // answerItems/statusItems/difficultyItems), plus duplicate appended at the end (not shown in the
 // Stats dropdown, so no ordering there to match against).
 const STATUS_OPTIONS = /** @type {const} */ ([
-  "hasAnswer", "noAnswer",
+  "hasAnswer", "noAnswer", "hasTags", "hasLinks", "hasYouTubeLink", "noYouTubeLink",
   "notVisited", "unmarked", "done", "failed", "reviewLater", "starred", "visited", "notImportant",
   "noDifficulty", "difficultyEasy", "difficultyMedium", "difficultyHard",
   "duplicate",
@@ -23,7 +23,8 @@ const STATUS_OPTIONS = /** @type {const} */ ([
 const STATUS_LABELS = {
   done: "Done", reviewLater: "Review Later", duplicate: "Duplicate", notImportant: "Not Important", starred: "Starred", failed: "Failed", visited: "Visited",
   notVisited: "Not Visited",
-  hasAnswer: "With Answer", noAnswer: "Without Answer", unmarked: "Unmarked",
+  hasAnswer: "With Answer", noAnswer: "Without Answer", hasTags: "With Tags", hasLinks: "With Links", unmarked: "Unmarked",
+  hasYouTubeLink: "With YouTube Link", noYouTubeLink: "Without YouTube Link",
   noDifficulty: "No Difficulty", difficultyEasy: "Difficulty: Easy", difficultyMedium: "Difficulty: Medium", difficultyHard: "Difficulty: Hard",
 };
 /** @type {Record<string, string>} */
@@ -160,7 +161,7 @@ export function clearFilters() {
  * (statusFilterMount) — toggles ONE status in/out of the existing `statuses` selection rather than
  * replacing it, so e.g. clicking "With Answer" then "Done" ends up with both selected (combined per
  * appState.filterState.statusMode — see data/filter.js's matchesStatus).
- * @param {"done"|"reviewLater"|"duplicate"|"notImportant"|"starred"|"failed"|"visited"|"notVisited"|"hasAnswer"|"noAnswer"|"unmarked"|"difficultyEasy"|"difficultyMedium"|"difficultyHard"|"noDifficulty"} status
+ * @param {"done"|"reviewLater"|"duplicate"|"notImportant"|"starred"|"failed"|"visited"|"notVisited"|"hasAnswer"|"noAnswer"|"hasTags"|"hasLinks"|"hasYouTubeLink"|"noYouTubeLink"|"unmarked"|"difficultyEasy"|"difficultyMedium"|"difficultyHard"|"noDifficulty"} status
  */
 export function toggleStatusFilter(status) {
   const set = new Set(appState.filterState.statuses);

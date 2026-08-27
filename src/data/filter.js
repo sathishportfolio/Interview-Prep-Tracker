@@ -7,6 +7,7 @@
  * @typedef {import('../types.js').Question} Question
  * @typedef {import('../types.js').StatusFilterKey} StatusFilterKey
  */
+import { isYouTubeUrl } from "./linkIcons.js";
 
 /**
  * Exported for callers that need to test a question against a whole active status selection
@@ -36,6 +37,10 @@ export function matchesStatus(q, statuses, mode) {
 export function matchesSingleStatus(q, status) {
   if (status === "hasAnswer") return hasAnswer(q);
   if (status === "noAnswer") return !hasAnswer(q);
+  if (status === "hasTags") return !!q.tags && q.tags.length > 0;
+  if (status === "hasLinks") return !!q.links && q.links.length > 0;
+  if (status === "hasYouTubeLink") return !!q.links?.some((l) => isYouTubeUrl(l.url));
+  if (status === "noYouTubeLink") return !q.links?.some((l) => isYouTubeUrl(l.url));
   if (status === "unmarked") return !q.done && !q.failed && !q.reviewLater;
   if (status === "difficultyEasy") return q.difficulty === "easy";
   if (status === "difficultyMedium") return q.difficulty === "medium";

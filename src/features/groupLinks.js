@@ -50,6 +50,25 @@ export function editGroupLinkPrompt(level, scope, linkId, currentLabel, currentU
 }
 
 /**
+ * Label-only rename — prompts once (unlike editGroupLinkPrompt's label-then-URL pair), for contexts
+ * where re-typing the URL too would be an unnecessary extra step. Used by
+ * features/youtubePlayer.js's Group Playback playlist panel to rename a video's display label
+ * mid-playback.
+ * @param {"subject"|"topic"|"subTopic"} level
+ * @param {{subject: string, topic?: string, subTopic?: string}} scope
+ * @param {string} linkId
+ * @param {string} currentLabel
+ * @param {string} url unchanged — carried through as-is, since updateGroupLink requires both fields.
+ */
+export function renameGroupLinkPrompt(level, scope, linkId, currentLabel, url) {
+  const label = promptAction("Link label:", currentLabel);
+  if (label === null || !label.trim()) return;
+  const [subject, topic, subTopic] = scopeTriple(level, scope);
+  const groupLinks = updateGroupLink(appState.groupLinks, subject, topic, subTopic, linkId, { label: label.trim(), url });
+  applyDataChange({ rawData: appState.rawData, emptyGroups: appState.emptyGroups, groupLinks });
+}
+
+/**
  * @param {"subject"|"topic"|"subTopic"} level
  * @param {{subject: string, topic?: string, subTopic?: string}} scope
  * @param {string} linkId

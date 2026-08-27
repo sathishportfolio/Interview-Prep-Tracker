@@ -12,6 +12,8 @@ import { formatRelativeTime } from "../../data/relativeTime.js";
 import { openPanel as coordinatorOpenPanel, panelClosed as coordinatorPanelClosed } from "../panelCoordinator.js";
 import { highlightCodeBlocks } from "../codeHighlight.js";
 import { buildLinkChipIcon } from "../linkChipIcon.js";
+import { pickDisplayTagIcon } from "../../data/tagIcon.js";
+import { isYouTubeUrl } from "../../data/linkIcons.js";
 
 /** @returns {boolean} true on touch/coarse-pointer devices (no reliable hover) */
 const isCoarsePointer = () => window.matchMedia("(hover: none)").matches;
@@ -63,12 +65,11 @@ function attachHoverIntentPanel(wrap, panel) {
  * @property {(qid: string, tag: string) => void} onToggleQuestionTag
  * @property {(qid: string, tag: string) => void} onCreateTag
  * @property {(tag: string) => void} onFilterByTag
- * @property {(tag: string) => void} onRenameTag
- * @property {(tag: string) => void} onDeleteTag
  * @property {(qid: string) => void} onAddQuestionLink
  * @property {(qid: string, linkId: string, label: string, url: string) => void} onEditQuestionLink
  * @property {(qid: string, linkId: string, label: string) => void} onRemoveQuestionLink
  * @property {(qid: string, orderedLinkIds: string[]) => void} onReorderQuestionLinks
+ * @property {(qid: string, link: {id: string, url: string, label: string}) => void} onOpenYouTubePlayer
  * @property {(qid: string) => void} onCycleDifficulty
  * @property {(qid: string) => void} onEditAnswer
  * @property {(qid: string) => void} onEditQuestionText
@@ -280,6 +281,20 @@ export function createQuestionNode(q, handlers) {
   const qTextWrap = document.createElement("div");
   qTextWrap.className = "q-text-wrap";
 
+  // qTextLine holds the tag icon + question text side by side; qTextWrap itself stays a column so
+  // updatedAtInline (appended below) still stacks directly underneath, unaffected.
+  const qTextLine = document.createElement("div");
+  qTextLine.className = "q-text-line";
+
+  // Custom per-tag FA icon (Manage Tags popup, features/tagManager.js) — shown before the question
+  // text whenever the FIRST tag in this question's own tag list has an icon set (see
+  // data/tagIcon.js's pickDisplayTagIcon). Hidden by default; toggled visible in patchQuestionNode
+  // below since it depends on live tag/meta state, not just creation-time data.
+  const qTagIcon = document.createElement("i");
+  qTagIcon.className = "q-tag-icon";
+  qTagIcon.hidden = true;
+  qTextLine.appendChild(qTagIcon);
+
   const qText = document.createElement("span");
   qText.className = "q-text";
   // qText specifically toggles collapse; clicking elsewhere in the header (empty space) sets the
@@ -347,7 +362,8 @@ export function createQuestionNode(q, handlers) {
   updatedAtInline.className = "q-updated-inline";
   updatedAtInline.innerHTML = '<i class="fa-solid fa-clock"></i><span class="q-updated-inline-text"></span>';
 
-  qTextWrap.appendChild(qText);
+  qTextLine.appendChild(qText);
+  qTextWrap.appendChild(qTextLine);
   qTextWrap.appendChild(updatedAtInline);
 
   const statusRow = document.createElement("div");
@@ -779,6 +795,26 @@ export function createQuestionNode(q, handlers) {
   return item;
 }
 
+/**
+ * Wires a Related Link anchor's click: a YouTube link opens the embedded-player modal
+ * (handlers.onOpenYouTubePlayer) on a plain left click; Ctrl/Cmd+click (or any non-primary-button
+ * click) instead falls through to the anchor's own href/target="_blank", opening it directly in a
+ * new tab — exactly like every non-YouTube link always does (no special-casing needed there).
+ * @param {HTMLAnchorElement} anchor
+ * @param {{id: string, url: string, label: string}} link
+ * @param {string} questionId
+ * @param {Record<string, any>} handlers
+ */
+function wireLinkAnchorClick(anchor, link, questionId, handlers) {
+  anchor.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (e.button !== 0 || e.ctrlKey || e.metaKey) return;
+    if (!isYouTubeUrl(link.url)) return;
+    e.preventDefault();
+    handlers.onOpenYouTubePlayer(questionId, link);
+  });
+}
+
 /** @param {string} iconClass @param {string} title @param {() => void} onClick */
 function mkBtn(iconClass, title, onClick) {
   const btn = document.createElement("button");
@@ -803,6 +839,14 @@ export function patchQuestionNode(el, q, handlers) {
   const body = /** @type {HTMLElement} */ (el.querySelector(":scope > .question-body"));
   const qText = header.querySelector(".q-text");
   if (qText) qText.textContent = q.question;
+
+  const qTagIcon = /** @type {HTMLElement|null} */ (header.querySelector(".q-tag-icon"));
+  if (qTagIcon) {
+    const iconClass = pickDisplayTagIcon(q.tags ?? [], appState.globalTagMeta);
+    qTagIcon.hidden = !iconClass;
+    qTagIcon.className = iconClass ? `q-tag-icon ${iconClass}` : "q-tag-icon";
+    qTagIcon.title = iconClass ? (q.tags ?? [])[0] : "";
+  }
 
   applyOpenState(header, body, `Q::${q.id}`);
 
@@ -861,9 +905,9 @@ export function patchQuestionNode(el, q, handlers) {
       empty.textContent = "No tags yet — create one below.";
       tagChipsList.appendChild(empty);
     }
+    // Rename/delete aren't offered here — that's the Manage Tags popup's job (features/tagManager.js),
+    // which acts on the tag everywhere at once rather than from inside one question's panel.
     for (const tag of appState.globalTags) {
-      const row = document.createElement("span");
-      row.className = "tag-chip-row";
       const chip = document.createElement("button");
       chip.type = "button";
       chip.className = `tag-chip${qTags.includes(tag) ? " is-active" : ""}`;
@@ -872,28 +916,7 @@ export function patchQuestionNode(el, q, handlers) {
         e.stopPropagation();
         handlers.onToggleQuestionTag(q.id, tag);
       });
-      const editBtn = document.createElement("button");
-      editBtn.type = "button";
-      editBtn.className = "tag-chip-action";
-      editBtn.title = `Rename tag "${tag}"`;
-      editBtn.innerHTML = '<i class="fa-solid fa-pen"></i>';
-      editBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        handlers.onRenameTag(tag);
-      });
-      const deleteBtn = document.createElement("button");
-      deleteBtn.type = "button";
-      deleteBtn.className = "tag-chip-action";
-      deleteBtn.title = `Delete tag "${tag}"`;
-      deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
-      deleteBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        handlers.onDeleteTag(tag);
-      });
-      row.appendChild(chip);
-      row.appendChild(editBtn);
-      row.appendChild(deleteBtn);
-      tagChipsList.appendChild(row);
+      tagChipsList.appendChild(chip);
     }
   }
 
@@ -944,7 +967,7 @@ export function patchQuestionNode(el, q, handlers) {
       anchor.rel = "noopener noreferrer";
       anchor.className = "link-edit-anchor";
       anchor.textContent = link.label || link.url;
-      anchor.addEventListener("click", (e) => e.stopPropagation());
+      wireLinkAnchorClick(anchor, link, q.id, handlers);
       const editBtn = document.createElement("button");
       editBtn.type = "button";
       editBtn.className = "tag-chip-action";
@@ -982,9 +1005,9 @@ export function patchQuestionNode(el, q, handlers) {
       anchor.rel = "noopener noreferrer";
       anchor.className = "link-chip";
       anchor.title = link.url;
-      anchor.appendChild(buildLinkChipIcon(link.url));
+      anchor.appendChild(buildLinkChipIcon(link.url, (link.bookmarks?.length ?? 0) > 0));
       anchor.appendChild(document.createTextNode(` ${link.label || link.url}`));
-      anchor.addEventListener("click", (e) => e.stopPropagation());
+      wireLinkAnchorClick(anchor, link, q.id, handlers);
       linksDisplayRow.appendChild(anchor);
     }
   }
@@ -1047,4 +1070,5 @@ export function patchQuestionNode(el, q, handlers) {
   if (subTopicSearchItem) subTopicSearchItem.textContent = `As ${q.subTopic}`;
 
   el.classList.toggle("no-answer", !q.answer);
+  el.classList.toggle("with-attachement", qLinks.length > 0);
 }

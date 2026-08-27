@@ -45,6 +45,7 @@ import * as autoPush from "./sync/autoPush.js";
 import * as gists from "./sync/gists.js";
 import * as store from "./persistence/store.js";
 import { openTagManager } from "./features/tagManager.js";
+import * as youtubeGroupPlayer from "./features/youtubeGroupPlayer.js";
 import { STORAGE_KEY } from "./persistence/schema.js";
 
 function $(id) {
@@ -254,6 +255,7 @@ function init() {
       onToggleAutoExpand: () => autoExpand.toggleAutoExpandChildren(),
       onFindDuplicates: () => duplicateFinder.openDuplicateFinder(),
       onCopyVisible: (format) => copyVisible.copyVisible(format),
+      onPlayGroupVideos: () => youtubeGroupPlayer.openGroupPlayback(),
     },
     breadcrumb: () => activeQuestionFeature.computeBreadcrumbData(),
   });
@@ -375,6 +377,18 @@ function init() {
     const on = /** @type {HTMLInputElement} */ (e.target).checked;
     autoDownload.setAutoDownloadOn(on);
     showToast(on ? "Auto Download ON — downloading a CSV backup of the current file every minute." : "Auto Download OFF.", "info");
+  });
+
+  // Toolbar mirror of the embedded YouTube player's own Autoplay toggle (features/youtubePlayer.js) —
+  // same appState.toggles.youtubeAutoplayOn, so flipping it here also updates that toggle next time a
+  // player opens, without needing one open right now.
+  const youtubeAutoplayToggleEl = /** @type {HTMLInputElement|null} */ ($("youtubeAutoplayToggle"));
+  if (youtubeAutoplayToggleEl) youtubeAutoplayToggleEl.checked = !!appState.toggles.youtubeAutoplayOn;
+  youtubeAutoplayToggleEl?.addEventListener("change", (e) => {
+    const on = /** @type {HTMLInputElement} */ (e.target).checked;
+    appState.toggles = { ...appState.toggles, youtubeAutoplayOn: on };
+    store.writeGlobalToggles(appState.toggles);
+    showToast(on ? "YouTube Autoplay ON." : "YouTube Autoplay OFF.", "info");
   });
 
   // --- Root-level Bulk Add/Update/Copy ---

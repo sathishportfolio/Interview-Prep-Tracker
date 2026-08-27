@@ -61,12 +61,33 @@
  */
 
 /**
- * A single related-article/resource link attached to a Question, always opened in a new tab.
+ * A single related-article/resource link attached to a Question. A plain click opens non-YouTube
+ * links directly in a new tab; a YouTube link (data/linkIcons.js's isYouTubeUrl) instead opens the
+ * embedded-player modal (features/youtubePlayer.js) — Ctrl/Cmd+click bypasses that and opens it in
+ * a new tab like any other link (see render/nodeViews/questionView.js's wireLinkAnchorClick).
  * @typedef {Object} QuestionLink
  * @property {string} id      Stable id, assigned once at creation (data/id.js's newLinkId) — used
  *   for edit/remove/reorder targeting, never a display value.
  * @property {string} label   Short user-facing text for the link (e.g. "MDN: Closures").
  * @property {string} url     Full URL, opened via target="_blank" rel="noopener noreferrer".
+ * @property {LinkBookmark[]} [bookmarks] YouTube timestamp bookmarks (features/youtubeBookmarks.js)
+ *   — only ever populated for a YouTube link; empty/absent for every other kind.
+ */
+
+/**
+ * A single timestamp (or start/end range) bookmarked inside a YouTube link's embedded player — see
+ * features/youtubePlayer.js's "Add Bookmark at Current Time"/"Mark End" and data/youtubeTime.js's
+ * formatBookmarkRange/parseBookmarkRangeInput for the mm:ss <-> seconds conversions.
+ * @typedef {Object} LinkBookmark
+ * @property {string} id        Stable id, assigned once at creation (data/id.js's newBookmarkId).
+ * @property {number} start     Seconds into the video.
+ * @property {number|null} [end] Seconds into the video, or null/absent for a single-point bookmark
+ *   (no range) — set later via "Mark End" or by hand-editing the bookmark's timestamp text.
+ * @property {string} [label]   User-facing label; defaults to "Bookmarked At {mm:ss}"
+ *   (data/youtubeTime.js's defaultBookmarkLabel) when blank.
+ * @property {boolean} [starred] Marks this bookmark as important — same starring concept as a
+ *   Question's own `starred` flag, scoped to just this one bookmark.
+ * @property {number} createdAt Date.now() at creation.
  */
 
 /**
@@ -122,7 +143,7 @@
  * are set, i.e. a question that hasn't been reviewed at all yet. "difficultyEasy"/"difficultyMedium"/
  * "difficultyHard"/"noDifficulty" are likewise computed, from `Question.difficulty` (`noDifficulty`
  * = unset). "notVisited" is the negation of the stored `visited` boolean.
- * @typedef {"done"|"reviewLater"|"duplicate"|"notImportant"|"starred"|"failed"|"visited"|"notVisited"|"hasAnswer"|"noAnswer"|"unmarked"|"difficultyEasy"|"difficultyMedium"|"difficultyHard"|"noDifficulty"} StatusFilterKey
+ * @typedef {"done"|"reviewLater"|"duplicate"|"notImportant"|"starred"|"failed"|"visited"|"notVisited"|"hasAnswer"|"noAnswer"|"hasTags"|"hasLinks"|"hasYouTubeLink"|"noYouTubeLink"|"unmarked"|"difficultyEasy"|"difficultyMedium"|"difficultyHard"|"noDifficulty"} StatusFilterKey
  */
 
 /**
@@ -168,6 +189,10 @@
  * @property {boolean} [statsProgressVisible] default false — whether the Stats dropdown's
  *   Done/Review/Failed breakdown progress bar is shown; synced like every other toggle here so it
  *   carries across devices (see render/statsBadges.js's renderStatsProgress).
+ * @property {boolean} [youtubeAutoplayOn] default false — whether opening a YouTube link's embedded
+ *   player (features/youtubePlayer.js) autoplays immediately (positioned at the first bookmark's
+ *   start if any, else the beginning) instead of loading paused for a manual Play click; synced
+ *   like every other toggle here so it carries across devices.
  */
 
 /**
@@ -242,6 +267,14 @@
  *   Tags popup, features/tags.js) — assigning a tag to a question auto-applies every tag it maps to
  *   here too (data/mutations.js's toggleQuestionTag). Mirrored onto appState.globalTagRelations at
  *   bootstrap and written via persistence/store.js's writeGlobalTagRelations.
+ * @property {Record<string, {icon?: string, createdAt?: number, modifiedAt?: number, lastTaggedAt?: number}>} globalTagMeta
+ *   Per-tag metadata set from the Manage Tags popup (features/tagManager.js): `icon` is a
+ *   FontAwesome class string (e.g. "fa-solid fa-clock") shown before a question's text whenever
+ *   this tag is the FIRST tag in that question's own tag list (data/tagIcon.js's
+ *   pickDisplayTagIcon); `createdAt`/`modifiedAt`/`lastTaggedAt` are Date.now() timestamps feeding
+ *   the popup's Recently Added/Recently Modified/Recently Tagged sort options (features/tags.js's
+ *   stampTagCreated/touchTagMeta/toggleTagOnQuestion). Mirrored onto appState.globalTagMeta at
+ *   bootstrap and written via persistence/store.js's writeGlobalTagMeta.
  */
 
 /**
