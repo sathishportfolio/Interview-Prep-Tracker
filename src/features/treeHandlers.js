@@ -42,6 +42,7 @@ export function buildTreeHandlers() {
     onToggleQuestionTag: (qid, tag) => tags.toggleTagOnQuestion(qid, tag),
     onCreateTag: (qid, tag) => tags.createAndAddTag(qid, tag),
     onFilterByTag: (tag) => filters.toggleTagFilter(tag),
+    onFilterByGroup: (level, scope) => filters.filterByGroup(level, scope),
     onAddQuestionLink: (qid) => questionLinks.addLinkPrompt(qid),
     onEditQuestionLink: (qid, linkId, label, url) => questionLinks.editLinkPrompt(qid, linkId, label, url),
     onRemoveQuestionLink: (qid, linkId, label) => questionLinks.removeLinkWithConfirm(qid, linkId, label),

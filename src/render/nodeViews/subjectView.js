@@ -68,6 +68,10 @@ export function createSubjectNode(s, handlers) {
     e.stopPropagation();
     handlers.onOpenCopyMenu("subject", { subject: s.subject }, e.currentTarget);
   }));
+  headerControls.appendChild(iconBtn("fa-filter", "Filter by this Subject", (e) => {
+    e.stopPropagation();
+    handlers.onFilterByGroup("subject", { subject: s.subject });
+  }));
   headerControls.appendChild(iconBtn("fa-plus", "Quick Add Topic", (e) => {
     e.stopPropagation();
     handlers.onQuickAddTopic(s.subject);

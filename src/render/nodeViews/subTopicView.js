@@ -76,6 +76,12 @@ export function createSubTopicNode(st, handlers) {
     })
   );
   headerControls.appendChild(
+    iconBtn("fa-filter", "Filter by this SubTopic", (e) => {
+      e.stopPropagation();
+      handlers.onFilterByGroup("subTopic", { subject: st.subject, topic: st.topic, subTopic: st.subTopic });
+    })
+  );
+  headerControls.appendChild(
     iconBtn("fa-pen", "Rename", (e) => {
       e.stopPropagation();
       handlers.onRenameGroup("subTopic", { subject: st.subject, topic: st.topic, subTopic: st.subTopic });

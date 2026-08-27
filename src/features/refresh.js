@@ -40,6 +40,23 @@ export function recompute() {
   const grouped = groupData(appState.rawData, appState.emptyGroups);
   appState.groupedUnfiltered = grouped;
   appState.grouped = filterGroupedData(grouped, appState.filterState);
+  autoOpenSingleFilteredGroup();
+}
+
+/**
+ * Whenever the resulting filtered tree has exactly one Subject, keep it open — and if that Subject
+ * also has exactly one Topic, keep that open too. Never cascades into SubTopic. Runs on every
+ * recompute() (file load/switch, any data mutation via applyDataChange, every filter change), not
+ * just in response to a filter click, so the single remaining group is always expanded on screen.
+ */
+function autoOpenSingleFilteredGroup() {
+  const subjects = appState.grouped.subjects;
+  if (subjects.length !== 1) return;
+  const subject = subjects[0];
+  appState.openNodeKeys.add(`S::${subject.subject}`);
+  if (subject.topics.length === 1) {
+    appState.openNodeKeys.add(`${subject.subject}::T::${subject.topics[0].topic}`);
+  }
 }
 
 /** Repaints the tree/flat view + stats + breadcrumb from current appState (no data recompute). */

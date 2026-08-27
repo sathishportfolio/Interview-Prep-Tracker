@@ -195,6 +195,20 @@ export function clearStatusFilterOnly() {
 }
 
 /**
+ * Accordion header's own filter-icon click-to-filter — sets the Subject/Topic/SubTopic dropdown to
+ * just this one value (replacing whatever was selected for that field), leaving the other two
+ * fields and Status/Tags untouched.
+ * @param {"subject"|"topic"|"subTopic"} level
+ * @param {{subject: string, topic?: string, subTopic?: string}} scope
+ */
+export function filterByGroup(level, scope) {
+  const field = level === "subject" ? "subjects" : level === "topic" ? "topics" : "subTopics";
+  const value = level === "subject" ? scope.subject : level === "topic" ? scope.topic : scope.subTopic;
+  appState.filterState = { ...appState.filterState, [field]: [value] };
+  refreshAfterExternalFilterStateChange();
+}
+
+/**
  * Call after code OUTSIDE this module directly rewrites appState.filterState in place (e.g.
  * features/rename.js's Subject/Topic/SubTopic rename, or features/tags.js's tag rename/delete,
  * swapping a renamed/removed value into the active filter selection so it doesn't keep pointing at a

@@ -67,6 +67,10 @@ export function createTopicNode(t, handlers) {
     e.stopPropagation();
     handlers.onOpenCopyMenu("topic", { subject: t.subject, topic: t.topic }, e.currentTarget);
   }));
+  headerControls.appendChild(iconBtn("fa-filter", "Filter by this Topic", (e) => {
+    e.stopPropagation();
+    handlers.onFilterByGroup("topic", { subject: t.subject, topic: t.topic });
+  }));
   headerControls.appendChild(iconBtn("fa-plus", "Quick Add SubTopic", (e) => {
     e.stopPropagation();
     handlers.onQuickAddSubTopic(t.subject, t.topic);
