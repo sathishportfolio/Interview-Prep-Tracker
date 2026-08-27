@@ -11,7 +11,6 @@ import { createBulkUpdatePanel } from "./bulkUpdate.js";
 import { bulkCopyScope } from "./bulkCopy.js";
 import * as bulkSelection from "./bulkSelection.js";
 import { mountBulkSelectMenu } from "./bulkSelectMenu.js";
-import { quickAddQuestion } from "./quickAdd.js";
 import * as reorderModeFeature from "./reorderMode.js";
 import { appState } from "../state/appState.js";
 
@@ -86,18 +85,6 @@ export function mountGroupPanels(level, scope, mountEl) {
     fixedTopic: level === "subject" || level === "root" ? null : scope.topic,
     fixedSubTopic: level === "subTopic" ? scope.subTopic : null,
   };
-
-  if (level === "subTopic") {
-    const quickAddBtn = document.createElement("button");
-    quickAddBtn.type = "button";
-    quickAddBtn.className = "btn btn-sm btn-outline-primary";
-    quickAddBtn.textContent = "+ Add Question";
-    quickAddBtn.title = "Quick-add a single question to this SubTopic";
-    quickAddBtn.addEventListener("click", () =>
-      quickAddQuestion(/** @type {string} */ (scope.subject), /** @type {string} */ (scope.topic), /** @type {string} */ (scope.subTopic))
-    );
-    mountEl.appendChild(quickAddBtn);
-  }
 
   mountEl.appendChild(createBulkAddPanel(fixed));
   mountEl.appendChild(createBulkUpdatePanel(fixed));

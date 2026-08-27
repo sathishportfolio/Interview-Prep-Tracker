@@ -82,10 +82,16 @@ export function createSubTopicNode(st, handlers) {
     })
   );
   headerControls.appendChild(
+    iconBtn("fa-plus", "Quick Add Question", (e) => {
+      e.stopPropagation();
+      handlers.onQuickAddQuestion(st.subject, st.topic, st.subTopic);
+    })
+  );
+  headerControls.appendChild(
     iconBtn("fa-pen", "Rename", (e) => {
       e.stopPropagation();
       handlers.onRenameGroup("subTopic", { subject: st.subject, topic: st.topic, subTopic: st.subTopic });
-    }, true)
+    })
   );
   headerControls.appendChild(
     iconBtn("fa-trash icon-duplicate", "Delete", (e) => {

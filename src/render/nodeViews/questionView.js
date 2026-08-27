@@ -416,12 +416,12 @@ export function createQuestionNode(q, handlers) {
     handlers.onToggleActiveQuestion(q.id);
   });
 
-  // Edit question text — lives directly in the header (edit-gated, right before the Done button)
-  // instead of down in the answer body's statusControls row, so it's reachable without opening the
-  // accordion first.
+  // Edit question text — lives directly in the header (always visible regardless of Edit Mode,
+  // right before the Done button) instead of down in the answer body's statusControls row, so it's
+  // reachable without opening the accordion first.
   const editTextBtn = document.createElement("button");
   editTextBtn.type = "button";
-  editTextBtn.className = "icon-btn icon-edit-text edit-gated";
+  editTextBtn.className = "icon-btn icon-edit-text";
   editTextBtn.title = "Edit question text";
   editTextBtn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
   editTextBtn.addEventListener("click", (e) => {

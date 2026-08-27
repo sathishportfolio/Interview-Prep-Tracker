@@ -206,7 +206,7 @@ body {
   position: absolute;
   top: calc(100% + 0.35rem);
   left: 0;
-  z-index: 60;
+  z-index: 80;
   min-width: 190px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -229,7 +229,7 @@ body {
   position: absolute;
   top: calc(100% + 0.35rem);
   left: 0;
-  z-index: 60;
+  z-index: 80;
   width: 292px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -383,7 +383,7 @@ body {
   position: absolute;
   top: calc(100% + 0.35rem);
   left: 0;
-  z-index: 60;
+  z-index: 80;
   min-width: 190px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -425,7 +425,7 @@ body {
 .stats-progress .progress-bar { white-space: nowrap; overflow: hidden; font-weight: 600; }
 
 .search-card { position: relative; margin-bottom: 0.75rem; }
-.jump-search-results { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-surface); border: 1px solid var(--border-input); border-radius: 0.35rem; max-height: 320px; overflow: auto; z-index: 40; box-shadow: 0 4px 12px var(--shadow); }
+.jump-search-results { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-surface); border: 1px solid var(--border-input); border-radius: 0.35rem; max-height: 320px; overflow: auto; z-index: 80; box-shadow: 0 4px 12px var(--shadow); }
 .jump-search-group { padding: 0.35rem 0.6rem; }
 .jump-search-group-title { font-size: 0.75rem; font-weight: 700; color: var(--text-faint); text-transform: uppercase; margin-top: 0.25rem; }
 .jump-search-item { padding: 0.3rem 0.4rem; cursor: pointer; border-radius: 0.25rem; font-size: 0.85rem; }
@@ -451,7 +451,13 @@ body {
 .acc-title { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acc-body { display: none; padding: 0.5rem 0.7rem 0.7rem 1.2rem; }
 .acc-body.open { display: block; }
-.acc-header-controls { display: flex; align-items: center; gap: 0.25rem; z-index: 1; }
+/* No z-index here (deliberately removed) — it used to create a low-ranked stacking context that
+   trapped this header's own dropdown panels (e.g. .links-dropdown-panel) BELOW a later sibling
+   accordion's same-ranked .acc-header-controls, since equal z-index falls back to DOM order. Leaving
+   this static lets an open panel escape to the nearest real stacking context (the document root, in
+   practice) where an explicitly z-indexed, absolutely-positioned panel always paints above plain
+   in-flow accordion items regardless of DOM order — see the shared dropdown-panel rule below. */
+.acc-header-controls { display: flex; align-items: center; gap: 0.25rem; }
 .acc-header-controls .btn { padding: 0.1rem 0.35rem; font-size: 0.75rem; }
 /* The Related Links control (see render/nodeViews/groupLinksPanel.js) sits as the LAST icon in
    header-controls, which itself hugs the right edge of a full-width accordion header — a left-aligned
@@ -621,7 +627,7 @@ body.edit-mode-off .edit-gated { display: none !important; }
   position: absolute;
   top: calc(100% + 0.3rem);
   left: 0;
-  z-index: 60;
+  z-index: 80;
   min-width: 170px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -947,7 +953,7 @@ body.bulk-bar-visible { padding-bottom: 3.5rem; }
 .multiselect-tag { background: var(--bg-tint-subject); border-radius: 0.3rem; padding: 0.05rem 0.35rem; display: flex; align-items: center; gap: 0.2rem; }
 .multiselect-tag .rm { cursor: pointer; font-weight: 700; }
 .multiselect-input { border: none; outline: none; flex: 1; min-width: 60px; font-size: 0.82rem; background: transparent; color: inherit; }
-.multiselect-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-surface); border: 1px solid var(--border-input); border-radius: 0.3rem; max-height: 220px; overflow: auto; z-index: 30; box-shadow: 0 4px 10px var(--shadow); }
+.multiselect-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-surface); border: 1px solid var(--border-input); border-radius: 0.3rem; max-height: 220px; overflow: auto; z-index: 80; box-shadow: 0 4px 10px var(--shadow); }
 .multiselect-option { padding: 0.3rem 0.5rem; cursor: pointer; font-size: 0.82rem; }
 .multiselect-option:hover, .multiselect-option.active { background: var(--bg-tint-accent-soft); }
 

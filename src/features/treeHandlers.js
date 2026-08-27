@@ -84,6 +84,7 @@ export function buildTreeHandlers() {
     onDeleteGroup: (level, scope) => deleteGroupFeature.deleteGroupWithGuard(level, scope),
     onQuickAddTopic: (subject) => quickAdd.quickAddTopic(subject),
     onQuickAddSubTopic: (subject, topic) => quickAdd.quickAddSubTopic(subject, topic),
+    onQuickAddQuestion: (subject, topic, subTopic) => quickAdd.quickAddQuestion(subject, topic, subTopic),
     onToggleChildSelectMode: (parentLevel, parentScope) => bulkSelection.toggleChildSelectMode(parentLevel, parentScope),
     // Also the single-open-accordion resync point: opening a Subject/Topic/SubTopic closes its
     // siblings in appState (see accordion.js's toggleNodeOpenExclusive/openNodeExclusive) but only
