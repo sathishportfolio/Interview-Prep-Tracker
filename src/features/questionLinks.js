@@ -10,7 +10,7 @@ import { extractYouTubeVideoId } from "../data/youtubeTime.js";
 import { fetchYouTubeTitle } from "./youtubeOEmbed.js";
 import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
-import { promptAction, confirmAction } from "./toast.js";
+import { promptAction, confirmAction, showToast } from "./toast.js";
 
 /**
  * Only the URL is asked for — the label defaults to its bare hostname (see domainLabelFromUrl),
@@ -18,12 +18,18 @@ import { promptAction, confirmAction } from "./toast.js";
  * enough (e.g. "MDN: Closures" instead of "developer.mozilla.org"). For a YouTube URL, the video's
  * real title is fetched in the background (see youtubeOEmbed.js) and swapped in as the label once
  * it resolves — the hostname label added synchronously above is just the placeholder until then.
+ * A URL already present on this question's links is rejected with a toast instead of added again.
  * @param {string} questionId
  */
 export function addLinkPrompt(questionId) {
   const url = promptAction("Link URL:");
   if (url === null || !url.trim()) return;
   const trimmedUrl = url.trim();
+  const question = appState.rawData.find((q) => q.id === questionId);
+  if (question?.links?.some((l) => l.url === trimmedUrl)) {
+    showToast("This link is already added.", "error");
+    return;
+  }
   const defaultLabel = domainLabelFromUrl(trimmedUrl);
   const rawData = addQuestionLink(appState.rawData, questionId, { label: defaultLabel, url: trimmedUrl });
   applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
