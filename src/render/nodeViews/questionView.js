@@ -13,7 +13,7 @@ import { openPanel as coordinatorOpenPanel, panelClosed as coordinatorPanelClose
 import { highlightCodeBlocks } from "../codeHighlight.js";
 import { buildLinkChipIcon } from "../linkChipIcon.js";
 import { pickDisplayTagIcon } from "../../data/tagIcon.js";
-import { isYouTubeUrl } from "../../data/linkIcons.js";
+import { extractYouTubeVideoId } from "../../data/youtubeTime.js";
 
 /** @returns {boolean} true on touch/coarse-pointer devices (no reliable hover) */
 const isCoarsePointer = () => window.matchMedia("(hover: none)").matches;
@@ -796,10 +796,12 @@ export function createQuestionNode(q, handlers) {
 }
 
 /**
- * Wires a Related Link anchor's click: a YouTube link opens the embedded-player modal
- * (handlers.onOpenYouTubePlayer) on a plain left click; Ctrl/Cmd+click (or any non-primary-button
- * click) instead falls through to the anchor's own href/target="_blank", opening it directly in a
- * new tab — exactly like every non-YouTube link always does (no special-casing needed there).
+ * Wires a Related Link anchor's click: a YouTube link with a recognizable video id opens the
+ * embedded-player modal (handlers.onOpenYouTubePlayer) on a plain left click. A YouTube link with
+ * no video id (e.g. a bare playlist URL — nothing embeddable) and Ctrl/Cmd+click (or any
+ * non-primary-button click) on any link instead fall through to the anchor's own href/
+ * target="_blank", opening it directly in a new tab — exactly like every non-YouTube link always
+ * does (no special-casing needed there).
  * @param {HTMLAnchorElement} anchor
  * @param {{id: string, url: string, label: string}} link
  * @param {string} questionId
@@ -809,7 +811,7 @@ function wireLinkAnchorClick(anchor, link, questionId, handlers) {
   anchor.addEventListener("click", (e) => {
     e.stopPropagation();
     if (e.button !== 0 || e.ctrlKey || e.metaKey) return;
-    if (!isYouTubeUrl(link.url)) return;
+    if (!extractYouTubeVideoId(link.url)) return;
     e.preventDefault();
     handlers.onOpenYouTubePlayer(questionId, link);
   });

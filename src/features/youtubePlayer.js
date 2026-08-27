@@ -57,7 +57,8 @@ import { revealQuestion, revealGroup } from "./activeQuestion.js";
 import { renameLinkPrompt } from "./questionLinks.js";
 import { renameGroupLinkPrompt } from "./groupLinks.js";
 import { getGroupLinks } from "../data/groupLinks.js";
-import { fetchYouTubeTitle } from "./youtubeOEmbed.js";
+import { isYouTubeUrl } from "../data/linkIcons.js";
+import { fetchYouTubeTitle, fetchYouTubeTitleForUrl } from "./youtubeOEmbed.js";
 import {
   extractYouTubeVideoId,
   extractStartSeconds,
@@ -164,6 +165,25 @@ export function openYouTubePlayer(questionId, link, options = {}) {
   mountEl.id = mountId;
   embedWrap.appendChild(mountEl);
   wrap.appendChild(embedWrap);
+
+  // Track header — the currently-playing video's own label, editable in place, with a note when
+  // YouTube's real title (fetched via youtubeOEmbed.js) doesn't match it. Shown for both a plain
+  // single-video open and Group Playback (where it tracks whichever entry switchToEntry moves to).
+  const trackHeader = document.createElement("div");
+  trackHeader.className = "youtube-player-track-header";
+  const trackLabelEl = document.createElement("span");
+  trackLabelEl.className = "youtube-player-track-label";
+  const trackEditBtn = document.createElement("button");
+  trackEditBtn.type = "button";
+  trackEditBtn.className = "btn btn-sm btn-outline-secondary";
+  trackEditBtn.title = "Edit this video's label";
+  trackEditBtn.innerHTML = '<i class="fa-solid fa-pen"></i>';
+  trackHeader.append(trackLabelEl, trackEditBtn);
+  const trackTitleNote = document.createElement("div");
+  trackTitleNote.className = "youtube-player-track-title-note small text-muted";
+  trackTitleNote.hidden = true;
+  wrap.appendChild(trackHeader);
+  wrap.appendChild(trackTitleNote);
 
   const controls = document.createElement("div");
   controls.className = "youtube-player-controls";
@@ -299,34 +319,79 @@ export function openYouTubePlayer(questionId, link, options = {}) {
   }
 
   /**
+   * Refreshes the track header for whatever `curLink`/`curVideoId` currently is — called on open,
+   * after every switchToEntry, and after the edit button renames the current track's label. Guards
+   * against a stale response (fetchYouTubeTitle resolving after the user has already switched
+   * tracks) by re-checking `curLink` is still the same object the fetch was kicked off for.
+   */
+  function refreshTrackHeader() {
+    trackLabelEl.textContent = curLink.label || "(no label)";
+    trackTitleNote.hidden = true;
+    trackTitleNote.textContent = "";
+    const forLink = curLink;
+    fetchYouTubeTitle(curVideoId).then((title) => {
+      if (curLink !== forLink || !title) return;
+      if (title.trim().toLowerCase() === (forLink.label || "").trim().toLowerCase()) return;
+      trackTitleNote.hidden = false;
+      trackTitleNote.textContent = `YouTube title: ${title}`;
+    });
+  }
+
+  trackEditBtn.addEventListener("click", () => {
+    if (curQuestionId != null) {
+      renameLinkPrompt(curQuestionId, curLink.id, curLink.label, curLink.url);
+      const q = appState.rawData.find((qq) => qq.id === curQuestionId);
+      curLink = q?.links?.find((l) => l.id === curLink.id) ?? curLink;
+    } else if (playlist) {
+      const entry = playlist[curIndex];
+      renameGroupLinkPrompt(
+        /** @type {"subject"|"topic"|"subTopic"} */ (entry.level),
+        { subject: entry.subject, topic: entry.topic ?? undefined, subTopic: entry.subTopic ?? undefined },
+        curLink.id,
+        curLink.label,
+        curLink.url
+      );
+      const renamedLabel = getGroupLinks(appState.groupLinks, entry.subject, entry.topic, entry.subTopic).find((l) => l.id === curLink.id)?.label;
+      curLink = { ...curLink, label: renamedLabel ?? curLink.label };
+      entry.link = curLink;
+    }
+    refreshTrackHeader();
+    if (playlist) renderPlaylistPanel();
+  });
+
+  /**
    * Moves playback to `playlist[newIndex]` IN PLACE — same modal, same iframe/YT.Player instance
    * (loadVideoById swaps the video without recreating the element), so fullscreen (native or CSS)
-   * survives the switch. A no-op if there's no such entry, or if called again within the same beat
-   * (ENDED and runSequentialTick's own "last bookmark, next queued" branch can both fire close
-   * together right at a video's natural end).
+   * survives the switch. Silently skips forward over any playlist-only entry with no recognizable
+   * video id (nothing embeddable — e.g. a bare playlist URL added as a Related Link; see
+   * data/youtubeTime.js's extractYouTubeVideoId) until it finds one it can actually play, or runs
+   * off the end of the list. The skip-forward scan happens BEFORE the debounce guard below so a run
+   * of several playlist-only entries in a row doesn't get stuck on the first one (a `switchToEntry`
+   * that both scans past them and switches within the same call would otherwise trip the guard on
+   * its own recursive call). A no-op if there's no next embeddable entry, or if called again within
+   * the same beat (ENDED and runSequentialTick's own "last bookmark, next queued" branch can both
+   * fire close together right at a video's natural end).
    * @param {number} newIndex
    */
   function switchToEntry(newIndex) {
     if (!playlist) return;
-    const entry = playlist[newIndex];
+    let idx = newIndex;
+    while (playlist[idx] && !extractYouTubeVideoId(playlist[idx].link.url)) idx += 1;
+    const entry = playlist[idx];
     if (!entry) return;
+
     const now = Date.now();
     if (now - lastAdvanceAt < 600) return;
     lastAdvanceAt = now;
 
-    const newVideoId = extractYouTubeVideoId(entry.link.url);
-    if (!newVideoId) {
-      showToast("Couldn't recognize this playlist entry's URL as YouTube — skipping.", "error");
-      switchToEntry(newIndex + 1);
-      return;
-    }
-
-    curIndex = newIndex;
+    const newVideoId = /** @type {string} */ (extractYouTubeVideoId(entry.link.url));
+    curIndex = idx;
     curQuestionId = entry.questionId;
     curLink = entry.link;
     curVideoId = newVideoId;
     rawTextMode = false;
     syncBookmarkControlsVisibility();
+    refreshTrackHeader();
 
     const initialRanged = (bookmarksSupported() ? bookmarks.getLink(curQuestionId, curLink.id)?.bookmarks ?? [] : [])
       .filter((b) => b.end != null)
@@ -382,14 +447,18 @@ export function openYouTubePlayer(questionId, link, options = {}) {
 
     playlist.forEach((entry, i) => {
       const item = document.createElement("div");
-      item.className = `youtube-playlist-item${i === curIndex ? " is-current" : ""}`;
-
       const videoId = extractYouTubeVideoId(entry.link.url);
+      item.className = `youtube-playlist-item${i === curIndex ? " is-current" : ""}${videoId ? "" : " is-unplayable"}`;
+
       const thumb = document.createElement("img");
       thumb.className = "youtube-playlist-thumb";
       thumb.alt = "";
       thumb.loading = "lazy";
-      if (videoId) thumb.src = youtubeThumbnailUrl(videoId);
+      if (videoId) {
+        thumb.src = youtubeThumbnailUrl(videoId);
+      } else {
+        thumb.hidden = true;
+      }
       item.appendChild(thumb);
 
       const textCol = document.createElement("div");
@@ -399,10 +468,20 @@ export function openYouTubePlayer(questionId, link, options = {}) {
       titleEl.className = "youtube-playlist-item-title";
       titleEl.textContent = entry.link.label || entry.question || entry.breadcrumb;
       textCol.appendChild(titleEl);
-      if (videoId) {
-        fetchYouTubeTitle(videoId).then((fetchedTitle) => {
+      // Best-effort real title from YouTube's oEmbed — videoId'd entries via the id (guaranteed
+      // format), playlist-only entries via the raw URL (not officially supported by oEmbed for
+      // every such URL shape, so may just resolve null and leave the fallback text above in place).
+      const fetchedTitlePromise = videoId ? fetchYouTubeTitle(videoId) : isYouTubeUrl(entry.link.url) ? fetchYouTubeTitleForUrl(entry.link.url) : null;
+      if (fetchedTitlePromise) {
+        fetchedTitlePromise.then((fetchedTitle) => {
           if (fetchedTitle) titleEl.textContent = fetchedTitle;
         });
+      }
+      if (!videoId) {
+        const noEmbedNote = document.createElement("div");
+        noEmbedNote.className = "youtube-playlist-item-noembed small text-muted";
+        noEmbedNote.textContent = "Playlist link — opens in a new tab, can't be embedded here.";
+        textCol.appendChild(noEmbedNote);
       }
 
       const badge = document.createElement("span");
@@ -428,10 +507,17 @@ export function openYouTubePlayer(questionId, link, options = {}) {
       const playBtn = document.createElement("button");
       playBtn.type = "button";
       playBtn.className = "btn btn-sm btn-outline-secondary youtube-playlist-play-btn";
-      playBtn.title = i === curIndex ? "Now playing" : "Play this video";
-      playBtn.innerHTML = i === curIndex ? '<i class="fa-solid fa-play"></i>' : '<i class="fa-regular fa-circle-play"></i>';
-      playBtn.disabled = i === curIndex;
-      playBtn.addEventListener("click", () => switchToEntry(i));
+      if (videoId) {
+        playBtn.title = i === curIndex ? "Now playing" : "Play this video";
+        playBtn.innerHTML = i === curIndex ? '<i class="fa-solid fa-play"></i>' : '<i class="fa-regular fa-circle-play"></i>';
+        playBtn.disabled = i === curIndex;
+        playBtn.addEventListener("click", () => switchToEntry(i));
+      } else {
+        // Playlist-only link — nothing embeddable, so "play" just opens it on YouTube directly.
+        playBtn.title = "Open in a new tab — can't be embedded here";
+        playBtn.innerHTML = '<i class="fa-solid fa-up-right-from-square"></i>';
+        playBtn.addEventListener("click", () => window.open(entry.link.url, "_blank", "noopener"));
+      }
       actions.appendChild(playBtn);
 
       const editLabelBtn = document.createElement("button");
@@ -456,7 +542,7 @@ export function openYouTubePlayer(questionId, link, options = {}) {
       jumpBtn.type = "button";
       jumpBtn.className = "btn btn-sm btn-outline-secondary youtube-playlist-jump-btn";
       jumpBtn.title = "Jump to where this video is attached";
-      jumpBtn.innerHTML = '<i class="fa-solid fa-arrow-up-right-from-square"></i>';
+      jumpBtn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i>';
       jumpBtn.addEventListener("click", () => {
         modalHandle.close();
         if (entry.level === "question") revealQuestion(/** @type {string} */ (entry.questionId));
@@ -664,6 +750,7 @@ export function openYouTubePlayer(questionId, link, options = {}) {
   }
 
   syncBookmarkControlsVisibility();
+  refreshTrackHeader();
   renderList();
   renderPlaylistPanel();
 

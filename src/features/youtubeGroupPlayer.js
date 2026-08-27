@@ -18,6 +18,7 @@
 import { appState } from "../state/appState.js";
 import { getGroupLinks } from "../data/groupLinks.js";
 import { isYouTubeUrl } from "../data/linkIcons.js";
+import { extractYouTubeVideoId } from "../data/youtubeTime.js";
 import { openYouTubePlayer } from "./youtubePlayer.js";
 import { showToast } from "./toast.js";
 
@@ -97,13 +98,20 @@ function buildFilteredPlaylist() {
   return playlist;
 }
 
-/** Opens Group Playback for the currently filtered view, starting at its first video. */
+/**
+ * Opens Group Playback for the currently filtered view, starting at its first EMBEDDABLE video —
+ * the list can also include YouTube links with no recognizable video id (e.g. a bare playlist URL,
+ * added as a Related Link but not embeddable — see data/youtubeTime.js's extractYouTubeVideoId);
+ * those still appear as their own playlist rows (features/youtubePlayer.js's renderPlaylistPanel
+ * opens them in a new tab instead of playing), just never as the starting entry.
+ */
 export function openGroupPlayback() {
   const playlist = buildFilteredPlaylist();
-  if (playlist.length === 0) {
-    showToast("No YouTube videos in the current filtered view.", "info");
+  const startIndex = playlist.findIndex((entry) => extractYouTubeVideoId(entry.link.url));
+  if (startIndex === -1) {
+    showToast("No playable YouTube videos in the current filtered view.", "info");
     return;
   }
-  const first = playlist[0];
-  openYouTubePlayer(first.questionId, first.link, { playlist, index: 0 });
+  const first = playlist[startIndex];
+  openYouTubePlayer(first.questionId, first.link, { playlist, index: startIndex });
 }

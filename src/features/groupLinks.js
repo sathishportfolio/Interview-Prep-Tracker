@@ -7,8 +7,8 @@
  */
 import { addGroupLink, updateGroupLink, removeGroupLink, reorderGroupLinks, getGroupLinks } from "../data/groupLinks.js";
 import { domainLabelFromUrl, isYouTubeUrl } from "../data/linkIcons.js";
-import { extractYouTubeVideoId } from "../data/youtubeTime.js";
-import { fetchYouTubeTitle } from "./youtubeOEmbed.js";
+import { normalizeYouTubeUrl, extractYouTubeVideoId } from "../data/youtubeTime.js";
+import { fetchYouTubeTitle, fetchYouTubeTitleForUrl } from "./youtubeOEmbed.js";
 import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import { promptAction, confirmAction, showToast } from "./toast.js";
@@ -21,9 +21,12 @@ function scopeTriple(level, scope) {
 /**
  * Only the URL is asked for — the label defaults to its bare hostname (see domainLabelFromUrl),
  * editable afterward via the link's own pencil icon if the auto-derived label isn't descriptive
- * enough (e.g. "MDN: Closures" instead of "developer.mozilla.org"). For a YouTube URL, the video's
- * real title is fetched in the background (see youtubeOEmbed.js) and swapped in as the label once
- * it resolves — the hostname label added synchronously above is just the placeholder until then.
+ * enough (e.g. "MDN: Closures" instead of "developer.mozilla.org"). A YouTube watch/share URL is
+ * first canonicalized down to its bare `watch?v=<id>` form (data/youtubeTime.js's
+ * normalizeYouTubeUrl) and its real title is fetched in the background (see youtubeOEmbed.js) and
+ * swapped in as the label once it resolves; a YouTube URL with no video id (e.g. a bare playlist
+ * link) is kept as-is and still gets a best-effort title fetch, just without the canonicalization
+ * or the embedded-player support that requires a video id (see features/youtubePlayer.js).
  * A URL already present on this group's links is rejected with a toast instead of added again.
  * @param {"subject"|"topic"|"subTopic"} level
  * @param {{subject: string, topic?: string, subTopic?: string}} scope
@@ -31,7 +34,7 @@ function scopeTriple(level, scope) {
 export function addGroupLinkPrompt(level, scope) {
   const url = promptAction("Link URL:");
   if (url === null || !url.trim()) return;
-  const trimmedUrl = url.trim();
+  const trimmedUrl = normalizeYouTubeUrl(url.trim());
   const [subject, topic, subTopic] = scopeTriple(level, scope);
   if (getGroupLinks(appState.groupLinks, subject, topic, subTopic).some((l) => l.url === trimmedUrl)) {
     showToast("This link is already added.", "error");
@@ -41,9 +44,10 @@ export function addGroupLinkPrompt(level, scope) {
   const groupLinks = addGroupLink(appState.groupLinks, subject, topic, subTopic, { label: defaultLabel, url: trimmedUrl });
   applyDataChange({ rawData: appState.rawData, emptyGroups: appState.emptyGroups, groupLinks });
 
-  const videoId = isYouTubeUrl(trimmedUrl) ? extractYouTubeVideoId(trimmedUrl) : null;
-  if (videoId) {
-    fetchYouTubeTitle(videoId).then((title) => {
+  const videoId = extractYouTubeVideoId(trimmedUrl);
+  const titlePromise = videoId ? fetchYouTubeTitle(videoId) : isYouTubeUrl(trimmedUrl) ? fetchYouTubeTitleForUrl(trimmedUrl) : null;
+  if (titlePromise) {
+    titlePromise.then((title) => {
       if (!title) return;
       const link = getGroupLinks(appState.groupLinks, subject, topic, subTopic).find(
         (l) => l.url === trimmedUrl && l.label === defaultLabel
@@ -68,7 +72,7 @@ export function editGroupLinkPrompt(level, scope, linkId, currentLabel, currentU
   const url = promptAction("Link URL:", currentUrl);
   if (url === null || !url.trim()) return;
   const [subject, topic, subTopic] = scopeTriple(level, scope);
-  const groupLinks = updateGroupLink(appState.groupLinks, subject, topic, subTopic, linkId, { label: label.trim(), url: url.trim() });
+  const groupLinks = updateGroupLink(appState.groupLinks, subject, topic, subTopic, linkId, { label: label.trim(), url: normalizeYouTubeUrl(url.trim()) });
   applyDataChange({ rawData: appState.rawData, emptyGroups: appState.emptyGroups, groupLinks });
 }
 

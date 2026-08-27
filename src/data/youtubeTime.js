@@ -30,6 +30,22 @@ export function extractYouTubeVideoId(url) {
 }
 
 /**
+ * Canonicalizes a YouTube URL with a recognizable video id down to bare `https://www.youtube.com/
+ * watch?v=<id>` — stripping playlist/index/timestamp/tracking query params and any `youtu.be`/
+ * embed/shorts path form — so a link pasted from a "Watch on YouTube" share (which often trails a
+ * `&list=...&index=...`) doesn't drag an unrelated playlist along with it (features/questionLinks.js's/
+ * groupLinks.js's addLinkPrompt/addGroupLinkPrompt apply this to every URL on add). A YouTube URL
+ * with no video id (e.g. a bare `/playlist?list=...` link) has nothing to canonicalize to and is
+ * returned unchanged, same as any non-YouTube URL.
+ * @param {string} url
+ * @returns {string}
+ */
+export function normalizeYouTubeUrl(url) {
+  const videoId = extractYouTubeVideoId(url);
+  return videoId ? `https://www.youtube.com/watch?v=${videoId}` : url;
+}
+
+/**
  * @param {string} videoId
  * @returns {string} YouTube's own static per-video thumbnail image URL (mqdefault size, 320x180) —
  *   deterministic from the id alone, same "derive an image URL from public data, no fetch/API key

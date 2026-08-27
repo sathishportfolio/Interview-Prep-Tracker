@@ -694,6 +694,12 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .modal-host .modal-box:has(.youtube-player-modal) { max-width: min(96vw, 900px); width: 96%; }
 .youtube-player-embed-wrap { position: relative; width: 100%; padding-bottom: 56.25%; height: 0; background: #000; border-radius: 0.4rem; overflow: hidden; }
 .youtube-player-embed-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+/* Track header — the currently-playing video's own label + edit button (features/youtubePlayer.js's
+   refreshTrackHeader), with a muted note underneath when YouTube's real title (fetched via
+   youtubeOEmbed.js) doesn't match the label. */
+.youtube-player-track-header { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.6rem; }
+.youtube-player-track-label { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.youtube-player-track-title-note { margin-top: 0.1rem; }
 /* flex-wrap here (not nowrap) so the button row folds onto a second line rather than overflowing
    once the modal is narrower than all four buttons + the current-time readout fit on one line —
    matters most on mobile (see the @media block below) but is harmless at any width. */
@@ -739,6 +745,12 @@ body.edit-mode-off .edit-gated { display: none !important; }
 .youtube-playlist-item-breadcrumb { font-size: 0.78rem; color: var(--text-muted); white-space: normal; overflow-wrap: anywhere; }
 .youtube-playlist-item-linklabel { font-size: 0.76rem; color: var(--text-muted); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .youtube-playlist-item-actions { display: flex; flex-direction: column; gap: 0.25rem; flex: 0 0 auto; }
+/* Playlist-only entries (a YouTube link with no recognizable video id, e.g. a bare playlist URL —
+   see data/youtubeTime.js's extractYouTubeVideoId) can't be embedded: no thumbnail, dashed border to
+   set them apart from playable rows, and their own note instead (see youtube-playlist-item-noembed).
+   Their "play" button opens the link in a new tab instead (features/youtubePlayer.js). */
+.youtube-playlist-item.is-unplayable { border-style: dashed; }
+.youtube-playlist-item-noembed { font-size: 0.76rem; color: var(--text-muted); font-style: italic; }
 
 /* Tri-state count badge — small superscript-style number on the Done/Failed/Review Later icon, only
    shown once that status's own count > 0. Same badge class on all three; color follows whichever

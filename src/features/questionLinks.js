@@ -6,8 +6,8 @@
  */
 import { addQuestionLink, updateQuestionLink, removeQuestionLink, reorderQuestionLinks } from "../data/mutations.js";
 import { domainLabelFromUrl, isYouTubeUrl } from "../data/linkIcons.js";
-import { extractYouTubeVideoId } from "../data/youtubeTime.js";
-import { fetchYouTubeTitle } from "./youtubeOEmbed.js";
+import { normalizeYouTubeUrl, extractYouTubeVideoId } from "../data/youtubeTime.js";
+import { fetchYouTubeTitle, fetchYouTubeTitleForUrl } from "./youtubeOEmbed.js";
 import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import { promptAction, confirmAction, showToast } from "./toast.js";
@@ -15,16 +15,20 @@ import { promptAction, confirmAction, showToast } from "./toast.js";
 /**
  * Only the URL is asked for — the label defaults to its bare hostname (see domainLabelFromUrl),
  * editable afterward via the link's own pencil icon if the auto-derived label isn't descriptive
- * enough (e.g. "MDN: Closures" instead of "developer.mozilla.org"). For a YouTube URL, the video's
- * real title is fetched in the background (see youtubeOEmbed.js) and swapped in as the label once
- * it resolves — the hostname label added synchronously above is just the placeholder until then.
+ * enough (e.g. "MDN: Closures" instead of "developer.mozilla.org"). A YouTube watch/share URL is
+ * first canonicalized down to its bare `watch?v=<id>` form (data/youtubeTime.js's
+ * normalizeYouTubeUrl) — dropping any trailing `&list=...&index=...` etc — and its real title is
+ * fetched in the background (see youtubeOEmbed.js) and swapped in as the label once it resolves; a
+ * YouTube URL with no video id (e.g. a bare playlist link) is kept as-is and still gets a
+ * best-effort title fetch, just without the canonicalization (nothing to canonicalize to) or the
+ * embedded-player support that requires a video id (see features/youtubePlayer.js).
  * A URL already present on this question's links is rejected with a toast instead of added again.
  * @param {string} questionId
  */
 export function addLinkPrompt(questionId) {
   const url = promptAction("Link URL:");
   if (url === null || !url.trim()) return;
-  const trimmedUrl = url.trim();
+  const trimmedUrl = normalizeYouTubeUrl(url.trim());
   const question = appState.rawData.find((q) => q.id === questionId);
   if (question?.links?.some((l) => l.url === trimmedUrl)) {
     showToast("This link is already added.", "error");
@@ -34,9 +38,10 @@ export function addLinkPrompt(questionId) {
   const rawData = addQuestionLink(appState.rawData, questionId, { label: defaultLabel, url: trimmedUrl });
   applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
 
-  const videoId = isYouTubeUrl(trimmedUrl) ? extractYouTubeVideoId(trimmedUrl) : null;
-  if (videoId) {
-    fetchYouTubeTitle(videoId).then((title) => {
+  const videoId = extractYouTubeVideoId(trimmedUrl);
+  const titlePromise = videoId ? fetchYouTubeTitle(videoId) : isYouTubeUrl(trimmedUrl) ? fetchYouTubeTitleForUrl(trimmedUrl) : null;
+  if (titlePromise) {
+    titlePromise.then((title) => {
       if (!title) return;
       const question = appState.rawData.find((q) => q.id === questionId);
       const link = question?.links?.find((l) => l.url === trimmedUrl && l.label === defaultLabel);
@@ -58,7 +63,7 @@ export function editLinkPrompt(questionId, linkId, currentLabel, currentUrl) {
   if (label === null || !label.trim()) return;
   const url = promptAction("Link URL:", currentUrl);
   if (url === null || !url.trim()) return;
-  const rawData = updateQuestionLink(appState.rawData, questionId, linkId, { label: label.trim(), url: url.trim() });
+  const rawData = updateQuestionLink(appState.rawData, questionId, linkId, { label: label.trim(), url: normalizeYouTubeUrl(url.trim()) });
   applyDataChange({ rawData, emptyGroups: appState.emptyGroups });
 }
 
