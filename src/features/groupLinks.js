@@ -5,8 +5,10 @@
  * pipeline. Mirrors features/questionLinks.js exactly, one level up (scoped by level+scope instead
  * of a question id).
  */
-import { addGroupLink, updateGroupLink, removeGroupLink, reorderGroupLinks } from "../data/groupLinks.js";
-import { domainLabelFromUrl } from "../data/linkIcons.js";
+import { addGroupLink, updateGroupLink, removeGroupLink, reorderGroupLinks, getGroupLinks } from "../data/groupLinks.js";
+import { domainLabelFromUrl, isYouTubeUrl } from "../data/linkIcons.js";
+import { extractYouTubeVideoId } from "../data/youtubeTime.js";
+import { fetchYouTubeTitle } from "./youtubeOEmbed.js";
 import { applyDataChange } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import { promptAction, confirmAction } from "./toast.js";
@@ -19,7 +21,9 @@ function scopeTriple(level, scope) {
 /**
  * Only the URL is asked for — the label defaults to its bare hostname (see domainLabelFromUrl),
  * editable afterward via the link's own pencil icon if the auto-derived label isn't descriptive
- * enough (e.g. "MDN: Closures" instead of "developer.mozilla.org").
+ * enough (e.g. "MDN: Closures" instead of "developer.mozilla.org"). For a YouTube URL, the video's
+ * real title is fetched in the background (see youtubeOEmbed.js) and swapped in as the label once
+ * it resolves — the hostname label added synchronously above is just the placeholder until then.
  * @param {"subject"|"topic"|"subTopic"} level
  * @param {{subject: string, topic?: string, subTopic?: string}} scope
  */
@@ -27,9 +31,23 @@ export function addGroupLinkPrompt(level, scope) {
   const url = promptAction("Link URL:");
   if (url === null || !url.trim()) return;
   const trimmedUrl = url.trim();
+  const defaultLabel = domainLabelFromUrl(trimmedUrl);
   const [subject, topic, subTopic] = scopeTriple(level, scope);
-  const groupLinks = addGroupLink(appState.groupLinks, subject, topic, subTopic, { label: domainLabelFromUrl(trimmedUrl), url: trimmedUrl });
+  const groupLinks = addGroupLink(appState.groupLinks, subject, topic, subTopic, { label: defaultLabel, url: trimmedUrl });
   applyDataChange({ rawData: appState.rawData, emptyGroups: appState.emptyGroups, groupLinks });
+
+  const videoId = isYouTubeUrl(trimmedUrl) ? extractYouTubeVideoId(trimmedUrl) : null;
+  if (videoId) {
+    fetchYouTubeTitle(videoId).then((title) => {
+      if (!title) return;
+      const link = getGroupLinks(appState.groupLinks, subject, topic, subTopic).find(
+        (l) => l.url === trimmedUrl && l.label === defaultLabel
+      );
+      if (!link) return;
+      const nextGroupLinks = updateGroupLink(appState.groupLinks, subject, topic, subTopic, link.id, { label: title, url: trimmedUrl });
+      applyDataChange({ rawData: appState.rawData, emptyGroups: appState.emptyGroups, groupLinks: nextGroupLinks });
+    });
+  }
 }
 
 /**
