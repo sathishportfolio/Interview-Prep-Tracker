@@ -140,6 +140,11 @@ export function openYouTubePlayer(questionId, link, options = {}) {
   /** @type {import('../types.js').LinkBookmark[]} Ranged (has an `end`) bookmarks only, sorted by
    *  start — recomputed on every renderList() call, read by runSequentialTick. */
   let rangedBookmarks = [];
+  /** @type {import('../types.js').LinkBookmark[]} EVERY bookmark (ranged and single-point alike),
+   *  sorted by start — recomputed alongside rangedBookmarks, used by runSequentialTick to tell "no
+   *  more RANGED bookmarks, but there's still a single-point one later" apart from "nothing left at
+   *  all" (only the latter should pause/advance — see runSequentialTick). */
+  let allBookmarksSorted = [];
   /** Index into rangedBookmarks the player is currently "inside" for sequential auto-play purposes,
    *  or -1 when outside every ranged bookmark. Recomputed every tick, not just after a jump, so
    *  manually scrubbing into a range is picked up within one tick interval. */
@@ -241,11 +246,25 @@ export function openYouTubePlayer(questionId, link, options = {}) {
     syncAutoplayToggle();
   });
 
+  // Skip current / play next — Group Playback only (hidden entirely for a plain single-video open,
+  // where there's no "next" to skip to). Manual, unconditional advance: unlike auto-advance (video
+  // ENDED, or runSequentialTick running out of bookmarks), this doesn't care whether the current
+  // video has finished or has bookmarks at all — it always jumps straight to the next embeddable
+  // entry (switchToEntry's own skip-forward scan silently passes over any non-embeddable/
+  // playlist-only entries in between; see its doc comment).
+  const nextBtn = document.createElement("button");
+  nextBtn.type = "button";
+  nextBtn.className = "btn btn-sm btn-outline-secondary";
+  nextBtn.title = "Skip current video, play next";
+  nextBtn.innerHTML = '<i class="fa-solid fa-forward-step"></i>';
+  nextBtn.hidden = !(playlist && playlist.length > 0);
+  nextBtn.addEventListener("click", () => advanceToNextInPlaylist());
+
   const currentTimeEl = document.createElement("span");
   currentTimeEl.className = "youtube-player-current-time";
   currentTimeEl.textContent = "00:00";
 
-  controls.append(addBtn, rawToggleBtn, copyBtn, autoplayToggleBtn, currentTimeEl);
+  controls.append(addBtn, rawToggleBtn, copyBtn, autoplayToggleBtn, nextBtn, currentTimeEl);
   wrap.appendChild(controls);
 
   // Manual Bookmark Entry — a bookmark that isn't "wherever the player happens to be right now",
@@ -316,6 +335,13 @@ export function openYouTubePlayer(questionId, link, options = {}) {
     rawToggleBtn.hidden = !supported;
     copyBtn.hidden = !supported;
     manualRow.hidden = !supported;
+  }
+
+  /** Disables the Skip/Next control once there's no later embeddable entry left to skip TO —
+   *  called on open and after every switch, same as syncBookmarkControlsVisibility. */
+  function refreshNextBtnState() {
+    if (!playlist) return;
+    nextBtn.disabled = !playlist.slice(curIndex + 1).some((e) => extractYouTubeVideoId(e.link.url));
   }
 
   /**
@@ -391,6 +417,7 @@ export function openYouTubePlayer(questionId, link, options = {}) {
     curVideoId = newVideoId;
     rawTextMode = false;
     syncBookmarkControlsVisibility();
+    refreshNextBtnState();
     refreshTrackHeader();
 
     const initialRanged = (bookmarksSupported() ? bookmarks.getLink(curQuestionId, curLink.id)?.bookmarks ?? [] : [])
@@ -569,6 +596,7 @@ export function openYouTubePlayer(questionId, link, options = {}) {
     }
     const freshLink = bookmarks.getLink(curQuestionId, curLink.id);
     const list = [...(freshLink?.bookmarks ?? [])].sort((a, b) => a.start - b.start);
+    allBookmarksSorted = list;
     rangedBookmarks = list.filter((b) => b.end != null);
     activeBookmarkIndex = -1;
 
@@ -750,6 +778,7 @@ export function openYouTubePlayer(questionId, link, options = {}) {
   }
 
   syncBookmarkControlsVisibility();
+  refreshNextBtnState();
   refreshTrackHeader();
   renderList();
   renderPlaylistPanel();
@@ -779,19 +808,30 @@ export function openYouTubePlayer(questionId, link, options = {}) {
     if (activeBookmarkIndex === -1) return;
     const finished = rangedBookmarks[activeBookmarkIndex];
     if (currentTime < /** @type {number} */ (finished.end)) return;
-    const next = rangedBookmarks[activeBookmarkIndex + 1];
-    if (next) {
-      player.seekTo(next.start, true);
-      activeBookmarkIndex += 1;
-    } else if (playlist && playlist[curIndex + 1]) {
+    activeBookmarkIndex = -1;
+
+    const nextRanged = rangedBookmarks[rangedBookmarks.indexOf(finished) + 1];
+    if (nextRanged) {
+      // Next bookmark in line is ITSELF ranged — jump straight to its start rather than continuing
+      // through the untagged gap between them (unchanged from before).
+      player.seekTo(nextRanged.start, true);
+      return;
+    }
+    // No more RANGED bookmarks after this one — but that's NOT the same as "nothing left to watch":
+    // a single-point bookmark (no `end`) further along the video is just a marker, not something to
+    // jump-skip to, so its presence alone should never pause playback here. Only stop (or advance to
+    // the next playlist video) when `finished` is the LAST bookmark of ANY kind on this link — i.e.
+    // there's truly nothing left, ranged or single-point, still ahead of it.
+    const isLastBookmarkOverall = allBookmarksSorted.indexOf(finished) === allBookmarksSorted.length - 1;
+    if (!isLastBookmarkOverall) return;
+    if (playlist && playlist[curIndex + 1]) {
       // Group Playback: finishing the last bookmark with another video queued moves on to it
       // immediately, rather than pausing here and stranding the rest of the untagged video.
       advanceToNextInPlaylist();
-    } else {
+    } else if (typeof player.pauseVideo === "function") {
       // No next bookmark, and nothing queued after it — stop exactly at this one's end instead of
       // rolling on into the rest of the (untagged) video.
-      if (typeof player.pauseVideo === "function") player.pauseVideo();
-      activeBookmarkIndex = -1;
+      player.pauseVideo();
     }
   }
 
