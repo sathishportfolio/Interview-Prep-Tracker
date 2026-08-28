@@ -263,6 +263,31 @@ export function renameTag(rawData, oldTag, newTag) {
 }
 
 /**
+ * Retroactively syncs a tag-relation edit onto every question that already carries `tag`, so
+ * pre-existing tagging isn't stuck reflecting a relation that's since changed: "add" gives those
+ * questions `relatedTag` too (what toggleQuestionTag would have done had the relation existed at
+ * tagging time); "remove" strips `relatedTag` back off them. Used by features/tags.js's
+ * addRelatedTag/removeRelatedTag.
+ * @param {Question[]} rawData
+ * @param {string} tag
+ * @param {string} relatedTag
+ * @param {"add"|"remove"} action
+ * @returns {Question[]}
+ */
+export function applyRelatedTagToQuestions(rawData, tag, relatedTag, action) {
+  return rawData.map((q) => {
+    const tags = q.tags ?? [];
+    if (!tags.includes(tag)) return q;
+    if (action === "add") {
+      if (tags.includes(relatedTag)) return q;
+      return { ...q, tags: [...tags, relatedTag], updatedAt: Date.now() };
+    }
+    if (!tags.includes(relatedTag)) return q;
+    return { ...q, tags: tags.filter((t) => t !== relatedTag), updatedAt: Date.now() };
+  });
+}
+
+/**
  * Appends a new related-article link to a question's `links` array.
  * @param {Question[]} rawData
  * @param {string} questionId

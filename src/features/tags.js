@@ -5,7 +5,7 @@
  * toggleQuestionTag for the per-question side, persistence/store.js's writeGlobalTags for the
  * registry side, then the shared refresh pipeline.
  */
-import { toggleQuestionTag, renameTag } from "../data/mutations.js";
+import { toggleQuestionTag, renameTag, applyRelatedTagToQuestions } from "../data/mutations.js";
 import { applyDataChange, recompute, repaint } from "./refresh.js";
 import { appState } from "../state/appState.js";
 import * as store from "../persistence/store.js";
@@ -123,6 +123,9 @@ export function setTagIcon(tag, iconClass) {
 /**
  * Maps `relatedTag` onto `tag` — adding `tag` to a question will also auto-apply `relatedTag` (and
  * transitively, whatever `relatedTag` itself maps to — see data/mutations.js's toggleQuestionTag).
+ * Retroactive Tag Sync: also immediately back-applies `relatedTag` to every question (across every
+ * loaded file) that already carries `tag`, so questions tagged before this relation existed aren't
+ * left out of sync with it.
  * @param {string} tag
  * @param {string} relatedTag
  */
@@ -133,11 +136,15 @@ export function addRelatedTag(tag, relatedTag) {
   appState.globalTagRelations = { ...appState.globalTagRelations, [tag]: [...current, relatedTag] };
   store.writeGlobalTagRelations(appState.globalTagRelations);
   touchTagMeta(tag, { modifiedAt: Date.now() });
+  applyTagChangeAcrossFiles((rawData) => applyRelatedTagToQuestions(rawData, tag, relatedTag, "add"));
 }
 
 /**
  * Un-maps `relatedTag` from `tag` — the reverse of addRelatedTag. Only removes this ONE direction;
- * if `relatedTag` separately maps back to `tag`, that direction is untouched.
+ * if `relatedTag` separately maps back to `tag`, that direction is untouched. Retroactive Tag Sync:
+ * also immediately strips `relatedTag` back off every question (across every loaded file) that
+ * carries `tag`, mirroring addRelatedTag's back-apply so removing a relation is just as retroactive
+ * as adding one.
  * @param {string} tag
  * @param {string} relatedTag
  */
@@ -146,6 +153,7 @@ export function removeRelatedTag(tag, relatedTag) {
   appState.globalTagRelations = { ...appState.globalTagRelations, [tag]: next };
   store.writeGlobalTagRelations(appState.globalTagRelations);
   touchTagMeta(tag, { modifiedAt: Date.now() });
+  applyTagChangeAcrossFiles((rawData) => applyRelatedTagToQuestions(rawData, tag, relatedTag, "remove"));
 }
 
 /**
