@@ -48,7 +48,11 @@ const CODE_EXAMPLE_ASK = "provide a one-liner answer with an example code snippe
  * @returns {string}
  */
 function buildGoogleSearchQuery(q, mode) {
-  if (mode === "whatwhywherehow") return `What are ${q.question}, why and where do we use them, and how are they implemented in java`;
+  if (mode === "whatwhywherehow") {
+    // Trims leading "what is", "what are", or "what" (case-insensitive) along with any extra spaces
+    const cleanQuestion = q.question.replace(/^what\s+(is|are)?\s*/i, '');
+    return `What are ${cleanQuestion}, why and where are they used, and how are they implemented in Java? Please provide a complete example code snippet.`;
+  }
   if (mode === "codeExample") return `${q.question} ${CODE_EXAMPLE_ASK}`;
   if (mode === "plain") return q.question;
   if (mode === "subject") return `In ${q.subject}, ${q.question} ${CODE_EXAMPLE_ASK}`;
