@@ -77,7 +77,7 @@ function attachHoverIntentPanel(wrap, panel) {
  * @property {(qid: string) => void} onDeleteQuestion
  * @property {(qid: string) => void} onCopyQuestion
  * @property {(qid: string) => void} onCopyAndSearch
- * @property {(qid: string, mode?: "codeExample"|"plain"|"subject"|"topic"|"subTopic") => void} onGoogleSearch
+ * @property {(qid: string, mode?: "whatwhywherehow"|"codeExample"|"plain"|"subject"|"topic"|"subTopic") => void} onGoogleSearch
  * @property {(qid: string, dir: "up"|"down"|"top"|"bottom") => void} onMoveQuestionOrder
  * @property {(qid: string) => void} onToggleActiveQuestion
  * @property {(qid: string) => void} onToggleQuestionOpen
@@ -579,6 +579,7 @@ export function createQuestionNode(q, handlers) {
   for (const [mode, label] of [
     ["plain", "Plain Question"],
     ["codeExample", "Ask for Code Example"],
+    ["whatwhywherehow", "What, Why, Where, How"],
     ["subTopic", `As ${q.subTopic}`],
     ["topic", `As ${q.topic}`],
     ["subject", `As ${q.subject}`],

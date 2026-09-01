@@ -44,10 +44,11 @@ const CODE_EXAMPLE_ASK = "provide a one-liner answer with an example code snippe
  * text, the answer row's main button). Every scoped mode (subject/topic/subTopic) asks for the
  * code example too — only "plain" (raw question, no scope, no ask) opts out of it.
  * @param {import('../types.js').Question} q
- * @param {"codeExample"|"plain"|"subject"|"topic"|"subTopic"} [mode]
+ * @param {"codeExample"|"plain"|"subject"|"topic"|"subTopic"|"whatwhywherehow"} [mode]
  * @returns {string}
  */
 function buildGoogleSearchQuery(q, mode) {
+  if (mode === "whatwhywherehow") return `What are ${q.question}, why and where do we use them, and how are they implemented in java`;
   if (mode === "codeExample") return `${q.question} ${CODE_EXAMPLE_ASK}`;
   if (mode === "plain") return q.question;
   if (mode === "subject") return `In ${q.subject}, ${q.question} ${CODE_EXAMPLE_ASK}`;
@@ -58,7 +59,7 @@ function buildGoogleSearchQuery(q, mode) {
 /**
  * Opens a new tab Google-searching a prompt asking how to best answer this question.
  * @param {string} questionId
- * @param {"codeExample"|"plain"|"subject"|"topic"|"subTopic"} [mode]
+ * @param {"codeExample"|"plain"|"subject"|"topic"|"subTopic"|"whatwhywherehow"} [mode]
  */
 export function googleSearchQuestion(questionId, mode) {
   const q = appState.rawData.find((x) => x.id === questionId);
