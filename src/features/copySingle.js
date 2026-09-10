@@ -34,7 +34,7 @@ export async function copyAndSearch(questionId) {
   showDuplicateResultsModal(questionId, q.question);
 }
 
-const CODE_EXAMPLE_ASK = "provide a one-liner answer with an example code snippet if applicable";
+const CODE_EXAMPLE_ASK = "Provide a one-line answer as a comment above the code snippet, and include the example output as a comment at the end.";
 
 /**
  * Builds the Google search query for a question. `mode` picks the query style (see
@@ -51,7 +51,7 @@ function buildGoogleSearchQuery(q, mode) {
   if (mode === "whatwhywherehow") {
     // Trims leading "what is", "what are", or "what" (case-insensitive) along with any extra spaces
     const cleanQuestion = q.question.replace(/^what\s+(is|are)?\s*/i, '');
-    return `What are ${cleanQuestion}, why and where are they used, and how are they implemented in Java? Please provide a complete example code snippet.`;
+    return `What are ${cleanQuestion}, why and where are they used, and how are they implemented in Java? Please Provide a one-line answer as a comment above the code snippet, and include the example output as a comment at the end.`;
   }
   if (mode === "codeExample") return `${q.question} ${CODE_EXAMPLE_ASK}`;
   if (mode === "plain") return q.question;
