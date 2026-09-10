@@ -34,7 +34,7 @@ export async function copyAndSearch(questionId) {
   showDuplicateResultsModal(questionId, q.question);
 }
 
-const CODE_EXAMPLE_ASK = "Provide a one-line answer as a comment above the code snippet, and include the example output as a comment at the end.";
+const CODE_EXAMPLE_ASK = "Provide answer in bullet points and a code snippet with example output as a comment at the end.";
 
 /**
  * Builds the Google search query for a question. `mode` picks the query style (see
@@ -44,7 +44,7 @@ const CODE_EXAMPLE_ASK = "Provide a one-line answer as a comment above the code 
  * text, the answer row's main button). Every scoped mode (subject/topic/subTopic) asks for the
  * code example too — only "plain" (raw question, no scope, no ask) opts out of it.
  * @param {import('../types.js').Question} q
- * @param {"codeExample"|"plain"|"subject"|"topic"|"subTopic"|"whatwhywherehow"} [mode]
+ * @param {"codeExample"|"plain"|"subject"|"topic"|"subTopic"|"whatwhywherehow"|"all"} [mode]
  * @returns {string}
  */
 function buildGoogleSearchQuery(q, mode) {
@@ -57,6 +57,9 @@ function buildGoogleSearchQuery(q, mode) {
   if (mode === "plain") return q.question;
   if (mode === "subject") return `In ${q.subject}, ${q.question} ${CODE_EXAMPLE_ASK}`;
   if (mode === "subTopic") return `In ${q.subTopic}, ${q.question} ${CODE_EXAMPLE_ASK}`;
+  if (mode === "all") {
+    return `In ${((...str) => [...new Set(str.join(" ").split(/\s+/).filter(Boolean))].join(" "))(q.subject, q.topic, q.subTopic)}, ${q.question} ${CODE_EXAMPLE_ASK}`;
+  }
   return `In ${q.topic}, ${q.question} ${CODE_EXAMPLE_ASK}`; // default, and "topic" mode
 }
 

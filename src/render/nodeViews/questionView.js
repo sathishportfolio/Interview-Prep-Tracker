@@ -578,7 +578,7 @@ export function createQuestionNode(q, handlers) {
   });
   for (const [mode, label] of [
     ["plain", "Plain Question"],
-    ["codeExample", "Ask for Code Example"],
+    ["all", `As Subject + Topic + SubTopic`],
     ["whatwhywherehow", "What, Why, Where, How"],
     ["subTopic", `As ${q.subTopic}`],
     ["topic", `As ${q.topic}`],
