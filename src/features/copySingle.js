@@ -34,7 +34,7 @@ export async function copyAndSearch(questionId) {
   showDuplicateResultsModal(questionId, q.question);
 }
 
-const CODE_EXAMPLE_ASK = "Provide answer in bullet points and a code snippet with example output as a comment at the end.";
+const CODE_EXAMPLE_ASK = "provide a one-liner answer with an example code snippet and include the example output as a comment at the end";
 
 /**
  * Builds the Google search query for a question. `mode` picks the query style (see
