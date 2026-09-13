@@ -34,7 +34,7 @@ export async function copyAndSearch(questionId) {
   showDuplicateResultsModal(questionId, q.question);
 }
 
-const CODE_EXAMPLE_ASK = "Give a one-line answer with a code snippet and its output commented at the end.";
+const CODE_EXAMPLE_ASK = "Provide the answer with a code snippet and its output commented at the end.";
 
 /**
  * Builds the Google search query for a question. `mode` picks the query style (see
@@ -51,14 +51,14 @@ function buildGoogleSearchQuery(q, mode) {
   if (mode === "whatwhywherehow") {
     // Trims leading "what is", "what are", or "what" (case-insensitive) along with any extra spaces
     const cleanQuestion = q.question.replace(/^what\s+(is|are)?\s*/i, '');
-    return `What are ${cleanQuestion}, why and where are they used, and how are they implemented in Java? Please Provide a one-line answer as a comment above the code snippet, and include the example output as a comment at the end.`;
+    return `What are ${cleanQuestion}, why and where are they used, and how are they implemented in Java? Please ${CODE_EXAMPLE_ASK}`;
   }
   if (mode === "codeExample") return `${q.question} ${CODE_EXAMPLE_ASK}`;
   if (mode === "plain") return q.question;
   if (mode === "subject") return `In ${q.subject}, ${q.question} ${CODE_EXAMPLE_ASK}`;
   if (mode === "subTopic") return `In ${q.subTopic}, ${q.question} ${CODE_EXAMPLE_ASK}`;
   if (mode === "all") {
-    return `In ${((...str) => [...new Set(str.join(" ").split(/\s+/).filter(Boolean))].join(" "))(q.subject, q.topic, q.subTopic)}, ${q.question} ${CODE_EXAMPLE_ASK}`;
+    return `In ${q.subject}, ${q.topic}, ${q.subTopic}, ${q.question} - ${CODE_EXAMPLE_ASK}`;
   }
   return `In ${q.topic}, ${q.question} ${CODE_EXAMPLE_ASK}`; // default, and "topic" mode
 }
